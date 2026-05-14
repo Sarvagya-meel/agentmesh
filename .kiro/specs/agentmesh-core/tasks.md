@@ -52,6 +52,18 @@ Every phase must satisfy the documentation quality gates defined in `design.md` 
     {
       "wave": 9,
       "tasks": ["Phase 9: End-to-End Workflow", "Phase 10: Developer Experience"]
+    },
+    {
+      "wave": 10,
+      "tasks": ["Phase 11: Local Agent Registry"]
+    },
+    {
+      "wave": 11,
+      "tasks": ["Phase 12: Optional AWS Agent Registry Integration"]
+    },
+    {
+      "wave": 12,
+      "tasks": ["Phase 13: Optional AgentCore Runtime Demo"]
     }
   ]
 }
@@ -209,5 +221,49 @@ Every phase must satisfy the documentation quality gates defined in `design.md` 
 - Never introduce direct agent-to-agent calls at any phase.
 - Never store workflow state only in memory — every state must be reconstructable from events.
 - Redis Streams / Kafka are future extensions only. Do not introduce them in any phase.
+- AWS integrations (Phases 11–12) are optional and disabled by default. Unit tests must never call AWS. Local mode must always work without AWS credentials.
 - The `decide()` function in OrchestratorService is intentionally simple in v1. It will be replaced with a more sophisticated decision engine in a future spec.
-- All LLM and external tool integrations must be behind abstract interfaces — never hardcoded into agent `execute()` methods.
+- All LLM and external tool integrations must be behind abstract interfaces — never hardcoded into agent `execute()` methods. Default LLM provider is `mock`.
+
+---
+
+## Phase 11: Local Agent Registry
+
+- [ ] 1. Define `agent_manifest.json` schema — `agent_id`, `name`, `version`, `description`, `capabilities`, `subscribed_event_types`, `emitted_event_types`, `runtime`, `governance`
+- [ ] 2. Add `agent_manifest.json` stub to each agent package: `agents/job_detector/`, `agents/email_finder/`, `agents/applicator/`
+- [ ] 3. Add `src/registry/models.py` with `AgentManifest` Pydantic domain model matching the manifest schema
+- [ ] 4. Add `src/registry/repository.py` with abstract `RegistryRepository` and a concrete `LocalRegistryRepository` that reads manifests from the filesystem or a `local_registry` DB table
+- [ ] 5. Add `src/registry/service.py` with `RegistryService`: `register_agent(manifest)`, `list_agents()`, `get_agent(agent_id)`
+- [ ] 6. Add `GET /registry/agents` route returning all registered local agents
+- [ ] 7. Add `GET /registry/agents/{agent_id}` route returning a single agent manifest
+- [ ] 8. Add `src/integrations/local/local_registry.py` stub — local file-backed registry fallback
+- [ ] 9. Write unit tests: test `RegistryService.list_agents` returns all manifests, test `get_agent` returns correct manifest, test missing agent returns `AgentNotFoundError`
+- [ ] 10. Write API tests: test `GET /registry/agents` returns 200 with list, test `GET /registry/agents/{id}` returns 200, test unknown agent returns 404
+
+---
+
+## Phase 12: Optional AWS Agent Registry Integration
+
+- [ ] 1. Add `AWS_AGENT_REGISTRY_ENABLED` and `AWS_AGENTCORE_ENABLED` flags to `src/config.py` — both default to `false`
+- [ ] 2. Add `src/integrations/aws/__init__.py` and `src/integrations/aws/agent_registry_client.py` stub — implements the same `RegistryRepository` interface as the local implementation
+- [ ] 3. Add `src/integrations/aws/bedrock_model_client.py` stub — implements `LLMProvider` protocol; only instantiated when `LLM_PROVIDER=bedrock`
+- [ ] 4. Add `src/integrations/aws/agentcore_runtime_adapter.py` stub — implements a `RuntimeAdapter` interface; only instantiated when `AWS_AGENTCORE_ENABLED=true`
+- [ ] 5. Add `src/integrations/local/__init__.py` and `src/integrations/local/local_registry.py` stub
+- [ ] 6. Add a dry-run sync command: `python -m src.runners.sync_registry --dry-run` — prints what would be synced without calling AWS
+- [ ] 7. Add a manual sync command: `python -m src.runners.sync_registry` — syncs local manifests to AWS Agent Registry when flag is enabled
+- [ ] 8. Write unit tests using mocks only — no real AWS calls: test that `agent_registry_client` is never called when flag is `false`, test that sync sends only metadata fields (no event payloads), test that missing AWS credentials trigger graceful fallback to local mode
+- [ ] 9. Add `docs/content/medium/` entry or backlog note on cost-control design
+- [ ] 10. **Do not create any AWS resources automatically.** All AWS operations require explicit manual enablement.
+
+---
+
+## Phase 13: Optional AgentCore Runtime Demo
+
+- [ ] 1. Mark `agentcore_runtime_adapter.py` as experimental in code comments and README
+- [ ] 2. Add a `AGENTCORE_DEMO_AGENT_ID` config flag — specifies which single agent to deploy as a demo
+- [ ] 3. Implement minimal `AgentCoreRuntimeAdapter.deploy(agent_id)` that packages and registers one agent with AgentCore — only callable when `AWS_AGENTCORE_ENABLED=true`
+- [ ] 4. Verify that the deployed agent still communicates with AgentMesh MCP via `clients/mcp_client.py` — not through any AgentCore-native event bus
+- [ ] 5. Add cost warning to README: estimated cost, free tier limits, how to disable
+- [ ] 6. Add rollback instructions: how to switch back to local runner if AgentCore deployment is disabled
+- [ ] 7. Write integration test (skipped unless `AWS_AGENTCORE_ENABLED=true` and credentials present): deploy demo agent, verify it polls MCP and emits events correctly
+- [ ] 8. **MCP remains the source of truth.** AgentCore is compute only. No workflow state lives in AgentCore.

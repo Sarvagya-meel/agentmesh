@@ -83,3 +83,31 @@ Most AI agent tutorials show a single Python file. That works for demos. In prod
 ## Hashtags
 
 #Python #SystemDesign #MultiAgent #SoftwareArchitecture #AIEngineering
+
+---
+
+# Topic: How I Designed My Agent System to Be Local-First but Cloud-Ready with AWS AgentCore
+
+## Hook
+
+Every cloud tutorial starts with "first, create an AWS account." I started with "first, make it work for free on your laptop." Here's how I designed AgentMesh to run locally with zero cloud cost — and scale to AWS when ready, without rewriting anything.
+
+## Core Idea
+
+AgentMesh uses feature flags and injectable adapter interfaces to keep AWS optional. `AWS_AGENT_REGISTRY_ENABLED=false` means no AWS calls. `LLM_PROVIDER=mock` means no Bedrock calls. All AWS clients implement the same abstract interfaces as local implementations — so the service layer never knows whether it's talking to AWS or a local mock.
+
+## Why It Matters
+
+Cloud costs are real. AWS mistakes are expensive. A local-first design means you can build, test, and demo the entire system for free. When the business is ready to scale — or when compliance requires a centralised agent catalogue — you flip a flag. Nothing else changes.
+
+## AgentMesh Example
+
+In AgentMesh, `agents/job_detector/agent_manifest.json` describes the agent's capabilities and governance metadata. Locally, `RegistryService` reads this from the filesystem. When `AWS_AGENT_REGISTRY_ENABLED=true`, the same service syncs it to AWS Agent Registry. The agent itself doesn't change — it still polls MCP via `clients/mcp_client.py` whether it's running locally or on AgentCore.
+
+## LinkedIn-Ready Version
+
+Most AI projects start with cloud dependencies baked in. I took the opposite approach with AgentMesh: local-first, cloud-optional. All core functionality runs on a laptop with Docker Compose. AWS Agent Registry and AgentCore are opt-in via feature flags. Unit tests never call AWS. When you're ready to scale, you flip a flag — nothing else changes. That's the kind of architecture that survives contact with production.
+
+## Hashtags
+
+#Python #AWSAgentCore #SystemDesign #MultiAgent #CloudArchitecture #LocalFirst

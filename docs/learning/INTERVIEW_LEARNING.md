@@ -165,3 +165,56 @@ In AgentMesh, `agents/job_detector/` is a package. Its `tools.py` will contain t
 ## 10. Resume Bullet
 
 Architected each AI agent as an independently deployable Python package with separated logic, schemas, tools, prompts, and config — enabling horizontal scaling of individual agents and clean team ownership boundaries in a multi-agent production system.
+
+---
+
+# Feature: Optional AWS AgentCore and Agent Registry Integration
+
+## 1. Simple Explanation
+
+AgentMesh runs entirely on your laptop for free. But when you're ready to scale, you can optionally connect it to AWS — using Agent Registry to catalogue your agents and AgentCore to run them in the cloud. The key word is optional. Nothing breaks if you don't. The local system keeps working exactly the same way.
+
+## 2. Technical Explanation
+
+AgentMesh uses feature flags (`AWS_AGENT_REGISTRY_ENABLED`, `AWS_AGENTCORE_ENABLED`, `LLM_PROVIDER`) to control whether any AWS services are called. When flags are `false`, the corresponding adapters are never instantiated. All AWS clients implement the same abstract interfaces as local implementations, so they are fully injectable and mockable in tests.
+
+AWS Agent Registry stores only agent metadata (agent ID, capabilities, version, governance) — never workflow events or payload data. AgentCore Runtime is optional compute for hosting selected agent workers. Hosted agents still communicate with AgentMesh MCP via `clients/mcp_client.py` — AgentCore does not replace MCP as the event store. Bedrock LLM calls go through the `LLMProvider` protocol; the default implementation is a mock that returns deterministic responses.
+
+## 3. Why It Matters
+
+In production, you need to answer: "What agents exist? What can they do? Who owns them?" Without a registry, teams duplicate agents and tools. Without a cost-control design, cloud integrations become expensive surprises. This architecture gives you a clear path from local development to enterprise deployment without rewriting anything.
+
+## 4. Interview Short Answer
+
+I designed AgentMesh to be local-first with optional AWS integration. All core functionality — event storage, state projection, agent polling — runs on local PostgreSQL. AWS Agent Registry and AgentCore are opt-in via feature flags. Unit tests never call AWS. If cloud credentials are missing, the system falls back to local mode gracefully. This means zero cloud cost during development and a clear upgrade path when needed.
+
+## 5. Interview Deep-Dive Answer
+
+The key design decision was to treat AWS as an optional adapter layer, not a core dependency. I defined abstract interfaces for the registry (`RegistryRepository`), the LLM provider (`LLMProvider`), and the runtime adapter (`RuntimeAdapter`). Local implementations satisfy these interfaces using PostgreSQL and mock responses. AWS implementations satisfy the same interfaces using Agent Registry, Bedrock, and AgentCore. The application config reads feature flags at startup and injects the appropriate implementation via dependency injection. This means the service layer never knows whether it's talking to AWS or a local mock — it just calls the interface. For cost control, I added three flags: `AWS_AGENT_REGISTRY_ENABLED`, `AWS_AGENTCORE_ENABLED`, and `LLM_PROVIDER`. All default to local/mock. AWS registry sync sends only metadata — never workflow events or payload logs, which keeps data governance clean. AgentCore is compute-only; MCP remains the event bus regardless of where the agent runs.
+
+## 6. Business Explanation
+
+This design means the team can build and test the entire system for free on a laptop. When the business is ready to scale — or when compliance requires a centralised agent catalogue — you flip a flag and connect to AWS. You don't rewrite anything. The agent registry gives the business visibility into what AI capabilities exist, who owns them, and whether they're approved for production. AgentCore gives the option to run agents in managed cloud infrastructure without changing how they communicate.
+
+## 7. Real Example From AgentMesh
+
+In AgentMesh, `agents/job_detector/agent_manifest.json` describes the job detector's capabilities, subscribed event types, and governance metadata. Locally, `RegistryService` reads this manifest from the filesystem. When `AWS_AGENT_REGISTRY_ENABLED=true`, the same service syncs the manifest to AWS Agent Registry. The job detector agent itself doesn't change — it still polls MCP via `clients/mcp_client.py` whether it's running locally or on AgentCore.
+
+## 8. Trade-offs
+
+**Pros:** Zero cloud cost during development. Clean upgrade path. No vendor lock-in at the core. Tests are always fast and free. Graceful degradation if cloud is unavailable.
+
+**Cons:** More abstraction layers upfront. Feature flags add configuration complexity. AWS Agent Registry and AgentCore are relatively new services with evolving APIs.
+
+**Alternatives considered:** Making AWS mandatory from day one (rejected — too expensive and too slow for local development). Using a third-party registry like Consul (rejected — adds operational complexity without the governance features of Agent Registry).
+
+## 9. Follow-up Questions
+
+- *How do you prevent AWS costs from spiralling?* — Feature flags default to `false`. AWS Budgets alerts are recommended. Registry sync sends only metadata, not event data.
+- *What happens if AgentCore goes down?* — Agents fall back to local runners. MCP is unaffected. The system logs the failure and continues.
+- *How do you test AWS integration without real AWS?* — All AWS clients implement injectable interfaces. Tests inject mocks. Cloud integration tests are skipped unless credentials are present.
+- *Why not use EventBridge instead of MCP?* — MCP provides append-only semantics, deterministic state projection, and atomic claims — features EventBridge doesn't offer natively. MCP is the source of truth; AWS is optional infrastructure.
+
+## 10. Resume Bullet
+
+Designed a local-first multi-agent system with optional AWS AgentCore and Agent Registry integration using feature flags and injectable adapter interfaces — enabling zero-cost local development with a clear, non-breaking upgrade path to cloud deployment.

@@ -144,3 +144,51 @@ The job detector is processing 10,000 job listings per day and becoming a bottle
 ## Interview / Client Pitch
 
 AgentMesh treats each AI agent as an independently owned and deployable unit. This means different teams can build, test, and scale their agents without stepping on each other. When one agent becomes a bottleneck, you scale just that agent — not the whole system. This is the same principle that makes microservices valuable, applied to AI agent architecture.
+
+---
+
+# Business Problem: Agent and Tool Discovery at Enterprise Scale
+
+## Problem
+
+As organisations build more AI agents and automation workflows, they lose track of what agents exist, what they can do, who owns them, and whether they are approved for production use. Teams duplicate effort by building the same agent twice. Compliance teams have no visibility into what AI capabilities are running in production.
+
+## Current Manual Process
+
+Today, agent capabilities are documented in wikis, README files, or not at all. Developers search Slack or ask colleagues to find out if a relevant agent already exists. There is no approval workflow, no version tracking, and no centralised catalogue of what AI tools are available.
+
+## Why That Fails
+
+- Duplicate agents are built by different teams, wasting engineering time
+- No governance: unapproved agents can run in production without oversight
+- No discoverability: new team members cannot find existing capabilities
+- No version control for agent capabilities — breaking changes go unnoticed
+- Compliance audits are manual and incomplete
+
+## AgentMesh Solution
+
+AgentMesh introduces a two-tier registry: a local agent registry for development and a optional AWS Agent Registry for enterprise governance. Each agent package includes an `agent_manifest.json` describing its capabilities, subscribed event types, owner, and approval status. Locally, the registry reads manifests from the filesystem. When AWS Agent Registry is enabled, manifests are synced as metadata — no event data or payload logs are ever sent to AWS.
+
+## Business Impact
+
+- Teams can discover existing agents before building new ones — reducing duplicate work
+- Governance teams can see all agents, their owners, and approval status in one place
+- Compliance audits become automated — the registry is the audit trail for AI capabilities
+- New team members can onboard faster by browsing the agent catalogue
+- Version tracking prevents silent breaking changes
+
+## Example Scenario
+
+A new team wants to build an email outreach agent. Before starting, they query the AgentMesh registry and discover that `email_finder` already exists and is approved for production. They reuse it instead of rebuilding. The registry shows the agent's capabilities, its owner, and its current version — all without reading source code.
+
+## Metrics to Track
+
+- Number of duplicate agents prevented (registry query before build)
+- Time to discover an existing agent capability (should be minutes, not days)
+- Percentage of production agents with approved governance status
+- Compliance audit completion time (automated vs manual)
+- Agent reuse rate across teams
+
+## Interview / Client Pitch
+
+AgentMesh gives your organisation a living catalogue of AI capabilities. Every agent is described by a manifest — what it does, who owns it, what events it handles, and whether it's approved for production. Locally, this is free and instant. At enterprise scale, it syncs to AWS Agent Registry for centralised governance. This means your compliance team always knows what AI is running, your engineers don't duplicate work, and your organisation can scale AI adoption with confidence.

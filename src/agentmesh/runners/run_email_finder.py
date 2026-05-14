@@ -4,4 +4,4 @@
 #   2. Instantiate MCPClient pointing at the running MCP server
 #   3. Instantiate EmailFinderAgent with the MCPClient and injected tools
 #   4. Run the agent polling loop for a given workflow_id
-# Usage (future): python -m src.runners.run_email_finder --workflow-id <uuid>
+# Usage (future): python -m agentmesh.runners.run_email_finder --workflow-id <uuid>

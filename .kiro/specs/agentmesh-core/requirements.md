@@ -300,3 +300,23 @@ The system must be fully traceable, replayable, and reconstructable from events 
 4. WHEN a Medium draft is created, THEN the filename SHALL follow the format `docs/content/medium/YYYY-MM-DD-<topic-slug>.md`.
 5. IF a feature is too small for a standalone Medium post, THEN it SHALL be added as a short entry in `docs/content/medium/backlog-short-posts.md` instead.
 6. WHEN a LinkedIn-ready post is generated, THEN it SHALL be 3–5 sentences, highlight the production design decision, and include 3–5 relevant hashtags.
+
+---
+
+### Requirement 19: Optional Cloud Integration and Cost Control
+
+**User Story:** As a developer and operator, I want AgentMesh to run fully locally for free while supporting optional AWS AgentCore and Agent Registry integration, so that I can develop and test without cloud costs and enable cloud features only when explicitly configured.
+
+#### Acceptance Criteria
+
+1. WHEN the project runs locally, THEN the system SHALL NOT require AWS credentials — all core functionality SHALL work with only a local PostgreSQL instance.
+2. WHEN `AWS_AGENT_REGISTRY_ENABLED=false`, THEN the system SHALL NOT make any calls to AWS Agent Registry.
+3. WHEN `AWS_AGENTCORE_ENABLED=false`, THEN the system SHALL NOT make any calls to AgentCore Runtime.
+4. WHEN `LLM_PROVIDER=mock`, THEN the system SHALL NOT call Bedrock or any paid model provider — all LLM calls SHALL return deterministic stub responses.
+5. WHEN tests run, THEN the system SHALL use mock providers for all LLM and AWS calls unless the test is explicitly marked as a cloud integration test with a skip guard for missing credentials.
+6. WHEN an agent is registered locally, THEN the system SHALL store its metadata in a local registry (database table or manifest file) without requiring any cloud connection.
+7. WHEN AWS registry sync is enabled, THEN the system SHALL sync only agent metadata (agent_id, capabilities, version, governance) — it SHALL NOT sync workflow events, event payloads, or user data to AWS.
+8. IF AWS credentials are absent or invalid, THEN local mode SHALL continue to operate normally — the system SHALL log a warning and disable cloud features gracefully.
+9. IF a cloud operation fails (network error, throttling, permission denied), THEN the system SHALL log the failure and continue local operation — cloud failures SHALL NOT crash the local system.
+10. WHEN AgentCore Runtime is used to host an agent, THEN that agent SHALL still communicate with AgentMesh MCP via `clients/mcp_client.py` — AgentCore SHALL NOT replace MCP as the event store.
+11. WHERE AWS integration adapters are defined, THEN they SHALL implement the same abstract interfaces as local implementations — AWS clients SHALL be injectable and replaceable with mocks in all tests.

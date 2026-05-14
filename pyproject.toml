@@ -13,7 +13,18 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
+# src layout: tell mypy where to find the package
+mypy_path = "src"
 
 [tool.black]
 line-length = 100
 target-version = ["py311"]
+
+# src layout: package lives under src/agentmesh
+# When using pip install -e . or setuptools, this ensures correct discovery
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"

@@ -4,66 +4,88 @@
 
 AgentMesh Core is a production-grade hybrid multi-agent system built on FastAPI. The Memory Control Plane (MCP) is the single source of truth — an append-only event log with deterministic state projection. The Orchestrator makes all workflow decisions. Agents execute tasks independently and communicate exclusively through MCP events.
 
-The implementation lives under `mcp/memory-server/src/` with a strict API → Service → Storage layering.
+The implementation lives under `src/agentmesh/` with a strict API → Service → Storage layering.
 
 ---
 
 ## Project Structure
 
 ```
-mcp/
-└── memory-server/
-    └── src/
-        ├── api/
-        │   ├── __init__.py
-        │   ├── routes/
-        │   │   ├── events.py
-        │   │   ├── state.py
-        │   │   └── workflows.py
-        │   └── dependencies.py
-        ├── services/
-        │   ├── event_service.py
-        │   ├── state_service.py
-        │   └── orchestrator_service.py
-        ├── storage/
-        │   ├── models.py
-        │   ├── repository.py
-        │   └── migrations/
-        ├── agents/
-        │   ├── base.py
-        │   ├── job_detector/
-        │   │   ├── __init__.py
-        │   │   ├── agent.py
-        │   │   ├── schemas.py
-        │   │   ├── tools.py
-        │   │   ├── prompts.py
-        │   │   └── config.py
-        │   ├── email_finder/
-        │   │   ├── __init__.py
-        │   │   ├── agent.py
-        │   │   ├── schemas.py
-        │   │   ├── tools.py
-        │   │   ├── prompts.py
-        │   │   └── config.py
-        │   └── applicator/
-        │       ├── __init__.py
-        │       ├── agent.py
-        │       ├── schemas.py
-        │       ├── tools.py
-        │       ├── prompts.py
-        │       └── config.py
-        ├── clients/
-        │   └── mcp_client.py
-        ├── runners/
-        │   ├── run_orchestrator.py
-        │   ├── run_job_detector.py
-        │   ├── run_email_finder.py
-        │   └── run_applicator.py
-        ├── core/
-        │   ├── models.py
-        │   ├── event_types.py
-        │   └── exceptions.py
-        └── main.py
+src/
+└── agentmesh/
+    ├── __init__.py
+    ├── main.py
+    ├── api/
+    │   ├── __init__.py
+    │   ├── routes/
+    │   │   ├── __init__.py
+    │   │   ├── events.py
+    │   │   ├── state.py
+    │   │   └── workflows.py
+    │   └── dependencies.py
+    ├── services/
+    │   ├── __init__.py
+    │   ├── event_service.py
+    │   ├── state_service.py
+    │   └── orchestrator_service.py
+    ├── storage/
+    │   ├── __init__.py
+    │   ├── models.py
+    │   ├── repository.py
+    │   └── migrations/
+    ├── agents/
+    │   ├── __init__.py
+    │   ├── base.py
+    │   ├── job_detector/
+    │   │   ├── __init__.py
+    │   │   ├── agent.py
+    │   │   ├── schemas.py
+    │   │   ├── tools.py
+    │   │   ├── prompts.py
+    │   │   └── config.py
+    │   ├── email_finder/
+    │   │   ├── __init__.py
+    │   │   ├── agent.py
+    │   │   ├── schemas.py
+    │   │   ├── tools.py
+    │   │   ├── prompts.py
+    │   │   └── config.py
+    │   └── applicator/
+    │       ├── __init__.py
+    │       ├── agent.py
+    │       ├── schemas.py
+    │       ├── tools.py
+    │       ├── prompts.py
+    │       └── config.py
+    ├── clients/
+    │   ├── __init__.py
+    │   └── mcp_client.py
+    ├── runners/
+    │   ├── __init__.py
+    │   ├── run_orchestrator.py
+    │   ├── run_job_detector.py
+    │   ├── run_email_finder.py
+    │   └── run_applicator.py
+    ├── registry/
+    │   ├── __init__.py
+    │   ├── models.py
+    │   ├── service.py
+    │   └── repository.py
+    ├── integrations/
+    │   ├── __init__.py
+    │   ├── aws/
+    │   │   ├── __init__.py
+    │   │   ├── agent_registry_client.py
+    │   │   ├── agentcore_runtime_adapter.py
+    │   │   └── bedrock_model_client.py
+    │   └── local/
+    │       ├── __init__.py
+    │       └── local_registry.py
+    └── core/
+        ├── __init__.py
+        ├── models.py
+        ├── event_types.py
+        └── exceptions.py
 ```
 
 ---
@@ -1050,6 +1072,132 @@ For all events `e`: appending `e` twice results in exactly one record in the `ev
 
 **Validates: Requirements 14.2**
 
+
+---
+
+## Optional AWS AgentCore and Agent Registry Integration
+
+AgentMesh is designed local-first. All core functionality — event storage, state projection, agent polling, workflow orchestration — runs entirely on local PostgreSQL with no cloud dependency. AWS integrations are optional, disabled by default, and must never be required for local development or testing.
+
+---
+
+### Architecture: Local-First, Cloud-Optional
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     LOCAL MODE (default)                         │
+│                                                                  │
+│  runners/run_*.py  →  agents/**/agent.py                        │
+│       │                     │                                    │
+│       └──── clients/mcp_client.py ──── AgentMesh MCP API        │
+│                                              │                   │
+│                                    PostgreSQL (Docker Compose)   │
+│                                    events / current_state /      │
+│                                    event_claims / local_registry │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│              OPTIONAL AWS MODE (disabled by default)             │
+│                                                                  │
+│  integrations/aws/agent_registry_client.py                      │
+│    → AWS Agent Registry (metadata only — no events/payloads)    │
+│                                                                  │
+│  integrations/aws/agentcore_runtime_adapter.py                  │
+│    → AgentCore Runtime (optional agent worker hosting)          │
+│      Hosted agents still communicate with AgentMesh MCP         │
+│                                                                  │
+│  integrations/aws/bedrock_model_client.py                       │
+│    → Bedrock model calls (optional, behind LLMProvider interface)│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Design Rules
+
+1. AgentMesh MCP remains the single source of truth for events, state, replay, and claims — always.
+2. AWS Agent Registry stores only discovery/governance metadata (agent ID, capabilities, version, owner). It never receives workflow events or payload logs.
+3. AgentCore Runtime is optional deployment infrastructure for selected agent workers. Hosted agents still communicate with AgentMesh MCP via `clients/mcp_client.py`.
+4. AgentCore must not replace MCP. MCP is the event bus. AgentCore is a compute host.
+5. All AWS integrations are disabled by default via feature flags in config.
+6. Unit tests must never call AWS. All AWS clients must be injectable and mockable.
+7. Local development must work with zero AWS credentials.
+8. Bedrock and all LLM calls must be behind the `LLMProvider` interface. Default provider is `mock`.
+9. One shared `.venv` is used locally. Agents are independently runnable through `runners/`.
+
+---
+
+### Proposed Folder Structure
+
+```
+mcp/memory-server/src/
+├── integrations/
+│   ├── aws/
+│   │   ├── __init__.py
+│   │   ├── agent_registry_client.py    # AWS Agent Registry metadata sync
+│   │   ├── agentcore_runtime_adapter.py # AgentCore worker deployment adapter
+│   │   └── bedrock_model_client.py     # Bedrock LLM client (implements LLMProvider)
+│   └── local/
+│       ├── __init__.py
+│       └── local_registry.py           # Local agent registry (file or DB-backed)
+└── registry/
+    ├── __init__.py
+    ├── models.py       # AgentManifest domain model
+    ├── service.py      # RegistryService — register, list, sync
+    └── repository.py   # Abstract + concrete registry storage
+```
+
+---
+
+### Agent Manifest
+
+Each agent package will include an `agent_manifest.json` file describing its identity, capabilities, and runtime configuration. This manifest is the source of truth for both local registry and optional AWS Agent Registry sync.
+
+```json
+{
+  "agent_id": "job-detector",
+  "name": "Job Detector Agent",
+  "version": "0.1.0",
+  "description": "Finds relevant job opportunities and emits JOB_DETECTED events.",
+  "capabilities": ["job_search", "job_detection", "event_emission"],
+  "subscribed_event_types": ["TASK_ASSIGNED"],
+  "emitted_event_types": ["JOB_DETECTED"],
+  "runtime": {
+    "type": "local_runner",
+    "entrypoint": "src.runners.run_job_detector"
+  },
+  "governance": {
+    "owner": "Sarvagya",
+    "environment": "local",
+    "approval_status": "draft"
+  }
+}
+```
+
+---
+
+### Feature Flags
+
+All AWS integrations are controlled by environment variables. When a flag is `false`, the corresponding client is never instantiated and no AWS calls are made.
+
+| Flag | Default | Effect when false |
+|------|---------|-------------------|
+| `AWS_AGENT_REGISTRY_ENABLED` | `false` | No Agent Registry calls |
+| `AWS_AGENTCORE_ENABLED` | `false` | No AgentCore Runtime calls |
+| `LLM_PROVIDER` | `mock` | No Bedrock or paid model calls |
+
+---
+
+### LLM Provider Interface
+
+All LLM calls must go through this interface. The default implementation is a mock that returns deterministic responses for testing.
+
+```python
+class LLMProvider(Protocol):
+    """Abstract interface for all LLM integrations.
+    Default implementation: MockLLMProvider (returns deterministic stub responses).
+    Optional implementation: BedrockModelClient (requires AWS credentials + flag).
+    """
+    async def complete(self, prompt: str, **kwargs: Any) -> str: ...
+```
 
 ---
 

@@ -81,39 +81,58 @@ pip install -r requirements-dev.txt
 
 ```
 agentmesh/
-├── mcp/
-│   └── memory-server/
-│       └── src/
-│           ├── api/
-│           │   ├── routes/        # FastAPI route handlers (events, state, workflows)
-│           │   └── dependencies.py
-│           ├── services/          # Business logic (EventService, StateService, OrchestratorService)
-│           ├── storage/           # ORM models, repositories, Alembic migrations
-│           ├── agents/
-│           │   ├── base.py        # Shared abstract BaseAgent
-│           │   ├── job_detector/  # JobDetectorAgent package
-│           │   ├── email_finder/  # EmailFinderAgent package
-│           │   └── applicator/    # ApplicationAgent package
-│           ├── clients/
-│           │   └── mcp_client.py  # HTTP client for agents running as separate processes
-│           ├── runners/           # Independent process entrypoints
-│           ├── core/              # Domain models, event types, exceptions
-│           └── main.py
+├── src/
+│   └── agentmesh/              # Main Python package
+│       ├── __init__.py
+│       ├── main.py             # FastAPI app entrypoint
+│       ├── api/
+│       │   ├── routes/         # FastAPI route handlers (events, state, workflows)
+│       │   └── dependencies.py
+│       ├── services/           # Business logic (EventService, StateService, OrchestratorService)
+│       ├── storage/            # ORM models, repositories, Alembic migrations
+│       ├── agents/
+│       │   ├── base.py         # Shared abstract BaseAgent
+│       │   ├── job_detector/   # JobDetectorAgent package
+│       │   ├── email_finder/   # EmailFinderAgent package
+│       │   └── applicator/     # ApplicationAgent package
+│       ├── clients/
+│       │   └── mcp_client.py   # HTTP client for agents running as separate processes
+│       ├── runners/            # Independent process entrypoints
+│       ├── registry/           # Local + optional AWS agent registry
+│       ├── integrations/
+│       │   ├── aws/            # Optional AWS adapters (disabled by default)
+│       │   └── local/          # Local registry and mock providers
+│       └── core/               # Domain models, event types, exceptions
 ├── tests/
 │   ├── unit/
 │   └── integration/
 ├── docs/
-│   ├── learning/                  # Interview learning notes
-│   ├── business/                  # Business problem documentation
-│   └── content/medium/            # Medium-ready content drafts
+│   ├── learning/               # Interview learning notes
+│   ├── business/               # Business problem documentation
+│   └── content/medium/         # Medium-ready content drafts
 ├── .kiro/
-│   ├── specs/agentmesh-core/      # Requirements, design, tasks
-│   ├── steering/                  # Project-wide coding rules
-│   └── hooks/                     # Automation hooks
+│   ├── specs/agentmesh-core/   # Requirements, design, tasks
+│   ├── steering/               # Project-wide coding rules
+│   └── hooks/                  # Automation hooks
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── pyproject.toml
 └── docker-compose.yml
+```
+
+---
+
+## Run Commands
+
+```bash
+# Start the MCP API server
+uvicorn agentmesh.main:app --reload
+
+# Run agents as independent processes
+python -m agentmesh.runners.run_orchestrator --workflow-id <uuid>
+python -m agentmesh.runners.run_job_detector --workflow-id <uuid>
+python -m agentmesh.runners.run_email_finder --workflow-id <uuid>
+python -m agentmesh.runners.run_applicator --workflow-id <uuid>
 ```
 
 ---
@@ -148,8 +167,24 @@ A task is not complete unless:
 
 ---
 
-## Phase Notes
+## Optional AWS AgentCore / Agent Registry Usage
 
-- **Phase 0** — Documentation and portfolio foundation (complete)
-- **Phase 1A** — Environment and folder bootstrap (in progress)
-- **Phase 1B onwards** — Not started. No application logic implemented yet.
+AgentMesh is **local-first and free by default**. All core functionality runs on your machine with Docker Compose and a local PostgreSQL instance. No AWS account is required to develop, test, or run workflows.
+
+AWS integrations are **disabled by default** and controlled entirely by environment flags.
+
+| Feature | Default | When to enable |
+|---------|---------|----------------|
+| AWS Agent Registry | `false` | When you want centralised agent discovery/governance metadata |
+| AgentCore Runtime | `false` | When you want to deploy a selected agent to AWS compute |
+| Bedrock LLM | `mock` | When you want real LLM calls (requires AWS credentials + cost) |
+
+**Rules:**
+- Local mode always works without AWS credentials
+- Unit tests never call AWS — all AWS clients are mockable interfaces
+- AWS Agent Registry syncs only metadata (agent ID, capabilities, version) — never workflow events or payload logs
+- AgentCore Runtime is optional compute for selected agents — AgentMesh MCP remains the event store
+- If a cloud operation fails, the system logs the failure and continues in local mode
+- Use AWS Budgets and Free Tier / credits before enabling cloud execution
+
+To enable AWS features, set the relevant flags in your `.env` file and ensure your AWS credentials are configured (`aws configure` or environment variables).
