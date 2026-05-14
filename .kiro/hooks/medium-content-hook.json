@@ -1,0 +1,12 @@
+{
+  "name": "Generate Medium Content Draft",
+  "version": "1.0.0",
+  "description": "Manually triggered after a learning doc entry is added. Creates a Medium-ready post draft under docs/content/medium/ using today's date and the feature name as the filename.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A new learning entry was just added to docs/learning/INTERVIEW_LEARNING.md. Create a Medium-ready post draft under docs/content/medium/ using today's date and the feature name as the filename (format: YYYY-MM-DD-<topic-slug>.md). The post must include all of the following sections: (1) Catchy title, (2) Subtitle, (3) Hook introduction, (4) Problem statement, (5) Why this matters, (6) Simple analogy, (7) Architecture explanation, (8) Code or pseudocode example where useful, (9) Real AgentMesh example, (10) Business value section, (11) Interview learning section, (12) Lessons learned, (13) Conclusion, (14) LinkedIn-ready short post (3–5 sentences), (15) Suggested hashtags. Tone rules: keep it interesting, simple, and practical. Write like a real engineer explaining a real production design decision. Avoid generic AI hype. Write for engineers, recruiters, and hiring managers. If the feature is too small for a full post, add it to docs/content/medium/backlog-short-posts.md instead."
+  }
+}

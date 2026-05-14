@@ -1,0 +1,18 @@
+{
+  "name": "Update Interview Learning Doc",
+  "version": "1.0.0",
+  "description": "After a service, agent, core, or storage file is edited, prompt Kiro to update docs/learning/INTERVIEW_LEARNING.md with a new or updated feature entry covering all 10 sections.",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "mcp/memory-server/src/services/*.py",
+      "mcp/memory-server/src/agents/*.py",
+      "mcp/memory-server/src/core/*.py",
+      "mcp/memory-server/src/storage/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A source file was just edited. Inspect the change and update docs/learning/INTERVIEW_LEARNING.md with a new or updated entry for the affected feature. Use the standard 10-section entry format defined in that file: (1) Simple Explanation, (2) Technical Explanation, (3) Why It Matters, (4) Interview Short Answer, (5) Interview Deep-Dive Answer, (6) Business Explanation, (7) Real Example From AgentMesh, (8) Trade-offs, (9) Follow-up Questions, (10) Resume Bullet. Keep the tone practical, production-focused, and useful for both technical interviews and recruiter conversations."
+  }
+}

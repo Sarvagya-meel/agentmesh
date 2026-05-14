@@ -1,0 +1,12 @@
+{
+  "name": "Update Business Problems Doc",
+  "version": "1.0.0",
+  "description": "Manually triggered after a major feature is completed. Updates docs/business/BUSINESS_PROBLEMS.md by mapping the completed feature to business value.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A major AgentMesh feature was just completed. Update docs/business/BUSINESS_PROBLEMS.md with a new entry for this feature. Use the standard 8-section entry format defined in that file: (1) Problem, (2) Current Manual Process, (3) Why That Fails, (4) AgentMesh Solution, (5) Business Impact, (6) Example Scenario, (7) Metrics to Track, (8) Interview / Client Pitch. If the feature is purely technical infrastructure with no direct business mapping, add an explicit note explaining why. Keep the language clear, business-facing, and suitable for a client meeting or recruiter conversation."
+  }
+}

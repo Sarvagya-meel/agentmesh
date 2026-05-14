@@ -60,10 +60,23 @@ Three tables form the persistence backbone:
 
 ### Agent Layer
 
-- **BaseAgent**: Abstract polling loop, claim logic, causation chain enforcement
-- **JobDetectorAgent**: Polls for `TASK_JOB_DETECT` events, emits `JOB_DETECTED` or `JOB_DETECT_FAILED`
-- **EmailFinderAgent**: Polls for `TASK_EMAIL_FIND` events, emits `EMAIL_FOUND` or `EMAIL_FIND_FAILED`
-- **ApplicationAgent**: Polls for `TASK_APPLY` events, emits `APPLICATION_SUBMITTED` or `APPLICATION_FAILED`
+- **BaseAgent** (`agents/base.py`): Abstract polling loop, claim logic, causation chain enforcement, routing dispatch
+- **JobDetectorAgent** (`agents/job_detector/`): Package. Polls for `TASK_ASSIGNED` (task_type=JOB_DETECT), emits `JOB_DETECTED` or `TASK_FAILED`
+- **EmailFinderAgent** (`agents/email_finder/`): Package. Polls for `TASK_ASSIGNED` (task_type=EMAIL_FIND), emits `EMAIL_FOUND` or `TASK_FAILED`
+- **ApplicationAgent** (`agents/applicator/`): Package. Polls for `TASK_ASSIGNED` (task_type=APPLY), emits `APPLICATION_SENT` or `TASK_FAILED`
+
+Each agent package contains: `agent.py` (main class), `schemas.py` (I/O models), `tools.py` (external integrations), `prompts.py` (LLM prompts), `config.py` (agent settings).
+
+### Client Layer
+
+- **MCPClient** (`clients/mcp_client.py`): HTTP client wrapping the MCP API. Used by independently running agents and runners to communicate with MCP without importing the service layer directly.
+
+### Runner Layer
+
+- **run_orchestrator.py**: Independent entrypoint for the Orchestrator process
+- **run_job_detector.py**: Independent entrypoint for JobDetectorAgent
+- **run_email_finder.py**: Independent entrypoint for EmailFinderAgent
+- **run_applicator.py**: Independent entrypoint for ApplicationAgent
 
 ### Core Layer
 

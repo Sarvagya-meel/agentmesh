@@ -31,9 +31,34 @@ mcp/
         │   └── migrations/
         ├── agents/
         │   ├── base.py
-        │   ├── job_detector.py
-        │   ├── email_finder.py
-        │   └── applicator.py
+        │   ├── job_detector/
+        │   │   ├── __init__.py
+        │   │   ├── agent.py
+        │   │   ├── schemas.py
+        │   │   ├── tools.py
+        │   │   ├── prompts.py
+        │   │   └── config.py
+        │   ├── email_finder/
+        │   │   ├── __init__.py
+        │   │   ├── agent.py
+        │   │   ├── schemas.py
+        │   │   ├── tools.py
+        │   │   ├── prompts.py
+        │   │   └── config.py
+        │   └── applicator/
+        │       ├── __init__.py
+        │       ├── agent.py
+        │       ├── schemas.py
+        │       ├── tools.py
+        │       ├── prompts.py
+        │       └── config.py
+        ├── clients/
+        │   └── mcp_client.py
+        ├── runners/
+        │   ├── run_orchestrator.py
+        │   ├── run_job_detector.py
+        │   ├── run_email_finder.py
+        │   └── run_applicator.py
         ├── core/
         │   ├── models.py
         │   ├── event_types.py
@@ -55,7 +80,22 @@ Projects `WorkflowState` from an ordered event list. Pure deterministic function
 Reads workflow state from MCP, makes deterministic workflow decisions, and emits task events. Never calls agents directly.
 
 ### BaseAgent
-Abstract polling loop with four guards (subscription filter, processed-type check, pending-type check, causation loop detection). Dispatches events by routing mode (DIRECTED, FANOUT, CLAIMED).
+Abstract polling loop with four guards (subscription filter, processed-type check, pending-type check, causation loop detection). Dispatches events by routing mode (DIRECTED, FANOUT, CLAIMED). Lives in `agents/base.py` — shared by all agent packages.
+
+### Agent Packages
+Each agent is a Python package under `agents/`, not a single file:
+
+- **`agents/job_detector/`** — `JobDetectorAgent`: polls for `TASK_ASSIGNED` (task_type=JOB_DETECT), emits `JOB_DETECTED` or `TASK_FAILED`
+- **`agents/email_finder/`** — `EmailFinderAgent`: polls for `TASK_ASSIGNED` (task_type=EMAIL_FIND), emits `EMAIL_FOUND` or `TASK_FAILED`
+- **`agents/applicator/`** — `ApplicationAgent`: polls for `TASK_ASSIGNED` (task_type=APPLY), emits `APPLICATION_SENT` or `TASK_FAILED`
+
+Each package contains: `agent.py`, `schemas.py`, `tools.py`, `prompts.py`, `config.py`.
+
+### MCPClient
+`clients/mcp_client.py` — HTTP client wrapping the MCP API. Used by independently running agents and runners so they can communicate with MCP without importing the service layer directly.
+
+### Runners
+`runners/` — independently executable entrypoints for each component. Each runner loads config, instantiates the MCPClient, and starts the relevant polling loop as a standalone process.
 
 ### EventRepository / StateRepository / ClaimRepository
 Abstract interfaces for persistence. Concrete implementations in `pg_repository.py` use SQLAlchemy async + asyncpg.
@@ -1021,3 +1061,233 @@ The following are **not implemented in v1** but the architecture explicitly supp
 - **Distributed agents**: Agents are stateless — they can run as separate processes or containers. All state lives in MCP.
 - **Event schema versioning**: `EventType` enum and Pydantic schemas should be versioned (e.g., `v1/events`) to support schema evolution without breaking existing consumers.
 - **Webhook / push delivery**: The `GET /events` polling endpoint can be supplemented with a WebSocket or SSE endpoint for push-based delivery without changing the storage layer.
+
+---
+
+## Documentation Automation Design
+
+AgentMesh is both a working system and a portfolio project. Every major feature must produce three documentation artifacts alongside its code: interview learning notes, a business problem mapping, and Medium-ready content. These are first-class deliverables, not optional extras.
+
+---
+
+### Documentation Folder Structure
+
+```
+docs/
+├── learning/
+│   └── INTERVIEW_LEARNING.md       # Technical + non-technical interview prep
+├── business/
+│   └── BUSINESS_PROBLEMS.md        # Business value mapping per feature
+└── content/
+    └── medium/
+        ├── backlog-short-posts.md  # Rolling draft for small features
+        └── YYYY-MM-DD-<slug>.md    # One file per major feature/milestone
+```
+
+---
+
+### INTERVIEW_LEARNING.md — Entry Format
+
+Each major feature gets one entry using this exact structure:
+
+```markdown
+# Feature: <Feature Name>
+
+## 1. Simple Explanation
+Explain the feature in plain language a non-engineer could understand.
+
+## 2. Technical Explanation
+Explain how it works internally — data flow, algorithms, key design decisions.
+
+## 3. Why It Matters
+Explain why this matters in real production systems. What breaks without it?
+
+## 4. Interview Short Answer
+A concise 30–45 second answer suitable for a screening call.
+
+## 5. Interview Deep-Dive Answer
+A 2–3 minute technical answer covering design, trade-offs, and implementation.
+
+## 6. Business Explanation
+Explain it to a product manager, client, or non-technical stakeholder.
+
+## 7. Real Example From AgentMesh
+Use this project as the concrete example. Reference actual code paths where possible.
+
+## 8. Trade-offs
+Pros, cons, and alternatives considered. Why this approach was chosen.
+
+## 9. Follow-up Questions
+List likely interviewer follow-up questions with strong answer hints.
+
+## 10. Resume Bullet
+One strong resume bullet using impact-driven language.
+Example: "Designed append-only event store with deterministic state projection, enabling full workflow replay and zero data loss on agent failure."
+```
+
+---
+
+### BUSINESS_PROBLEMS.md — Entry Format
+
+Each major capability gets one entry using this exact structure:
+
+```markdown
+# Business Problem: <Problem Name>
+
+## Problem
+What pain exists today without AgentMesh?
+
+## Current Manual Process
+How people solve this today — scripts, spreadsheets, manual steps.
+
+## Why That Fails
+Inefficiency, lack of traceability, duplicate work, no audit trail, manual effort.
+
+## AgentMesh Solution
+How AgentMesh solves it — event log, orchestration, agent collaboration.
+
+## Business Impact
+Measurable value: time saved, errors reduced, auditability gained.
+
+## Example Scenario
+A realistic end-to-end scenario showing the problem and solution.
+
+## Metrics to Track
+KPIs: time saved, manual follow-up reduction, workflow success rate,
+failure recovery time, duplicate processing reduction, audit completeness.
+
+## Interview / Client Pitch
+A short 3–4 sentence business-facing pitch suitable for a client or recruiter conversation.
+```
+
+---
+
+### Medium Content — Post Format
+
+Each major feature or architecture milestone gets one Medium-ready draft:
+
+```markdown
+---
+title: <Catchy Title>
+subtitle: <One-line subtitle>
+date: YYYY-MM-DD
+slug: <topic-slug>
+tags: [python, fastapi, multi-agent, system-design, ...]
+---
+
+## Hook
+One compelling opening paragraph that makes the reader want to continue.
+
+## The Problem
+What breaks without this design decision?
+
+## Why This Matters
+Why engineers and architects should care.
+
+## Simple Analogy
+One analogy that makes the concept click for any reader.
+
+## Architecture Explanation
+How it works — diagrams, flow descriptions, key components.
+
+## Code / Pseudocode Example
+A small, readable snippet that illustrates the concept.
+
+## Real AgentMesh Example
+How this plays out in the actual AgentMesh project.
+
+## Business Value
+Why a business would pay for this. What risk it eliminates.
+
+## Interview Learning
+The 30-second answer. The deep-dive answer. The resume bullet.
+
+## Lessons Learned
+What was hard, what surprised you, what you'd do differently.
+
+## Conclusion
+One paragraph wrap-up with a call to action.
+
+---
+
+## LinkedIn Post
+3–5 sentences. Highlight the production design decision. End with a question or insight.
+
+**Hashtags:** #Python #SystemDesign #MultiAgent #FastAPI #SoftwareEngineering
+```
+
+---
+
+### Kiro Hook Specifications
+
+These hooks are defined here for future implementation. They are not active in Phase 0 but must be created as `.kiro/hooks/` JSON files during Phase 0.
+
+#### Hook A: Learning Doc Hook
+
+```json
+{
+  "name": "Update Interview Learning Doc",
+  "version": "1.0.0",
+  "description": "After a service, agent, or core file is edited, prompt Kiro to update INTERVIEW_LEARNING.md with a new or updated feature entry.",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "mcp/memory-server/src/services/*.py",
+      "mcp/memory-server/src/agents/*.py",
+      "mcp/memory-server/src/core/*.py",
+      "mcp/memory-server/src/storage/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A source file was just edited. Inspect the change and update docs/learning/INTERVIEW_LEARNING.md with a new or updated entry for the affected feature. Include: simple explanation, technical explanation, why it matters, interview short answer, deep-dive answer, business explanation, real AgentMesh example, trade-offs, follow-up questions, and resume bullet. Use the standard entry format from design.md."
+  }
+}
+```
+
+#### Hook B: Business Problem Hook
+
+```json
+{
+  "name": "Update Business Problems Doc",
+  "version": "1.0.0",
+  "description": "After a spec task is completed or manually triggered, update BUSINESS_PROBLEMS.md with the business value of the completed feature.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A major feature was just completed. Update docs/business/BUSINESS_PROBLEMS.md with a new entry for this feature. Include: problem, current manual process, why that fails, AgentMesh solution, business impact, example scenario, metrics to track, and a client-facing pitch. Use the standard business problem entry format from design.md."
+  }
+}
+```
+
+#### Hook C: Medium Content Hook
+
+```json
+{
+  "name": "Generate Medium Content Draft",
+  "version": "1.0.0",
+  "description": "After a learning doc entry is added or manually triggered, generate a Medium-ready post draft under docs/content/medium/.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A new learning entry was just added to INTERVIEW_LEARNING.md. Create a Medium-ready post draft under docs/content/medium/ using today's date and the feature name as the filename (YYYY-MM-DD-<topic-slug>.md). Include: catchy title, subtitle, hook, problem statement, why it matters, simple analogy, architecture explanation, code/pseudocode example, real AgentMesh example, business value, interview learning section, lessons learned, conclusion, LinkedIn-ready post, and hashtags. Keep the tone practical, simple, and production-focused."
+  }
+}
+```
+
+---
+
+### Documentation Quality Gates
+
+A phase is not complete unless ALL of the following are true:
+
+1. All unit and integration tests pass
+2. `ruff` reports zero lint errors on changed files
+3. `mypy` reports zero type errors on changed files
+4. A learning entry exists in `docs/learning/INTERVIEW_LEARNING.md` for the feature
+5. A business problem entry exists in `docs/business/BUSINESS_PROBLEMS.md`, OR an explicit note explains why the feature is purely technical infrastructure
+6. A Medium-ready draft exists under `docs/content/medium/`, OR the feature has been added to `docs/content/medium/backlog-short-posts.md`

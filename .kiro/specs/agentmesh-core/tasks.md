@@ -2,7 +2,9 @@
 
 ## Overview
 
-Implementation is broken into 10 sequential phases. Each phase must have passing tests before the next begins. Phase 1 bootstraps the project only — no business logic. Phases 2–9 build the system incrementally. Phase 10 adds developer tooling.
+Implementation is broken into 11 sequential phases. Phase 0 establishes the documentation and portfolio foundation — no code is written until it is reviewed and approved. Phase 1 bootstraps the project only — no business logic. Phases 2–9 build the system incrementally. Phase 10 adds developer tooling.
+
+Every phase must satisfy the documentation quality gates defined in `design.md` in addition to passing tests.
 
 ## Tasks
 
@@ -11,6 +13,10 @@ Implementation is broken into 10 sequential phases. Each phase must have passing
 ```json
 {
   "waves": [
+    {
+      "wave": 0,
+      "tasks": ["Phase 0: Documentation and Portfolio Foundation"]
+    },
     {
       "wave": 1,
       "tasks": ["Phase 1: Project Bootstrap"]
@@ -50,6 +56,24 @@ Implementation is broken into 10 sequential phases. Each phase must have passing
   ]
 }
 ```
+
+---
+
+## Phase 0: Documentation and Portfolio Foundation
+
+**Stop after this phase and request review before proceeding to Phase 1. No application code is written in this phase.**
+
+- [ ] 0.1. Create `docs/learning/INTERVIEW_LEARNING.md` using the standard feature entry template from `design.md`. Add a placeholder entry titled `# Feature: AgentMesh Core — Project Overview` with all 10 sections stubbed out and marked `[TO BE COMPLETED after Phase N]`.
+- [ ] 0.2. Create `docs/business/BUSINESS_PROBLEMS.md` using the standard business problem entry template from `design.md`. Add a placeholder entry titled `# Business Problem: Manual Job Search and Application Workflows` with all 8 sections stubbed out.
+- [ ] 0.3. Create the `docs/content/medium/` folder.
+- [ ] 0.4. Create `docs/content/medium/backlog-short-posts.md` with a header, a brief description of its purpose (rolling draft for features too small for a standalone post), and an empty backlog table with columns: `Feature`, `Phase`, `Key Insight`, `Status`.
+- [ ] 0.5. Create `.kiro/hooks/learning-doc-hook.json` using the Hook A specification from `design.md` exactly.
+- [ ] 0.6. Create `.kiro/hooks/business-problem-hook.json` using the Hook B specification from `design.md` exactly.
+- [ ] 0.7. Create `.kiro/hooks/medium-content-hook.json` using the Hook C specification from `design.md` exactly.
+- [ ] 0.8. Verify that `requirements.md` contains Requirements 16, 17, and 18 (NFR section).
+- [ ] 0.9. Verify that `design.md` contains the Documentation Automation Design section with all three entry formats, all three hook specifications, and the documentation quality gates.
+- [ ] 0.10. Verify that `tasks.md` contains Phase 0 as wave 0 in the dependency graph.
+- [ ] 0.11. **STOP — request user review of Phase 0 before proceeding to Phase 1.**
 
 ---
 
@@ -148,9 +172,9 @@ Implementation is broken into 10 sequential phases. Each phase must have passing
 - [ ] 3. Implement `DIRECTED` routing in `BaseAgent.route_event`: only process if `event.target_agent == self.agent_id`
 - [ ] 4. Implement `FANOUT` routing in `BaseAgent.route_event`: process if no `routing_weights`; if weights present, only process if this agent has the highest weight
 - [ ] 5. Implement `CLAIMED` routing in `BaseAgent.route_event`: call `claim_repository.try_claim(event_id, agent_id)`; process only if claim succeeds; skip silently if claim fails
-- [ ] 6. Add `src/agents/job_detector.py` with `JobDetectorAgent`: subscribes to `TASK_ASSIGNED` where `task_type=JOB_DETECT`; `execute` returns a stub `TaskResult` with `event_type=JOB_DETECTED` and sample payload; emits `JOB_DETECTED` on success, `TASK_FAILED` on error
-- [ ] 7. Add `src/agents/email_finder.py` with `EmailFinderAgent`: subscribes to `TASK_ASSIGNED` where `task_type=EMAIL_FIND`; `execute` returns stub `TaskResult` with `event_type=EMAIL_FOUND`; emits `EMAIL_FOUND` on success, `TASK_FAILED` on error
-- [ ] 8. Add `src/agents/applicator.py` with `ApplicationAgent`: subscribes to `TASK_ASSIGNED` where `task_type=APPLY`; `execute` returns stub `TaskResult` with `event_type=APPLICATION_SENT`; emits `APPLICATION_SENT` on success, `TASK_FAILED` on error
+- [ ] 6. Add `src/agents/job_detector/agent.py` with `JobDetectorAgent` class extending `BaseAgent`: subscribes to `TASK_ASSIGNED` where `task_type=JOB_DETECT`; `execute` returns a stub `TaskResult` with `event_type=JOB_DETECTED` and sample payload; emits `JOB_DETECTED` on success, `TASK_FAILED` on error; add `__init__.py` exporting `JobDetectorAgent`
+- [ ] 7. Add `src/agents/email_finder/agent.py` with `EmailFinderAgent` class extending `BaseAgent`: subscribes to `TASK_ASSIGNED` where `task_type=EMAIL_FIND`; `execute` returns stub `TaskResult` with `event_type=EMAIL_FOUND`; emits `EMAIL_FOUND` on success, `TASK_FAILED` on error; add `__init__.py` exporting `EmailFinderAgent`
+- [ ] 8. Add `src/agents/applicator/agent.py` with `ApplicationAgent` class extending `BaseAgent`: subscribes to `TASK_ASSIGNED` where `task_type=APPLY`; `execute` returns stub `TaskResult` with `event_type=APPLICATION_SENT`; emits `APPLICATION_SENT` on success, `TASK_FAILED` on error; add `__init__.py` exporting `ApplicationAgent`
 - [ ] 9. Write unit tests in `tests/unit/agents/test_base_agent.py`: test DIRECTED event addressed to this agent is processed, test DIRECTED event addressed to other agent is skipped, test FANOUT event with no weights is processed by all agents, test FANOUT event with weights only processes highest-weight agent, test CLAIMED event: first agent wins, second agent skips, test guard 4: agent_id in causation_chain emits TASK_FAILED and skips, test guard 2: already-processed event_type is skipped, test guard 3: event_type not in pending_event_types is skipped
 - [ ] 10. Write unit tests in `tests/unit/agents/test_job_detector.py`, `test_email_finder.py`, `test_applicator.py`: test each agent's `execute` returns correct `TaskResult`, test each agent emits the correct result event, test each agent emits `TASK_FAILED` when `execute` raises
 
@@ -178,8 +202,10 @@ Implementation is broken into 10 sequential phases. Each phase must have passing
 
 ## Notes
 
-- **Phase 1 only** is implemented first. After Phase 1 passes, review before proceeding.
-- Never skip tests. A phase is not complete until all its tests pass, `ruff` reports no lint errors, and `mypy` reports no type errors.
+- **Phase 0 must be reviewed before Phase 1 begins.** No application code is written until Phase 0 is approved.
+- **Phase 1 only** is implemented first after Phase 0 approval. After Phase 1 passes, review before proceeding.
+- A phase is not complete until: all tests pass, `ruff` reports no lint errors, `mypy` reports no type errors, a learning entry exists in `docs/learning/INTERVIEW_LEARNING.md`, a business problem entry exists in `docs/business/BUSINESS_PROBLEMS.md` (or is explicitly marked technical-only), and Medium-ready content exists or is added to `backlog-short-posts.md`.
+- Never skip tests. Never skip documentation. Both are part of the definition of done.
 - Never introduce direct agent-to-agent calls at any phase.
 - Never store workflow state only in memory — every state must be reconstructable from events.
 - Redis Streams / Kafka are future extensions only. Do not introduce them in any phase.
