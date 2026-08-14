@@ -1,2 +1,4 @@
-# Event routes — POST /events, GET /events
-# Implementation: Phase 6
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/events", tags=["events"])
+

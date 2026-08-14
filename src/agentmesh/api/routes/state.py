@@ -1,2 +1,3 @@
-# State routes — GET /state/{workflow_id}
-# Implementation: Phase 6
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/state", tags=["state"])

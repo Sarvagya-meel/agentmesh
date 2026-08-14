@@ -1,6 +1,13 @@
+[project]
+name = "agentmesh"
+version = "0.1.0"
+description = "A production-grade hybrid multi-agent system for job-search automation."
+requires-python = ">=3.11"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
@@ -27,4 +34,4 @@ where = ["src"]
 
 [build-system]
 requires = ["setuptools>=68"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"

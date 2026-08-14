@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "fileEdited": [
+      {
+        "type": "command",
+        "powershell": ""
+      }
+    ]
+  }
+}

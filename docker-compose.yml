@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: agentmesh-postgres
+    environment:
+      POSTGRES_DB: agentmesh
+      POSTGRES_USER: agentmesh
+      POSTGRES_PASSWORD: agentmesh
+    ports:
+      - "5432:5432"
+    volumes:
+      - agentmesh-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentmesh -d agentmesh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  agentmesh-postgres-data:

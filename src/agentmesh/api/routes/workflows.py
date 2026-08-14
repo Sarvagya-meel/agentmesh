@@ -1,2 +1,3 @@
-# Workflow routes — POST /workflows/start
-# Implementation: Phase 6
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/workflows", tags=["workflows"])
