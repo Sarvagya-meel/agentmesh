@@ -1,2 +1,5 @@
-# registry package — local and optional AWS agent registry
-# Phase 11: RegistryService, AgentManifest, RegistryRepository
+from agentmesh.registry.models import AgentCard
+from agentmesh.registry.repository import InMemoryRegistryRepository, RegistryRepository
+from agentmesh.registry.service import RegistryService
+
+__all__ = ["AgentCard", "RegistryRepository", "InMemoryRegistryRepository", "RegistryService"]

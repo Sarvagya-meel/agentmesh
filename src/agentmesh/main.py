@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from agentmesh.api.routes import events, state, workflows
+from agentmesh.api.routes import events, registry, state, workflows
 from agentmesh.config import get_settings
 
 
@@ -19,6 +19,7 @@ def create_app() -> FastAPI:
     app.include_router(events.router)
     app.include_router(state.router)
     app.include_router(workflows.router)
+    app.include_router(registry.router)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:

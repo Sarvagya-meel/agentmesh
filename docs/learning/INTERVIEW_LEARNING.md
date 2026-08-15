@@ -66,6 +66,102 @@ Example format: "Designed X using Y, enabling Z with measurable outcome."
 
 ---
 
+# Feature: Dynamic Agent Registration and Human-in-the-Loop Conversation
+
+## 1. Simple Explanation
+
+This feature adds two important ideas: an agent can register itself as soon as it comes online, and a conversation agent can pause for human approval before sending a final answer. Together, they make the system more practical for real enterprise workflows.
+
+## 2. Technical Explanation
+
+The registry uses an `AgentCard` model that stores metadata such as `agent_id`, `name`, `capabilities`, `skills`, `endpoint`, and `last_seen`. The `RegistryService` keeps an in-memory list of live agents and supports registration, heartbeat updates, and capability lookup. The conversation agent uses LangGraph to draft a reply and then route through a human approval node before finalization.
+
+## 3. Why It Matters
+
+Dynamic registration gives the system a real discovery layer. Humans can review high-risk answers before they are sent, which is essential in enterprise workflows. This reduces bad automations, makes onboarding easier, and lays the groundwork for future A2A-style inter-agent interaction.
+
+## 4. Interview Short Answer
+
+I added a lightweight registry for agent discovery and a LangGraph conversation flow with a human approval checkpoint. The registry lets agents advertise capabilities at startup, while the approval node ensures no automated answer is sent without a human review when needed.
+
+## 5. Interview Deep-Dive Answer
+
+Agent discovery and control are easy to overlook in demo systems but crucial in production. My approach is to give each agent an Agent Card, publish it when the service comes online, and then let the orchestrator select agents by capability instead of hardcoded names. That makes the system extensible and supports future A2A negotiation. The conversation agent uses a LangGraph graph to draft a response, interrupt for human approval, and then finalize only when the human approves. This creates a safe and auditable workflow without making the system brittle.
+
+## 6. Business Explanation
+
+The business benefit is governance and safety. Enterprises need to know which agents exist, what they can do, which ones are alive, and when a human should review a result. This reduces operational risk and supports compliance and trust in automation.
+
+## 7. Real Example From AgentMesh
+
+The new registry files under `src/agentmesh/registry/` and the `ConversationAgent` under `src/agentmesh/agents/conversation_agent/` implement exactly this pattern.
+
+## 8. Trade-offs
+
+Pros: capability-based selection, simpler scaling, safer human review.
+Cons: a registry adds operational complexity and a human approval step can slow some flows.
+The trade-off is worthwhile because it improves control and trust.
+
+## 9. Follow-up Questions
+
+- How do you handle stale agents?
+- What happens if multiple agents claim the same capability?
+- How would this scale to A2A peer discovery later?
+
+## 10. Resume Bullet
+
+Built a dynamic Agent Card registry with capability-based discovery and a LangGraph-based conversation agent with human-in-the-loop approval, creating a safer foundation for enterprise multi-agent workflows.
+
+---
+
+# Feature: Minimal Multi-Agent Orchestration
+
+## 1. Simple Explanation
+
+A minimal multi-agent orchestration is a simple loop where one orchestrator decides the next task, assigns it to the correct specialist, and records every step as an event. The system stays small enough to understand quickly, but it still follows the same production pattern as a larger workflow engine.
+
+## 2. Technical Explanation
+
+The smallest useful orchestration has three moving parts: a planner/orchestrator, a list of agent tasks, and a durable event log. In AgentMesh, the orchestrator emits `WORKFLOW_STARTED` and `TASK_ASSIGNED` events. Each agent receives a directed task, does its work, and emits `TASK_COMPLETED` or `TASK_FAILED`. The orchestrator advances the plan by assigning the next task. This creates a graph-like flow without requiring direct agent-to-agent calls.
+
+## 3. Why It Matters
+
+Most agent failures happen not because the model is bad, but because orchestration is brittle and hard to debug. A minimal orchestrator makes task sequencing, retries, and observability explicit from day one. It also gives teams a clear migration path to a more complex graph engine without rewriting the whole system.
+
+## 4. Interview Short Answer
+
+I start multi-agent systems with a tiny orchestrator that emits tasks and records them in a shared event log. That gives me explicit sequencing, observability, and retryability without introducing a large runtime dependency. Once the pattern is proven, the same architecture can expand into a more complex graph or state machine.
+
+## 5. Interview Deep-Dive Answer
+
+The minimal orchestrator is intentionally boring but powerful. It does one job: decide which specialist should act next and write the decision into a durable event stream. Each step is a task assignment, and every task completion is another event. If the workflow fails or a task is retried, the same event history still tells the full story. That is the core advantage of event-driven orchestration. It keeps the control plane explicit and the reasoning about failures straightforward.
+
+## 6. Business Explanation
+
+The business value is operational clarity. Teams can see exactly what happened, where work paused, and which agent owns each step. That reduces debugging time, improves reliability, and gives product owners confidence that the system is not just a black-box chat loop.
+
+## 7. Real Example From AgentMesh
+
+The new `OrchestratorService` in `src/agentmesh/services/orchestrator_service.py` demonstrates this pattern. It defines a workflow of `JOB_DETECT -> EMAIL_FIND -> APPLY` and emits `WORKFLOW_STARTED` plus directed `TASK_ASSIGNED` events. This is the smallest version of the production architecture the repo is designed around.
+
+## 8. Trade-offs
+
+Pros: easy to reason about, fast to test, minimal dependencies, clear observability.
+Cons: not as expressive as a full graph framework for highly dynamic branching.
+Why we chose it: it gives a strong foundation while staying small enough to understand and validate quickly.
+
+## 9. Follow-up Questions
+
+- What happens when a task fails and needs a retry?
+- How do you make an orchestrator deterministic and testable?
+- When should a workflow move to a more graph-based framework?
+
+## 10. Resume Bullet
+
+Designed a minimal event-driven multi-agent orchestration pattern with explicit task assignment and observability, enabling deterministic workflow progression and a clear path to production-scale agent systems.
+
+---
+
 # Feature: AgentMesh Core — Project Overview
 
 ## 1. Simple Explanation

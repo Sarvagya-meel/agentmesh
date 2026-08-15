@@ -38,8 +38,69 @@ AgentMesh combines centralized orchestration with decentralized event-driven age
 
 ## Project Status
 
-Currently in Phase 1A — environment and folder bootstrap only.
-No application logic has been implemented yet.
+Currently in Phase 1C — minimal orchestration, a LangGraph-based conversation agent, and a dynamic agent registry are in place.
+The system now includes a lightweight event-driven orchestrator, a single conversation agent with a human approval checkpoint, and an in-memory registry that supports dynamic registration.
+
+## LangGraph Conversation Agent
+
+```python
+from agentmesh.agents.conversation_agent.agent import ConversationAgent
+
+agent = ConversationAgent()
+response = agent.run_conversation("Plan a launch for my product")
+print(response["draft_reply"])
+```
+
+This version keeps the human-in-the-loop pattern explicit by separating the draft response from the approval check. The registry and the orchestrator can later route task requests to this agent using its Agent Card metadata.
+
+## Dynamic Agent Registry
+
+```python
+from agentmesh.registry.models import AgentCard
+from agentmesh.registry.repository import InMemoryRegistryRepository
+from agentmesh.registry.service import RegistryService
+
+service = RegistryService(InMemoryRegistryRepository())
+service.register_agent(
+    AgentCard(
+        agent_id="conversation-agent",
+        name="conversation_agent",
+        capabilities=["CHAT", "REVIEW"],
+        endpoint="http://localhost:8001",
+    )
+)
+print(service.find_capable_agents("CHAT"))
+```
+
+This registry supports dynamic registration, heartbeats, capability matching, and later A2A discovery without hardcoding agent IDs.
+
+## Smallest Multi-Agent Orchestration
+
+```python
+from uuid import uuid4
+
+from agentmesh.services.orchestrator_service import AgentStep, OrchestratorService
+
+service = OrchestratorService(
+    [
+        AgentStep("detect_jobs", "JOB_DETECT", "job_detector", "Find relevant roles"),
+        AgentStep("find_email", "EMAIL_FIND", "email_finder", "Find the contact email"),
+        AgentStep("apply", "APPLY", "applicator", "Submit the application"),
+    ]
+)
+
+state, events = service.start_workflow(
+    "conversation-1",
+    "Find and apply to a good software role",
+    workflow_id=uuid4(),
+)
+
+print(state.status)
+print([event.event_type for event in events])
+print([event.target_agent for event in events if event.event_type == "TASK_ASSIGNED"])
+```
+
+This is intentionally small: one orchestrator, three agents, and an append-only event sequence. It is enough to validate the pattern before scaling to a production workflow engine.
 
 ---
 

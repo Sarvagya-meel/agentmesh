@@ -59,6 +59,96 @@ A short 3–4 sentence business-facing pitch suitable for a client meeting or re
 
 ---
 
+# Business Problem: Dynamic Agent Discovery and Human Oversight
+
+## Problem
+
+As soon as multiple agents are deployed, teams need to know which ones exist, what they do, whether they are healthy, and when a human should intervene. Without a registry and approval checkpoint, organisations risk adding duplicate agents or sending automated responses that should have been reviewed.
+
+## Current Manual Process
+
+Teams often keep agent metadata in spreadsheets, readmes, or tribal knowledge. There is no dynamic registration, no health signal, and no standard way to know which agent can handle a request.
+
+## Why That Fails
+
+- duplicate agents are created unknowingly
+- degraded or stale agents remain in service
+- business teams cannot trust automation decisions without oversight
+- scaling multi-agent systems becomes operationally painful
+
+## AgentMesh Solution
+
+The new registry stores Agent Cards with capabilities, health, ownership, and endpoint metadata. Agents advertise themselves when they come online and send heartbeats to confirm they are still alive. A LangGraph conversation agent also includes an approval checkpoint before finalizing a response.
+
+## Business Impact
+
+- safer automation with human approval on sensitive output
+- better control and visibility across the fleet of agents
+- faster onboarding as new agents can self-register
+- cleaner governance for both runtime and operational oversight
+
+## Example Scenario
+
+A customer support agent starts up and registers itself with the capability `CHAT`. The orchestrator queries the registry and routes a request to the most suitable live agent. Before the response is sent, the conversation flow pauses for a human review if the action is sensitive.
+
+## Metrics to Track
+
+- number of registered agents
+- average heartbeat freshness
+- number of stale or offline agents
+- approval rate for human-reviewed outputs
+- orchestration success rate by capability
+
+## Interview / Client Pitch
+
+Production AI systems need both discovery and control. A registry gives you visibility into which agents are alive and capable, and a human approval step protects critical workflows from unsafe or low-confidence automation.
+
+---
+
+# Business Problem: Unclear Multi-Agent Workflow Ownership
+
+## Problem
+
+Many organisations prototype agent systems with a shared prompt or a single monolithic workflow, but they struggle to know which agent owns each step, why the system moved to a new task, and how to recover when one step fails.
+
+## Current Manual Process
+
+Teams often use ad-hoc Python scripts, notebooks, or chat wrappers where each agent call is manually sequenced. There is little visibility into what decision happened next or which step is responsible for a failure.
+
+## Why That Fails
+
+- No clear accountability for each task
+- Hard to debug when the system stalls or loops
+- Impossible to explain workflow decisions to stakeholders
+- Difficult to scale beyond a toy demo
+
+## AgentMesh Solution
+
+The minimal orchestrator pattern adds a single coordinator that emits `TASK_ASSIGNED` events and records task completion in a shared event stream. Each agent remains independent, but the sequence is explicit and traceable.
+
+## Business Impact
+
+- Faster debugging and incident recovery
+- Clear ownership and auditability for each workflow step
+- Lower engineering cost when scaling from prototype to production
+
+## Example Scenario
+
+A hiring workflow starts by searching jobs, then finds the recruiter email, then submits the application. The orchestrator assigns each step to the relevant agent and records the outcome. If the email finder fails, the team can immediately see which step failed and why.
+
+## Metrics to Track
+
+- workflow completion rate
+- average time to recover from a failed step
+- number of manual interventions required
+- percentage of tasks with full event traceability
+
+## Interview / Client Pitch
+
+The real bottleneck in multi-agent systems is not the model — it is the coordination layer. A small orchestrator with explicit task events makes the system observable, debuggable, and scalable from prototype to production.
+
+---
+
 # Business Problem: Manual Job Search and Application Workflows
 
 ## Problem
