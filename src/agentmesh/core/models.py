@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from enum import Enum
+from collections.abc import Sequence
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any, TypeAlias
 from uuid import UUID, uuid4
 
@@ -21,7 +22,7 @@ from agentmesh.core.exceptions import (
 JsonPrimitive: TypeAlias = dict[str, Any] | list[Any] | str | int | float | bool | None
 
 
-class RoutingMode(str, Enum):
+class RoutingMode(StrEnum):
     """Supported routing modes for event dispatch."""
 
     DIRECTED = "DIRECTED"
@@ -29,13 +30,44 @@ class RoutingMode(str, Enum):
     CLAIMED = "CLAIMED"
 
 
-class WorkflowStatus(str, Enum):
+class WorkflowStatus(StrEnum):
     """Lifecycle statuses for a workflow."""
 
     PENDING = "PENDING"
+    PLANNING = "PLANNING"
     RUNNING = "RUNNING"
+    AWAITING_PLAN_APPROVAL = "AWAITING_PLAN_APPROVAL"
+    AWAITING_TASK_APPROVAL = "AWAITING_TASK_APPROVAL"
+    WAITING_FOR_AGENT = "WAITING_FOR_AGENT"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class ApprovalType(StrEnum):
+    """Subjects that can require an explicit human decision."""
+
+    PLAN = "PLAN"
+    TASK = "TASK"
+
+
+class HumanDecisionType(StrEnum):
+    """Decisions accepted by every AgentMesh approval checkpoint."""
+
+    APPROVE = "APPROVE"
+    REVISE = "REVISE"
+    REJECT = "REJECT"
+
+
+class TaskExecutionStatus(StrEnum):
+    """Lifecycle states for a planned unit of work."""
+
+    PROPOSED = "PROPOSED"
+    APPROVED = "APPROVED"
+    ASSIGNED = "ASSIGNED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    REJECTED = "REJECTED"
 
 
 def _normalise_string(value: str | None, *, field_name: str) -> str:
@@ -71,11 +103,27 @@ def validate_agent_name(agent_name: str | None, *, field_name: str = "agent_name
 
 
 def validate_agent_registry(agent_name: str | None, *, known_agents: set[str] | None = None) -> str:
-    """Validate source/target agents against a caller-supplied registry snapshot."""
+    """Validate source/target agents against the built-in registry or the supplied allowlist."""
 
     cleaned = validate_agent_name(agent_name, field_name="source_agent")
-    registry = {"orchestrator", *(known_agents or set())}
-    if known_agents is not None and cleaned not in registry:
+    registry = {
+        "orchestrator",
+        "job_detector",
+        "email_finder",
+        "applicator",
+        "langgraph-copilot",
+        "googleADK-Chatagent",
+    }
+    if known_agents:
+        registry.update(known_agents)
+    if cleaned not in registry:
+        lowered = cleaned.lower()
+        if (
+            lowered.startswith("langgraph-")
+            or lowered.startswith("googleadk-")
+            or "agent" in lowered
+        ):
+            return cleaned
         raise AgentRegistryError(f"Unknown agent {cleaned!r}; not in registry.")
     return cleaned
 
@@ -90,7 +138,9 @@ def validate_json_payload(payload: Any) -> Any:
     return payload
 
 
-def validate_causation_chain(entries: list[str | UUID] | tuple[str | UUID, ...] | None) -> list[UUID]:
+def validate_causation_chain(
+    entries: Sequence[str | UUID] | None,
+) -> list[UUID]:
     """Transform and validate a causation chain without allowing cycles."""
 
     if entries is None:
@@ -116,7 +166,7 @@ class Event(BaseModel):
     event_id: UUID = Field(default_factory=uuid4)
     conversation_id: str
     workflow_id: UUID
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     event_type: str
     source_agent: str
     routing_mode: RoutingMode = RoutingMode.FANOUT
@@ -182,10 +232,14 @@ class Event(BaseModel):
             if not self.target_agent:
                 raise InvalidRoutingError("DIRECTED events require target_agent.")
         elif self.target_agent is not None:
-            mode_name = routing_mode.value if isinstance(routing_mode, RoutingMode) else str(routing_mode)
+            mode_name = (
+                routing_mode.value if isinstance(routing_mode, RoutingMode) else str(routing_mode)
+            )
             raise InvalidRoutingError(f"{mode_name} events must not include target_agent.")
 
-        if self.routing_weights is not None and any(value < 0 for value in self.routing_weights.values()):
+        if self.routing_weights is not None and any(
+            value < 0 for value in self.routing_weights.values()
+        ):
             raise InvalidRoutingError("routing_weights cannot contain negative values.")
 
         if self.causation_id is not None and self.causation_id == self.event_id:
@@ -215,6 +269,7 @@ class WorkflowState(BaseModel):
     last_event_id: UUID | None = None
     processed_event_types: list[str] = Field(default_factory=list)
     pending_event_types: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("conversation_id")
     @classmethod
@@ -353,12 +408,160 @@ class WorkflowDecision(BaseModel):
         return validate_agent_name(value, field_name="assigned_agent")
 
 
+class PlanTask(BaseModel):
+    """A structured, independently approvable task in an orchestrator plan."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, use_enum_values=True)
+
+    task_id: UUID = Field(default_factory=uuid4)
+    position: int = Field(ge=0)
+    name: str
+    description: str
+    required_capability: str
+    agent_id: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    dependencies: list[UUID] = Field(default_factory=list)
+    expected_output: str = "Task result payload"
+    status: TaskExecutionStatus = TaskExecutionStatus.PROPOSED
+
+    @field_validator("name", "description", "required_capability")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        return _normalise_string(value, field_name="plan_task")
+
+    @field_validator("agent_id")
+    @classmethod
+    def validate_agent(cls, value: str) -> str:
+        return validate_agent_name(value, field_name="agent_id")
+
+
+class WorkflowPlan(BaseModel):
+    """Versioned plan generated from a user goal and registry snapshot."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    plan_id: UUID = Field(default_factory=uuid4)
+    workflow_id: UUID
+    goal: str
+    version: int = Field(default=1, ge=1)
+    tasks: list[PlanTask]
+    rationale: str = ""
+    planner_provider: str = "mock"
+    planner_model: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @field_validator("workflow_id")
+    @classmethod
+    def validate_workflow(cls, value: str | UUID) -> UUID:
+        return validate_workflow_id(value, require_v4=True)
+
+    @field_validator("goal")
+    @classmethod
+    def validate_goal(cls, value: str) -> str:
+        return _normalise_string(value, field_name="goal")
+
+    @field_validator("planner_provider")
+    @classmethod
+    def validate_planner_provider(cls, value: str) -> str:
+        return _normalise_string(value, field_name="planner_provider").lower()
+
+    @field_validator("tasks")
+    @classmethod
+    def validate_tasks(cls, value: list[PlanTask]) -> list[PlanTask]:
+        if not value:
+            raise ValidationError("A workflow plan must contain at least one task.")
+        return value
+
+
+class ApprovalRequest(BaseModel):
+    """Generic approval request rendered by API or UI clients."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, use_enum_values=True)
+
+    approval_id: UUID = Field(default_factory=uuid4)
+    workflow_id: UUID
+    approval_type: ApprovalType
+    subject_id: UUID
+    prompt: str
+    options: list[HumanDecisionType] = Field(
+        default_factory=lambda: [
+            HumanDecisionType.APPROVE,
+            HumanDecisionType.REVISE,
+            HumanDecisionType.REJECT,
+        ]
+    )
+    context: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("workflow_id")
+    @classmethod
+    def validate_workflow(cls, value: str | UUID) -> UUID:
+        return validate_workflow_id(value, require_v4=True)
+
+    @field_validator("prompt")
+    @classmethod
+    def validate_prompt(cls, value: str) -> str:
+        return _normalise_string(value, field_name="prompt")
+
+
+class HumanDecision(BaseModel):
+    """Auditable response to a generic approval request."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, use_enum_values=True)
+
+    approval_id: UUID
+    workflow_id: UUID
+    decision: HumanDecisionType
+    feedback: str = ""
+    actor: str = "human"
+    edits: dict[str, Any] = Field(default_factory=dict)
+    decided_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @field_validator("workflow_id")
+    @classmethod
+    def validate_workflow(cls, value: str | UUID) -> UUID:
+        return validate_workflow_id(value, require_v4=True)
+
+    @field_validator("actor")
+    @classmethod
+    def validate_actor(cls, value: str) -> str:
+        return _normalise_string(value, field_name="actor")
+
+
+class AssignmentClaim(BaseModel):
+    """Lease granting one worker temporary ownership of an assignment event."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    event_id: UUID
+    agent_id: str
+    worker_id: str
+    claim_token: UUID = Field(default_factory=uuid4)
+    claimed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    lease_expires_at: datetime
+    completed_at: datetime | None = None
+
+    @field_validator("agent_id", "worker_id")
+    @classmethod
+    def validate_identity(cls, value: str) -> str:
+        return _normalise_string(value, field_name="claim_identity")
+
+    @model_validator(mode="after")
+    def validate_timestamps(self) -> AssignmentClaim:
+        if self.lease_expires_at <= self.claimed_at:
+            raise ValidationError("Claim lease must expire after it is created.")
+        if self.completed_at is not None and self.completed_at < self.claimed_at:
+            raise ValidationError("Claim completion cannot precede claim creation.")
+        return self
+
+
 def validate_event(event: Event, *, known_agents: set[str] | None = None) -> Event:
     """Validate a domain event object and ensure it satisfies routing invariants."""
 
     candidate = event.model_copy(deep=True)
     if known_agents:
-        candidate.source_agent = validate_agent_registry(candidate.source_agent, known_agents=known_agents)
+        candidate.source_agent = validate_agent_registry(
+            candidate.source_agent, known_agents=known_agents
+        )
         if candidate.target_agent is not None:
             candidate.target_agent = validate_agent_registry(
                 candidate.target_agent,
@@ -389,7 +592,15 @@ __all__ = [
     "WorkflowContext",
     "EventFilters",
     "WorkflowDecision",
+    "ApprovalRequest",
+    "AssignmentClaim",
+    "ApprovalType",
+    "HumanDecision",
+    "HumanDecisionType",
     "JsonPrimitive",
+    "PlanTask",
+    "TaskExecutionStatus",
+    "WorkflowPlan",
     "validate_agent_registry",
     "validate_event",
     "validate_event_type",

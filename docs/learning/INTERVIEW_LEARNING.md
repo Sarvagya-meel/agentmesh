@@ -314,3 +314,105 @@ In AgentMesh, `agents/job_detector/agent_manifest.json` describes the job detect
 ## 10. Resume Bullet
 
 Designed a local-first multi-agent system with optional AWS AgentCore and Agent Registry integration using feature flags and injectable adapter interfaces — enabling zero-cost local development with a clear, non-breaking upgrade path to cloud deployment.
+
+---
+
+# Feature: Governed LangGraph Master Orchestrator
+
+## 1. Simple Explanation
+
+The master agent turns a user's goal into a plan, shows that plan to a human, and waits for approval. Before it sends each task to a specialist agent, it asks again. This gives people control over both the overall approach and every external action.
+
+## 2. Technical Explanation
+
+`MasterOrchestratorAgent` is a LangGraph state machine with explicit nodes for registry discovery, plan creation, plan review, task preparation, task review, dispatch, result waiting, and completion. LangGraph interrupts suspend execution at human and worker boundaries. The planner consumes a runtime `AgentCard` snapshot and returns validated `WorkflowPlan` and `PlanTask` models, so worker IDs are discovered dynamically instead of hardcoded. The graph writes domain events through `EventService`; `StateService` rebuilds the workflow projection from those events. Memory backends support local development, while PostgreSQL implementations provide durable events and checkpoints.
+
+## 3. Why It Matters
+
+An LLM should not be allowed to silently invent a plan and trigger many downstream actions. Separate approval gates limit the blast radius of a bad plan, make responsibility explicit, and produce an audit trail that explains who approved what and when.
+
+## 4. Interview Short Answer
+
+I used LangGraph for the master agent because the workflow has real pause-and-resume boundaries. It discovers workers from a dynamic registry, creates a typed plan, interrupts for plan approval, interrupts again before every task, and dispatches only through directed events. AgentMesh remains the system of record, so workflow state is replayable even though LangGraph manages execution checkpoints.
+
+## 5. Interview Deep-Dive Answer
+
+I separated execution state from business history. LangGraph is responsible for control flow and resumable interrupts, while the append-only AgentMesh event log records durable facts such as plan creation, approval decisions, task proposals, assignments, and results. At workflow start, the coordinator snapshots online Agent Cards. The planner can be replaced by an LLM-backed implementation, but its output must conform to Pydantic models and pass deterministic validation before a human sees it. Plan revision creates a new version rather than mutating history. After plan approval, every task gets its own approval request. An approved task emits `TASK_ASSIGNED`; the coordinator never imports or invokes the worker. It suspends until the API receives the matching worker result, then continues to the next task. This preserves service boundaries and makes tests deterministic. PostgreSQL advisory locks provide per-workflow event ordering, and a PostgreSQL LangGraph saver can restore suspended runs after restart.
+
+## 6. Business Explanation
+
+The company gets automation without surrendering control. A reviewer can correct an unsuitable plan before any work starts and can stop a risky individual action even after approving the overall approach. Every decision is recorded for audit and incident review.
+
+## 7. Real Example From AgentMesh
+
+A user asks AgentMesh to find a role and apply. The master agent discovers the currently registered job-search agents, proposes the ordered tasks, and pauses. After the plan is approved, it proposes the job-search task. Only after a second approval does it emit a directed assignment to the selected live agent. The next task remains blocked until that worker reports completion.
+
+## 8. Trade-offs
+
+**Pros:** explicit governance, dynamic worker discovery, replayable history, process-resumable interrupts, framework-independent planner contract, and deterministic tests.
+
+**Cons:** two approval levels add latency; durable mode requires PostgreSQL for both events and checkpoints; human decisions need authorization in a production deployment.
+
+**Alternatives considered:** ADK provides useful agent building blocks but is less focused on durable state-machine interrupts. AutoGen is strong for conversational agent teams, but its conversation-first abstraction is less natural for strict approval gates and event-sourced dispatch. LangGraph best matches AgentMesh's explicit workflow lifecycle.
+
+## 9. Follow-up Questions
+
+- *Why are both events and checkpoints needed?* Checkpoints resume graph execution; events are the auditable business source of truth and rebuild projected state.
+- *How do you prevent an LLM from selecting a fake agent?* Validate every planned target against the captured online registry snapshot.
+- *Why approve each task after approving the plan?* The plan approves intent; task approval controls the actual side effect at dispatch time.
+- *How would you add an LLM planner?* Implement the `WorkflowPlanner` protocol and return the same typed plan model; the graph and validation remain unchanged.
+
+## 10. Resume Bullet
+
+Built a governed LangGraph master agent with dynamic capability-based planning, two-level human approval, event-driven worker dispatch, deterministic replay, and optional PostgreSQL checkpoint recovery.
+
+---
+
+# Feature: Strict Groq Planning Brain
+
+## 1. Simple Explanation
+
+The orchestrator now uses a real language model to understand a goal and propose which specialist agents should work in which order. The model can suggest work, but AgentMesh still checks everything and asks a human before acting.
+
+## 2. Technical Explanation
+
+`GroqWorkflowPlanner` implements the existing `WorkflowPlanner` protocol and calls Groq's OpenAI-compatible chat-completions endpoint with `openai/gpt-oss-120b`. The request uses strict JSON-schema output for a small `PlanDraft` model. The draft contains task text, target agent IDs, advertised capabilities, and dependency positions, but no domain UUIDs or execution state. AgentMesh converts it into `WorkflowPlan` and `PlanTask` objects, generates UUIDs locally, and performs deterministic registry and dependency validation. `create_workflow_planner` selects `mock` or `groq` from the root `.env`.
+
+## 3. Why It Matters
+
+Deterministic orchestration is safe but cannot understand arbitrary user goals. Unconstrained LLM orchestration is flexible but risky. This design combines model reasoning with schema constraints, policy checks, human approval, and an immutable event history.
+
+## 4. Interview Short Answer
+
+I made the orchestrator agentic only at the planning boundary. Groq GPT-OSS 120B proposes a strict JSON plan from the goal and live Agent Cards. AgentMesh then generates identifiers, validates every agent and capability, and keeps approvals and dispatch inside LangGraph. Tests force mock mode, so CI never calls an external model.
+
+## 5. Interview Deep-Dive Answer
+
+The important boundary is proposal versus authority. The model sees only the goal, revision feedback, and minimal registry metadata. Strict structured output prevents free-form parsing, while a separate draft schema prevents the provider from inventing workflow IDs, approval states, or event metadata. The adapter converts dependency positions into AgentMesh-owned UUID references. A central validator then checks contiguous ordering, backward-only dependencies, live agent membership, and advertised capabilities. The model cannot append events or call workers. Provider configuration and the secret key are read from one ignored `.env`; safe placeholders live in `.env.example`. Tests set the provider to `mock` at collection time, and HTTP contract tests use `MockTransport`, keeping tests deterministic and quota-free.
+
+## 6. Business Explanation
+
+Users can describe new workflows in ordinary language without engineers hardcoding every sequence. The business still retains approval, audit, and policy controls before any specialist agent receives work.
+
+## 7. Real Example From AgentMesh
+
+For "Research suitable software roles and review the shortlist," Groq produced a research task followed by a dependent review task. It selected only the supplied `RESEARCH` and `REVIEW` agents. AgentMesh generated the task IDs and paused before both the plan and each dispatch.
+
+## 8. Trade-offs
+
+**Pros:** flexible natural-language planning, guaranteed response shape, dynamic agent selection, centralized secrets, provider isolation, and offline tests.
+
+**Cons:** external latency and rate limits, user goals are sent to the provider, model plans still require semantic evaluation, and free tiers do not provide production SLAs.
+
+**Alternatives considered:** Hugging Face hosted inference has a very small free credit; OpenRouter free routing has lower limits and variable model selection; local Ollama avoids API costs but requires sufficient hardware. Groq provided the best combination of reasoning quality, strict schemas, and useful free limits for this phase.
+
+## 9. Follow-up Questions
+
+- *Why not let the model generate task UUIDs?* IDs are control-plane data and should remain deterministic application-owned values.
+- *Why not let Groq call worker tools directly?* That would bypass event sourcing and human approval boundaries.
+- *How are secrets protected?* The key exists only in the ignored root `.env` and is represented as `SecretStr` in settings.
+- *How do tests avoid spending quota?* `tests/conftest.py` forces `LLM_PROVIDER=mock`, and provider tests use an in-memory HTTP transport.
+
+## 10. Resume Bullet
+
+Integrated Groq GPT-OSS 120B as a strict-schema planning agent behind a provider-neutral protocol, with deterministic policy validation, centralized secret management, and quota-free mocked testing.

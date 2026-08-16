@@ -1,38 +1,53 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException
+
+from agentmesh.api.dependencies import get_registry_service
 from agentmesh.registry.models import AgentCard
-from agentmesh.registry.repository import InMemoryRegistryRepository
 from agentmesh.registry.service import RegistryService
 
 router = APIRouter(prefix="/registry", tags=["registry"])
-_registry_service = RegistryService(InMemoryRegistryRepository())
 
 
 @router.post("/agents", status_code=201)
-def register_agent(card: AgentCard) -> AgentCard:
-    return _registry_service.register_agent(card)
+def register_agent(
+    card: AgentCard,
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+) -> AgentCard:
+    return service.register_agent(card)
 
 
 @router.get("/agents")
-def list_agents() -> list[AgentCard]:
-    return _registry_service.list_agents()
+def list_agents(
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+) -> list[AgentCard]:
+    return service.list_agents()
 
 
 @router.get("/agents/{agent_id}")
-def get_agent(agent_id: str) -> AgentCard:
-    card = _registry_service.get_agent(agent_id)
+def get_agent(
+    agent_id: str,
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+) -> AgentCard:
+    card = service.get_agent(agent_id)
     if card is None:
         raise HTTPException(status_code=404, detail=f"Agent {agent_id!r} not found.")
     return card
 
 
 @router.post("/agents/{agent_id}/heartbeat")
-def heartbeat(agent_id: str) -> AgentCard:
-    return _registry_service.heartbeat(agent_id)
+def heartbeat(
+    agent_id: str,
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+) -> AgentCard:
+    return service.heartbeat(agent_id)
 
 
 @router.get("/agents/capabilities/{capability}")
-def find_by_capability(capability: str) -> list[AgentCard]:
-    return _registry_service.find_capable_agents(capability)
+def find_by_capability(
+    capability: str,
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+) -> list[AgentCard]:
+    return service.find_capable_agents(capability)

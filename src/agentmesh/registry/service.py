@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from agentmesh.core.exceptions import AgentRegistryError
 from agentmesh.registry.models import AgentCard
@@ -17,19 +17,19 @@ class RegistryService:
         existing = self.repository.get(card.agent_id)
         if existing is not None and existing.status == "online":
             raise AgentRegistryError(f"Agent {card.agent_id!r} is already registered.")
-        card.last_seen = datetime.now(timezone.utc)
+        card.last_seen = datetime.now(UTC)
         return self.repository.register(card)
 
     def heartbeat(self, agent_id: str) -> AgentCard:
         card = self.repository.get(agent_id)
         if card is None:
             raise AgentRegistryError(f"Agent {agent_id!r} not found in the registry.")
-        card.last_seen = datetime.now(timezone.utc)
+        card.last_seen = datetime.now(UTC)
         card.status = "online"
         return card
 
     def list_agents(self) -> list[AgentCard]:
-        return self.repository.list()
+        return self.repository.list_agents()
 
     def get_agent(self, agent_id: str) -> AgentCard | None:
         return self.repository.get(agent_id)

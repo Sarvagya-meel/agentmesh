@@ -111,3 +111,59 @@ Most AI projects start with cloud dependencies baked in. I took the opposite app
 ## Hashtags
 
 #Python #AWSAgentCore #SystemDesign #MultiAgent #CloudArchitecture #LocalFirst
+
+---
+
+# Topic: Why My Master Agent Has Two Human Approval Gates
+
+## Hook
+
+Approving an AI plan is not the same as approving every action that plan can trigger.
+
+## Core Idea
+
+AgentMesh pauses once after planning and again before each task dispatch. The first decision validates the strategy; the second controls the concrete side effect and target agent.
+
+## Why It Matters
+
+Plans can become stale, individual tasks can carry different risk, and a single broad confirmation should not authorize an unlimited chain of actions. Two explicit gates create a stronger audit trail and smaller failure radius.
+
+## AgentMesh Example
+
+The LangGraph master agent discovers live workers, validates a typed plan, and uses interrupts for approval. It emits `TASK_ASSIGNED` only after both gates pass, then waits for the external worker result through the AgentMesh event boundary.
+
+## LinkedIn-Ready Version
+
+I added two human approval gates to AgentMesh: one for the generated plan and one before every worker task. Plan approval confirms the strategy, while task approval controls the actual side effect. The LangGraph coordinator never calls workers directly; approved work is dispatched through an auditable event log. This keeps multi-agent automation dynamic without making it uncontrollable.
+
+## Hashtags
+
+#LangGraph #HumanInTheLoop #MultiAgent #AIEngineering #EventSourcing
+
+---
+
+# Topic: Make the Orchestrator Agentic, Not Authoritative
+
+## Hook
+
+I gave my orchestrator an LLM brain without giving the LLM permission to act.
+
+## Core Idea
+
+Groq GPT-OSS proposes a strict JSON workflow plan from the user's goal and live Agent Cards. AgentMesh creates the IDs, validates capabilities and dependencies, and keeps approval and dispatch inside deterministic LangGraph nodes.
+
+## Why It Matters
+
+Hardcoded plans cannot handle arbitrary goals, but autonomous tool-calling models can bypass important controls. Separating proposal from authority gives the system flexibility without weakening governance.
+
+## AgentMesh Example
+
+The model proposed a research task followed by review and linked their dependency. AgentMesh verified both advertised capabilities, generated local UUIDs, and paused for plan approval before preparing either task.
+
+## LinkedIn-Ready Version
+
+I made the AgentMesh orchestrator agentic at exactly one boundary: planning. Groq GPT-OSS 120B returns a strict JSON plan, but it cannot create events or call workers. AgentMesh validates every agent, capability, and dependency before asking for human approval. The AI proposes; the control plane remains authoritative.
+
+## Hashtags
+
+#Groq #LangGraph #MultiAgent #StructuredOutputs #AIEngineering

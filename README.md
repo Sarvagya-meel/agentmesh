@@ -13,6 +13,8 @@ AgentMesh combines centralized orchestration with decentralized event-driven age
 - Atomic event claiming for exclusive task processing
 - Causation chain tracking and loop prevention
 - Full workflow replayability and observability
+- LangGraph master orchestration with plan and per-task human approval gates
+- Dynamic capability-based agent discovery with no hardcoded worker IDs
 - Clean API → Service → Storage layering with FastAPI and PostgreSQL
 
 ---
@@ -28,6 +30,7 @@ AgentMesh combines centralized orchestration with decentralized event-driven age
 | DB Driver | asyncpg |
 | Migrations | Alembic |
 | Validation | Pydantic v2 |
+| Orchestration | LangGraph |
 | Database | PostgreSQL 15 |
 | Testing | pytest, pytest-asyncio, hypothesis |
 | Linting | ruff |
@@ -38,8 +41,7 @@ AgentMesh combines centralized orchestration with decentralized event-driven age
 
 ## Project Status
 
-Currently in Phase 1C — minimal orchestration, a LangGraph-based conversation agent, and a dynamic agent registry are in place.
-The system now includes a lightweight event-driven orchestrator, a single conversation agent with a human approval checkpoint, and an in-memory registry that supports dynamic registration.
+The master orchestration and first complete worker path are implemented. A LangGraph coordinator discovers live agents, creates and validates a structured plan, pauses for plan and task approval, then emits directed assignments. Independent LangGraph and Google ADK workers heartbeat, poll, atomically lease assignments, call a real LLM, and submit claim-authenticated results. Expired leases allow a restarted worker to recover unfinished work.
 
 ---
 
@@ -91,6 +93,75 @@ http://127.0.0.1:8501
 ```
 
 You should see a basic chat interface where the conversation agent is available and auto-registered with the registry.
+
+---
+
+## Master Orchestrator
+
+The master orchestrator is a control-plane agent. It does not execute worker tools directly. Instead, it:
+
+1. captures a snapshot of online agents from the dynamic registry
+2. creates and validates a structured workflow plan
+3. interrupts for plan approval, revision, or rejection
+4. proposes each task and interrupts for a second approval
+5. emits a directed `TASK_ASSIGNED` event only after approval
+6. waits for the worker's external `TASK_COMPLETED` or `TASK_FAILED` result
+
+```text
+POST /workflows/start
+GET  /workflows/{workflow_id}
+POST /workflows/{workflow_id}/approvals
+GET  /workers/{agent_id}/assignments
+POST /workers/{agent_id}/assignments/{event_id}/claim
+POST /workers/{agent_id}/assignments/{event_id}/result
+GET  /events?workflow_id={workflow_id}
+GET  /state/{workflow_id}
+```
+
+The Streamlit Workflow sidebar drives the same API and renders generic approval controls for any registered agent. Local development uses in-memory events and checkpoints by default. Set `EVENT_STORE_BACKEND=postgres` and `ORCHESTRATOR_CHECKPOINT_BACKEND=postgres` to retain both across restarts.
+
+### Run the LLM agents
+
+Run either framework by itself:
+
+```powershell
+python -m agentmesh.runners.run_langgraph_agent --prompt "Explain event sourcing"
+python -m agentmesh.runners.run_google_adk_agent --prompt "Explain event sourcing"
+```
+
+Run them as independent polling workers before submitting workflows:
+
+```powershell
+python -m agentmesh.runners.run_langgraph_agent --worker
+python -m agentmesh.runners.run_google_adk_agent --worker
+```
+
+Use `--worker --once` to process at most one assignment. Worker timing and API location are configured centrally with `AGENTMESH_API_URL`, `POLL_INTERVAL_SECONDS`, `WORKER_HEARTBEAT_SECONDS`, `WORKER_LEASE_SECONDS`, and `WORKER_REQUEST_TIMEOUT_SECONDS` in the ignored root `.env`.
+
+The repeatable live matrix covers no-agent, LangGraph-only, Google-ADK-only, and all-agent workflows:
+
+```powershell
+python scripts\live_orchestration_smoke.py
+```
+
+### Groq planning brain
+
+AgentMesh can replace the deterministic local planner with Groq `openai/gpt-oss-120b`. The model receives the user goal, human revision feedback, and a minimal snapshot of registered agent capabilities. It returns a strict JSON plan draft; AgentMesh generates task IDs and validates positions, dependencies, agent IDs, and advertised capabilities before requesting human approval.
+
+All model settings live in the ignored repository-root `.env`:
+
+```dotenv
+LLM_PROVIDER=groq
+GROQ_API_KEY=your-key-from-the-groq-console
+GROQ_MODEL=openai/gpt-oss-120b
+GROQ_API_BASE=https://api.groq.com/openai/v1
+GROQ_REASONING_EFFORT=medium
+GROQ_TEMPERATURE=0.1
+GROQ_MAX_COMPLETION_TOKENS=4096
+GROQ_TIMEOUT_SECONDS=45
+```
+
+The real key belongs only in `.env`, which is ignored by Git. `.env.example` contains safe placeholders. Tests set `LLM_PROVIDER=mock` before application imports, so `pytest` never calls Groq or consumes quota.
 
 ---
 
@@ -329,11 +400,9 @@ python -m streamlit run src\agentmesh\ui\streamlit_app.py --server.headless true
 # Start API + UI together (recommended)
 python -m agentmesh.local_entrypoint
 
-# Run agents as independent processes
-python -m agentmesh.runners.run_orchestrator --workflow-id <uuid>
-python -m agentmesh.runners.run_job_detector --workflow-id <uuid>
-python -m agentmesh.runners.run_email_finder --workflow-id <uuid>
-python -m agentmesh.runners.run_applicator --workflow-id <uuid>
+# Run implemented agents as independent worker processes
+python -m agentmesh.runners.run_langgraph_agent --worker
+python -m agentmesh.runners.run_google_adk_agent --worker
 ```
 
 ---

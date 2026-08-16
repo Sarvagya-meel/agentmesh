@@ -282,3 +282,102 @@ A new team wants to build an email outreach agent. Before starting, they query t
 ## Interview / Client Pitch
 
 AgentMesh gives your organisation a living catalogue of AI capabilities. Every agent is described by a manifest — what it does, who owns it, what events it handles, and whether it's approved for production. Locally, this is free and instant. At enterprise scale, it syncs to AWS Agent Registry for centralised governance. This means your compliance team always knows what AI is running, your engineers don't duplicate work, and your organisation can scale AI adoption with confidence.
+
+---
+
+# Business Problem: Controlling Multi-Agent Automation Before It Acts
+
+## Problem
+
+Multi-agent workflows can translate one vague request into several external actions. Without visible planning and approval boundaries, a poor model decision can be multiplied across every downstream agent before a person notices.
+
+## Current Manual Process
+
+Operators either perform every step themselves or supervise automation through chat messages and ad hoc confirmations. Approvals are often buried in conversation history, and there is no reliable link between an approval and the exact task that was dispatched.
+
+## Why That Fails
+
+- Humans become a manual router instead of a decision maker
+- One broad confirmation can accidentally authorize several risky actions
+- Worker selection becomes stale when agent names are hardcoded
+- Incident review cannot reliably reconstruct the plan, approval, and dispatch sequence
+- Restarting a process can lose an in-progress approval
+
+## AgentMesh Solution
+
+AgentMesh adds a master agent that discovers live workers, creates a structured plan, and pauses for plan approval. It then creates an approval request for every task and emits a directed assignment only after that exact task is approved. Revisions create new plan versions, rejected work is cancelled, and all transitions are written to an append-only event log. PostgreSQL can persist both the event history and suspended LangGraph checkpoints.
+
+## Business Impact
+
+- Reduces unauthorized or accidental automated actions
+- Lets reviewers correct the workflow before resources are spent
+- Preserves a complete approval and execution audit trail
+- Allows new agents to join without orchestration code changes
+- Improves recovery from service restarts and operational incidents
+
+## Example Scenario
+
+A recruiting workflow proposes finding vacancies, locating hiring contacts, and submitting applications. A reviewer approves the overall plan but rejects one application task because the employer is excluded by policy. AgentMesh cancels before dispatching that task and preserves the decision in the event history.
+
+## Metrics to Track
+
+- percentage of plans approved, revised, and rejected
+- percentage of individual tasks stopped before dispatch
+- median approval response time
+- unauthorized dispatch count, with a target of zero
+- workflow recovery time after restart
+- time required to audit a workflow decision
+- worker reuse rate through dynamic discovery
+
+## Interview / Client Pitch
+
+AgentMesh places a governed control plane between user intent and autonomous action. People approve the plan and the actual task dispatch separately, while the platform records every decision and discovers workers dynamically. The result is automation that can scale without becoming opaque or uncontrollable.
+
+---
+
+# Business Problem: Turning Unstructured Goals Into Governed Workflows
+
+## Problem
+
+Users describe business outcomes in natural language, while automation platforms require explicit tasks, dependencies, and qualified workers. Hardcoding every possible workflow makes the system slow to adapt.
+
+## Current Manual Process
+
+An operator interprets each request, finds suitable specialists, writes a sequence of steps, and checks dependencies before work starts. New request types require new orchestration code or repeated manual coordination.
+
+## Why That Fails
+
+- Workflow creation does not scale with the variety of user requests
+- Hardcoded worker names become stale as the agent catalogue changes
+- Manual sequencing is slow and inconsistent
+- Fully autonomous model execution can bypass policy and approvals
+- External model usage can leak into tests and create unpredictable cost
+
+## AgentMesh Solution
+
+Groq GPT-OSS proposes a typed plan using the current registry snapshot. AgentMesh owns identifiers, verifies capabilities and dependencies, asks for human approval, and dispatches only through events. A single ignored `.env` controls the provider and credentials, while automated tests force a local deterministic planner.
+
+## Business Impact
+
+- Supports new workflow goals without writing a new sequence for each one
+- Reuses live approved agents based on advertised capabilities
+- Preserves governance while increasing planning flexibility
+- Keeps test and CI model cost at zero
+- Allows the model provider to be replaced without changing orchestration logic
+
+## Example Scenario
+
+A recruiter asks to research suitable roles and review a shortlist. The model proposes research followed by review, selects matching registered agents, and explains the sequence. AgentMesh rejects invented capabilities and waits for approval before any task is sent.
+
+## Metrics to Track
+
+- plan approval and revision rates
+- percentage of plans rejected by deterministic validation
+- planning latency and provider error rate
+- model requests and tokens per completed workflow
+- cost per approved plan
+- percentage of dynamically planned workflows completed successfully
+
+## Interview / Client Pitch
+
+AgentMesh turns natural-language outcomes into executable multi-agent plans without giving the model unchecked authority. The AI proposes; the platform validates, humans approve, and the event-driven control plane executes. That delivers flexibility and governance together.

@@ -1,4 +1,4 @@
-from agentmesh.core.event_types import EventType, REGISTERED_EVENT_TYPES, VALID_EVENT_TYPES
+from agentmesh.core.event_types import REGISTERED_EVENT_TYPES, VALID_EVENT_TYPES, EventType
 from agentmesh.core.exceptions import (
     AgentMeshError,
     AgentRegistryError,

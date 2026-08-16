@@ -33,5 +33,17 @@ class WorkflowNotFoundError(AgentMeshError):
     """Raised when a workflow cannot be found in storage."""
 
 
+class WorkflowConflictError(AgentMeshError):
+    """Raised when a workflow identifier is started more than once."""
+
+
+class ClaimConflictError(AgentMeshError):
+    """Raised when an assignment is already leased by another worker."""
+
+
 class AgentRegistryError(ValidationError):
     """Raised when a source or target agent is not part of the known registry."""
+
+
+class ModelProviderError(AgentMeshError):
+    """Raised when an external model provider cannot produce a usable response."""

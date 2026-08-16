@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
 
 from agentmesh.registry.models import AgentCard
 
@@ -18,7 +17,7 @@ class RegistryRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list(self) -> list[AgentCard]:
+    def list_agents(self) -> list[AgentCard]:
         raise NotImplementedError
 
     @abstractmethod
@@ -43,7 +42,7 @@ class InMemoryRegistryRepository(RegistryRepository):
     def get(self, agent_id: str) -> AgentCard | None:
         return self._agents.get(agent_id)
 
-    def list(self) -> list[AgentCard]:
+    def list_agents(self) -> list[AgentCard]:
         return list(self._agents.values())
 
     def remove(self, agent_id: str) -> bool:
@@ -51,4 +50,8 @@ class InMemoryRegistryRepository(RegistryRepository):
 
     def find_by_capability(self, capability: str) -> list[AgentCard]:
         target = capability.strip().lower()
-        return [card for card in self._agents.values() if target in {item.strip().lower() for item in card.capabilities}]
+        return [
+            card
+            for card in self._agents.values()
+            if target in {item.strip().lower() for item in card.capabilities}
+        ]

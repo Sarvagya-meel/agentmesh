@@ -32,7 +32,7 @@ def start_api() -> subprocess.Popen[str] | None:
         "--port",
         "8000",
     ]
-    return subprocess.Popen(cmd, cwd=str(project_root), env=env)
+    return subprocess.Popen(cmd, cwd=str(project_root), env=env, text=True)
 
 
 def start_streamlit() -> subprocess.Popen[str] | None:
@@ -55,7 +55,7 @@ def start_streamlit() -> subprocess.Popen[str] | None:
         "--server.port",
         "8501",
     ]
-    return subprocess.Popen(cmd, cwd=str(project_root), env=env)
+    return subprocess.Popen(cmd, cwd=str(project_root), env=env, text=True)
 
 
 def main() -> None:

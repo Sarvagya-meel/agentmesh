@@ -123,7 +123,11 @@ class OrchestratorService:
         selected_steps = list(steps or self.steps)
         known_agents = self._known_agents_for_steps(selected_steps, completed_agent)
         task_index = next(
-            (index for index, step in enumerate(selected_steps) if step.task_type == str(completed_task_type).upper()),
+            (
+                index
+                for index, step in enumerate(selected_steps)
+                if step.task_type == str(completed_task_type).upper()
+            ),
             None,
         )
         if task_index is None:

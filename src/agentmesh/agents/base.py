@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, cast
 
 import httpx
+
+from agentmesh.registry.models import AgentCard
 
 
 class BaseAgent(ABC):
@@ -24,13 +26,20 @@ class BaseAgent(ABC):
         owner: str = "platform-team",
     ) -> None:
         self.agent_name = agent_name
-        self.auto_register = auto_register and os.getenv("AUTO_REGISTER_AGENTS", "true").lower() in {"1", "true", "yes"}
+        self.capabilities = capabilities or []
+        self.skills = skills or []
+        self.description = description or f"{self.agent_name} agent"
+        self.endpoint = endpoint or os.getenv("AGENT_ENDPOINT", "http://localhost:8001")
+        self.owner = owner
+        self.auto_register = auto_register and os.getenv(
+            "AUTO_REGISTER_AGENTS", "true"
+        ).lower() in {"1", "true", "yes"}
         if self.auto_register:
             self.register_self(
                 endpoint=endpoint,
-                capabilities=capabilities,
-                skills=skills,
-                description=description,
+                capabilities=self.capabilities,
+                skills=self.skills,
+                description=self.description,
                 owner=owner,
             )
 
@@ -44,25 +53,44 @@ class BaseAgent(ABC):
         owner: str = "platform-team",
     ) -> dict[str, Any] | None:
         registry_url = os.getenv("AGENT_REGISTRY_URL", "http://127.0.0.1:8000/registry/agents")
-        payload = {
-            "agent_id": self.agent_name,
-            "name": self.agent_name,
-            "version": "1.0.0",
-            "description": description or f"{self.agent_name} agent",
-            "endpoint": endpoint or os.getenv("AGENT_ENDPOINT", "http://localhost:8001"),
-            "capabilities": capabilities or [],
-            "skills": skills or [],
-            "owner": owner,
-            "status": "online",
-        }
+        payload = self.agent_card(
+            endpoint=endpoint,
+            capabilities=capabilities,
+            skills=skills,
+            description=description,
+            owner=owner,
+        ).model_dump(mode="json")
 
         try:
             response = httpx.post(registry_url, json=payload, timeout=3.0)
             if response.status_code in {200, 201}:
-                return response.json()
+                return cast(dict[str, Any], response.json())
         except httpx.HTTPError:
             return None
         return None
+
+    def agent_card(
+        self,
+        *,
+        endpoint: str | None = None,
+        capabilities: list[str] | None = None,
+        skills: list[str] | None = None,
+        description: str | None = None,
+        owner: str | None = None,
+    ) -> AgentCard:
+        """Return the dynamic registry card advertised by this worker."""
+
+        return AgentCard(
+            agent_id=self.agent_name,
+            name=self.agent_name,
+            version="1.0.0",
+            description=description or self.description,
+            endpoint=endpoint or self.endpoint,
+            capabilities=capabilities if capabilities is not None else self.capabilities,
+            skills=skills if skills is not None else self.skills,
+            owner=owner or self.owner,
+            status="online",
+        )
 
     @abstractmethod
     def run_task(self, task_payload: dict[str, Any]) -> dict[str, Any]:
