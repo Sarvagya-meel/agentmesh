@@ -10,6 +10,7 @@ services:
       - "5432:5432"
     volumes:
       - agentmesh-postgres-data:/var/lib/postgresql/data
+      - ./db/postgress/ddls:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agentmesh -d agentmesh"]
       interval: 10s
