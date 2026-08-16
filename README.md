@@ -41,10 +41,63 @@ AgentMesh combines centralized orchestration with decentralized event-driven age
 Currently in Phase 1C — minimal orchestration, a LangGraph-based conversation agent, and a dynamic agent registry are in place.
 The system now includes a lightweight event-driven orchestrator, a single conversation agent with a human approval checkpoint, and an in-memory registry that supports dynamic registration.
 
+---
+
+## Quick Start
+
+### 1) Create and activate the virtual environment
+
+```powershell
+cd "C:\Users\sarva\OneDrive\Documents\ProjectSpace\agentmesh"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+```
+
+### 2) Start everything from a single entry point
+
+```powershell
+cd "C:\Users\sarva\OneDrive\Documents\ProjectSpace\agentmesh"
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH = "src"
+python -m agentmesh.local_entrypoint
+```
+
+This single command starts:
+- the FastAPI API on http://127.0.0.1:8000
+- the Streamlit chat UI on http://127.0.0.1:8501
+
+If a service is already running, the launcher reuses it instead of crashing.
+
+### 3) Health check
+
+```powershell
+Invoke-WebRequest -Uri http://127.0.0.1:8000/health
+```
+
+Expected JSON:
+
+```json
+{"status":"ok"}
+```
+
+### 4) Open the UI
+
+Open this in a browser:
+
+```text
+http://127.0.0.1:8501
+```
+
+You should see a basic chat interface where the conversation agent is available and auto-registered with the registry.
+
+---
+
 ## LangGraph Conversation Agent
 
 ```python
-from agentmesh.agents.conversation_agent.agent import ConversationAgent
+from agentmesh.agents.langgraph_copilot.agent import ConversationAgent
 
 agent = ConversationAgent()
 response = agent.run_conversation("Plan a launch for my product")
@@ -52,6 +105,8 @@ print(response["draft_reply"])
 ```
 
 This version keeps the human-in-the-loop pattern explicit by separating the draft response from the approval check. The registry and the orchestrator can later route task requests to this agent using its Agent Card metadata.
+
+---
 
 ## Dynamic Agent Registry
 
@@ -63,8 +118,8 @@ from agentmesh.registry.service import RegistryService
 service = RegistryService(InMemoryRegistryRepository())
 service.register_agent(
     AgentCard(
-        agent_id="conversation-agent",
-        name="conversation_agent",
+        agent_id="langgraph-copilot",
+        name="langgraph-copilot",
         capabilities=["CHAT", "REVIEW"],
         endpoint="http://localhost:8001",
     )
@@ -73,6 +128,34 @@ print(service.find_capable_agents("CHAT"))
 ```
 
 This registry supports dynamic registration, heartbeats, capability matching, and later A2A discovery without hardcoding agent IDs.
+
+### Registry API endpoints
+
+```text
+POST /registry/agents
+GET /registry/agents
+GET /registry/agents/{agent_id}
+POST /registry/agents/{agent_id}/heartbeat
+GET /registry/agents/capabilities/{capability}
+```
+
+Example registration payload:
+
+```json
+{
+  "agent_id": "conversation-agent",
+  "name": "langgraph-copilot",
+  "version": "1.0.0",
+  "description": "Handles conversations with human approval",
+  "endpoint": "http://localhost:8001",
+  "capabilities": ["CHAT", "REVIEW"],
+  "skills": ["conversation"],
+  "owner": "platform-team",
+  "status": "online"
+}
+```
+
+---
 
 ## Smallest Multi-Agent Orchestration
 
@@ -138,56 +221,113 @@ pip install -r requirements-dev.txt
 
 ---
 
+## Manual Run Commands
+
+```powershell
+# API only
+cd "C:\Users\sarva\OneDrive\Documents\ProjectSpace\agentmesh"
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH = "src"
+python -m uvicorn agentmesh.main:app --host 127.0.0.1 --port 8000 --reload
+
+# Streamlit UI only
+cd "C:\Users\sarva\OneDrive\Documents\ProjectSpace\agentmesh"
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH = "src"
+python -m streamlit run src\agentmesh\ui\streamlit_app.py --server.headless true --server.port 8501
+
+# Local entrypoint (recommended)
+cd "C:\Users\sarva\OneDrive\Documents\ProjectSpace\agentmesh"
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH = "src"
+python -m agentmesh.local_entrypoint
+```
+
+---
+
 ## Folder Structure
 
 ```
 agentmesh/
 ├── src/
-│   └── agentmesh/              # Main Python package
+│   └── agentmesh/
 │       ├── __init__.py
-│       ├── main.py             # FastAPI app entrypoint
+│       ├── main.py                  # FastAPI app entrypoint
+│       ├── local_entrypoint.py      # Starts API + Streamlit UI together
 │       ├── api/
-│       │   ├── routes/         # FastAPI route handlers (events, state, workflows)
+│       │   ├── routes/
+│       │   │   ├── events.py
+│       │   │   ├── state.py
+│       │   │   ├── workflows.py
+│       │   │   └── registry.py
 │       │   └── dependencies.py
-│       ├── services/           # Business logic (EventService, StateService, OrchestratorService)
-│       ├── storage/            # ORM models, repositories, Alembic migrations
+│       ├── services/
+│       │   ├── event_service.py
+│       │   ├── orchestrator_service.py
+│       │   └── state_service.py
+│       ├── storage/
+│       │   ├── models.py
+│       │   └── repository.py
 │       ├── agents/
-│       │   ├── base.py         # Shared abstract BaseAgent
-│       │   ├── job_detector/   # JobDetectorAgent package
-│       │   ├── email_finder/   # EmailFinderAgent package
-│       │   └── applicator/     # ApplicationAgent package
+│       │   ├── base.py
+│       │   ├── langgraph_copilot/
+│       │   │   ├── __init__.py
+│       │   │   └── agent.py
+│       │   ├── job_detector/
+│       │   ├── email_finder/
+│       │   └── applicator/
+│       ├── ui/
+│       │   ├── __init__.py
+│       │   └── streamlit_app.py
 │       ├── clients/
-│       │   └── mcp_client.py   # HTTP client for agents running as separate processes
-│       ├── runners/            # Independent process entrypoints
-│       ├── registry/           # Local + optional AWS agent registry
+│       │   └── mcp_client.py
+│       ├── runners/
+│       │   ├── run_orchestrator.py
+│       │   ├── run_job_detector.py
+│       │   ├── run_email_finder.py
+│       │   └── run_applicator.py
+│       ├── registry/
+│       │   ├── __init__.py
+│       │   ├── models.py
+│       │   ├── repository.py
+│       │   └── service.py
 │       ├── integrations/
-│       │   ├── aws/            # Optional AWS adapters (disabled by default)
-│       │   └── local/          # Local registry and mock providers
-│       └── core/               # Domain models, event types, exceptions
+│       │   ├── aws/
+│       │   └── local/
+│       └── core/
+│           ├── __init__.py
+│           ├── event_types.py
+│           ├── exceptions.py
+│           └── models.py
 ├── tests/
 │   ├── unit/
 │   └── integration/
 ├── docs/
-│   ├── learning/               # Interview learning notes
-│   ├── business/               # Business problem documentation
-│   └── content/medium/         # Medium-ready content drafts
+│   ├── learning/
+│   ├── business/
+│   └── content/
 ├── .kiro/
-│   ├── specs/agentmesh-core/   # Requirements, design, tasks
-│   ├── steering/               # Project-wide coding rules
-│   └── hooks/                  # Automation hooks
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── pyproject.toml
-└── docker-compose.yml
+├── docker-compose.yml
+├── README.md
+└── .env.example
 ```
 
 ---
 
 ## Run Commands
 
-```bash
-# Start the MCP API server
-uvicorn agentmesh.main:app --reload
+```powershell
+# Start the API only
+python -m uvicorn agentmesh.main:app --host 127.0.0.1 --port 8000 --reload
+
+# Start the Streamlit chat UI only
+python -m streamlit run src\agentmesh\ui\streamlit_app.py --server.headless true --server.port 8501
+
+# Start API + UI together (recommended)
+python -m agentmesh.local_entrypoint
 
 # Run agents as independent processes
 python -m agentmesh.runners.run_orchestrator --workflow-id <uuid>

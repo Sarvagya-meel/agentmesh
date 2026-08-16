@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
 from abc import ABC, abstractmethod
 from typing import Any
+
+import httpx
 
 
 class BaseAgent(ABC):
@@ -9,8 +12,57 @@ class BaseAgent(ABC):
 
     agent_name: str
 
-    def __init__(self, agent_name: str) -> None:
+    def __init__(
+        self,
+        agent_name: str,
+        *,
+        auto_register: bool = True,
+        capabilities: list[str] | None = None,
+        skills: list[str] | None = None,
+        description: str | None = None,
+        endpoint: str | None = None,
+        owner: str = "platform-team",
+    ) -> None:
         self.agent_name = agent_name
+        self.auto_register = auto_register and os.getenv("AUTO_REGISTER_AGENTS", "true").lower() in {"1", "true", "yes"}
+        if self.auto_register:
+            self.register_self(
+                endpoint=endpoint,
+                capabilities=capabilities,
+                skills=skills,
+                description=description,
+                owner=owner,
+            )
+
+    def register_self(
+        self,
+        *,
+        endpoint: str | None = None,
+        capabilities: list[str] | None = None,
+        skills: list[str] | None = None,
+        description: str | None = None,
+        owner: str = "platform-team",
+    ) -> dict[str, Any] | None:
+        registry_url = os.getenv("AGENT_REGISTRY_URL", "http://127.0.0.1:8000/registry/agents")
+        payload = {
+            "agent_id": self.agent_name,
+            "name": self.agent_name,
+            "version": "1.0.0",
+            "description": description or f"{self.agent_name} agent",
+            "endpoint": endpoint or os.getenv("AGENT_ENDPOINT", "http://localhost:8001"),
+            "capabilities": capabilities or [],
+            "skills": skills or [],
+            "owner": owner,
+            "status": "online",
+        }
+
+        try:
+            response = httpx.post(registry_url, json=payload, timeout=3.0)
+            if response.status_code in {200, 201}:
+                return response.json()
+        except httpx.HTTPError:
+            return None
+        return None
 
     @abstractmethod
     def run_task(self, task_payload: dict[str, Any]) -> dict[str, Any]:

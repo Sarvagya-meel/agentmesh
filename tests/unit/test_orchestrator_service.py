@@ -34,6 +34,27 @@ def test_orchestrator_starts_a_three_step_workflow() -> None:
     ]
 
 
+def test_orchestrator_routes_to_runtime_selected_agents() -> None:
+    service = OrchestratorService(
+        [
+            AgentStep("step_1", "CHAT", "custom-chat-agent", "Route chat request"),
+            AgentStep("step_2", "CHAT", "review-helper", "Route chat request"),
+        ]
+    )
+
+    state, events = service.start_workflow(
+        "conversation-ui",
+        "Help with this request",
+        workflow_id=uuid4(),
+    )
+
+    assert state.assigned_agents == ["custom-chat-agent", "review-helper"]
+    assert [event.target_agent for event in events if event.event_type == "TASK_ASSIGNED"] == [
+        "custom-chat-agent",
+        "review-helper",
+    ]
+
+
 def test_orchestrator_advances_to_the_next_task() -> None:
     service = OrchestratorService(
         [

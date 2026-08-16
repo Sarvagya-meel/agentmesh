@@ -8,3 +8,4 @@ pydantic-settings
 python-dotenv
 httpx
 langgraph
+streamlit

@@ -8,8 +8,8 @@ def test_agent_registration_and_capability_lookup() -> None:
     service = RegistryService(repository)
 
     card = AgentCard(
-        agent_id="conversation-agent",
-        name="conversation_agent",
+        agent_id="langgraph-copilot",
+        name="langgraph-copilot",
         description="Handles chat replies with human approval",
         capabilities=["CHAT", "REVIEW"],
         skills=["conversation"],
@@ -17,9 +17,9 @@ def test_agent_registration_and_capability_lookup() -> None:
     )
 
     registered = service.register_agent(card)
-    assert registered.agent_id == "conversation-agent"
-    assert service.get_agent("conversation-agent") == registered
-    assert service.find_capable_agents("CHAT")[0].agent_id == "conversation-agent"
+    assert registered.agent_id == "langgraph-copilot"
+    assert service.get_agent("langgraph-copilot") == registered
+    assert service.find_capable_agents("CHAT")[0].agent_id == "langgraph-copilot"
 
 
 def test_agent_heartbeat_marks_agent_online() -> None:

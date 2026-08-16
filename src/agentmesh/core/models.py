@@ -71,13 +71,11 @@ def validate_agent_name(agent_name: str | None, *, field_name: str = "agent_name
 
 
 def validate_agent_registry(agent_name: str | None, *, known_agents: set[str] | None = None) -> str:
-    """Validate source/target agents against the built-in registry or the supplied allowlist."""
+    """Validate source/target agents against a caller-supplied registry snapshot."""
 
     cleaned = validate_agent_name(agent_name, field_name="source_agent")
-    registry = {"orchestrator", "job_detector", "email_finder", "applicator"}
-    if known_agents:
-        registry.update(known_agents)
-    if cleaned not in registry:
+    registry = {"orchestrator", *(known_agents or set())}
+    if known_agents is not None and cleaned not in registry:
         raise AgentRegistryError(f"Unknown agent {cleaned!r}; not in registry.")
     return cleaned
 
@@ -151,14 +149,14 @@ class Event(BaseModel):
     @field_validator("source_agent")
     @classmethod
     def validate_source_agent(cls, value: str | None) -> str:
-        return validate_agent_registry(value, known_agents={"orchestrator"})
+        return validate_agent_name(value, field_name="source_agent")
 
     @field_validator("target_agent")
     @classmethod
     def validate_target_agent(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        return validate_agent_registry(value, known_agents={"job_detector", "email_finder", "applicator"})
+        return validate_agent_name(value, field_name="target_agent")
 
     @field_validator("payload")
     @classmethod

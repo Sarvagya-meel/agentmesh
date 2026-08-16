@@ -94,7 +94,7 @@ The business benefit is governance and safety. Enterprises need to know which ag
 
 ## 7. Real Example From AgentMesh
 
-The new registry files under `src/agentmesh/registry/` and the `ConversationAgent` under `src/agentmesh/agents/conversation_agent/` implement exactly this pattern.
+The new registry files under `src/agentmesh/registry/` and the `ConversationAgent` under `src/agentmesh/agents/langgraph_copilot/` implement exactly this pattern.
 
 ## 8. Trade-offs
 
