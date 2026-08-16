@@ -20,6 +20,11 @@ class RegistryService:
         card.last_seen = datetime.now(UTC)
         return self.repository.register(card)
 
+    def upsert_agent(self, card: AgentCard) -> AgentCard:
+        card.last_seen = datetime.now(UTC)
+        card.status = "online"
+        return self.repository.register(card)
+
     def heartbeat(self, agent_id: str) -> AgentCard:
         card = self.repository.get(agent_id)
         if card is None:

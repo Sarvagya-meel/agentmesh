@@ -29,7 +29,11 @@ class MCPClient:
         )
 
     def register(self, card: AgentCard) -> AgentCard:
-        response = self._request("POST", "/registry/agents", json=card.model_dump(mode="json"))
+        response = self._request(
+            "PUT",
+            f"/registry/agents/{card.agent_id}",
+            json=card.model_dump(mode="json"),
+        )
         return AgentCard.model_validate(response.json())
 
     def heartbeat(self, agent_id: str) -> AgentCard:

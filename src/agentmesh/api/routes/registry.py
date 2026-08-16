@@ -19,6 +19,17 @@ def register_agent(
     return service.register_agent(card)
 
 
+@router.put("/agents/{agent_id}")
+def upsert_agent(
+    agent_id: str,
+    card: AgentCard,
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+) -> AgentCard:
+    if card.agent_id != agent_id:
+        raise HTTPException(status_code=400, detail="Path agent_id must match agent card.")
+    return service.upsert_agent(card)
+
+
 @router.get("/agents")
 def list_agents(
     service: Annotated[RegistryService, Depends(get_registry_service)],

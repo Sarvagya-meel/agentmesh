@@ -67,7 +67,7 @@ class GoogleADKAgent(BaseAgent):
         provider_model = model_name if model_name.startswith("groq/") else f"groq/{model_name}"
         root_agent = LlmAgent(
             name="adk_spark_worker",
-            model=LiteLlm(model=provider_model),
+            model=LiteLlm(model=provider_model, include_reasoning=False),
             description="AgentMesh Google ADK worker",
             instruction=(
                 "Complete the assigned AgentMesh task concisely. Return only useful task output, "

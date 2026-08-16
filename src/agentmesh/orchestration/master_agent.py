@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any, TypedDict
 from uuid import UUID, uuid4
 
@@ -25,6 +26,8 @@ from agentmesh.registry.models import AgentCard
 from agentmesh.registry.service import RegistryService
 from agentmesh.services.event_service import EventService
 from agentmesh.services.state_service import StateService
+
+ORCHESTRATOR_AGENT_ID = "orchestrator-supervisor-agent"
 
 
 class MasterWorkflowState(TypedDict, total=False):
@@ -56,12 +59,14 @@ class MasterOrchestratorAgent:
         state_service: StateService,
         planner: WorkflowPlanner | None = None,
         checkpointer: BaseCheckpointSaver[Any] | None = None,
+        agent_stale_seconds: float = 180.0,
     ) -> None:
         self.registry_service = registry_service
         self.event_service = event_service
         self.state_service = state_service
         self.planner = planner or CapabilityWorkflowPlanner()
         self.checkpointer = checkpointer or MemorySaver()
+        self.agent_stale_seconds = agent_stale_seconds
         self.graph = self._build_graph()
 
     def _build_graph(self) -> Any:
@@ -231,7 +236,13 @@ class MasterOrchestratorAgent:
 
     def _discover_agents(self, state: MasterWorkflowState) -> dict[str, Any]:
         cards = self.registry_service.list_agents()
-        online_cards = [card for card in cards if card.status == "online"]
+        online_cards = [
+            card
+            for card in cards
+            if card.status == "online"
+            and self._is_worker_agent(card)
+            and self._is_recent_agent(card)
+        ]
         if not online_cards:
             raise AgentRegistryError("No online agents are registered.")
         snapshot = [card.model_dump(mode="json") for card in online_cards]
@@ -440,6 +451,20 @@ class MasterOrchestratorAgent:
         return state["task_result_status"]
 
     @staticmethod
+    def _is_worker_agent(card: AgentCard) -> bool:
+        return (
+            card.agent_id != ORCHESTRATOR_AGENT_ID
+            and str(card.metadata.get("resource_type", "")).lower() != "orchestrator"
+        )
+
+    def _is_recent_agent(self, card: AgentCard) -> bool:
+        cutoff = datetime.now(UTC) - timedelta(seconds=self.agent_stale_seconds)
+        seen_at = card.last_seen
+        if seen_at.tzinfo is None:
+            seen_at = seen_at.replace(tzinfo=UTC)
+        return seen_at >= cutoff
+
+    @staticmethod
     def _advance_route(state: MasterWorkflowState) -> str:
         plan = WorkflowPlan.model_validate(state["plan"])
         return "COMPLETE" if state["task_index"] >= len(plan.tasks) else "NEXT"
@@ -450,7 +475,7 @@ class MasterOrchestratorAgent:
         event_type: str,
         payload: dict[str, Any],
         *,
-        source_agent: str = "orchestrator",
+        source_agent: str = ORCHESTRATOR_AGENT_ID,
         routing_mode: RoutingMode = RoutingMode.FANOUT,
         target_agent: str | None = None,
         causation_id: UUID | None = None,
@@ -476,7 +501,7 @@ class MasterOrchestratorAgent:
         workflow_id: UUID,
         event_type: str,
         payload: dict[str, Any],
-        source_agent: str = "orchestrator",
+        source_agent: str = ORCHESTRATOR_AGENT_ID,
         routing_mode: RoutingMode = RoutingMode.FANOUT,
         target_agent: str | None = None,
         causation_id: UUID | None = None,

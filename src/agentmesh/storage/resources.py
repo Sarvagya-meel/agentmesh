@@ -79,6 +79,58 @@ class PostgresResourceRepository:
                 ),
             )
 
+    def upsert_resource(
+        self,
+        resource_id: str,
+        *,
+        resource_type: str,
+        name: str,
+        status: str = "online",
+        endpoint: str | None = None,
+        owner: str = "platform-team",
+        capabilities: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        parent_resource_id: str | None = None,
+    ) -> None:
+        now = datetime.now(UTC)
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO agentmesh_resources (
+                    resource_id, resource_type, name, status, endpoint, owner,
+                    capabilities, metadata, parent_resource_id,
+                    registered_at, last_seen, updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
+                ON CONFLICT (resource_id) DO UPDATE SET
+                    resource_type = EXCLUDED.resource_type,
+                    name = EXCLUDED.name,
+                    status = EXCLUDED.status,
+                    endpoint = EXCLUDED.endpoint,
+                    owner = EXCLUDED.owner,
+                    capabilities = EXCLUDED.capabilities,
+                    metadata = agentmesh_resources.metadata || EXCLUDED.metadata,
+                    parent_resource_id = EXCLUDED.parent_resource_id,
+                    last_seen = EXCLUDED.last_seen,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                (
+                    resource_id,
+                    resource_type,
+                    name,
+                    status,
+                    endpoint,
+                    owner,
+                    Jsonb(capabilities or []),
+                    Jsonb(metadata or {}),
+                    parent_resource_id,
+                    now,
+                    now,
+                    now,
+                ),
+            )
+
     def record_audit_event(
         self,
         resource_id: str,

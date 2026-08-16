@@ -1,4 +1,5 @@
-from uuid import UUID
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 from agentmesh.orchestration.master_agent import MasterOrchestratorAgent
 from agentmesh.registry.models import AgentCard
@@ -142,3 +143,41 @@ def test_rejected_plan_cancels_without_dispatching_tasks() -> None:
     event_types = [event.event_type for event in event_service.replay(workflow_id)]
     assert "WORKFLOW_CANCELLED" in event_types
     assert "TASK_ASSIGNED" not in event_types
+
+
+def test_master_agent_excludes_stale_workers_from_discovery() -> None:
+    repository = InMemoryRegistryRepository()
+    registry = RegistryService(repository)
+    registry.register_agent(
+        AgentCard(agent_id="fresh-agent", name="fresh-agent", capabilities=["REVIEW"])
+    )
+    repository.register(
+        AgentCard(
+            agent_id="stale-agent",
+            name="stale-agent",
+            capabilities=["REVIEW"],
+            last_seen=datetime.now(UTC) - timedelta(minutes=10),
+        )
+    )
+    event_service = EventService(InMemoryEventRepository())
+    master = MasterOrchestratorAgent(
+        registry_service=registry,
+        event_service=event_service,
+        state_service=StateService(event_service),
+        agent_stale_seconds=180,
+    )
+
+    workflow_id = uuid4()
+    master.start_workflow(
+        "conversation-stale-agent",
+        "Review this proposal",
+        workflow_id=workflow_id,
+    )
+
+    snapshot_event = next(
+        event
+        for event in event_service.replay(workflow_id)
+        if event.event_type == "AGENT_SNAPSHOT_CAPTURED"
+    )
+    discovered_ids = {card["agent_id"] for card in snapshot_event.payload["agents"]}
+    assert discovered_ids == {"fresh-agent"}

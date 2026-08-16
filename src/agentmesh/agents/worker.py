@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime, timedelta
+from threading import Event as ThreadEvent
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -33,6 +34,7 @@ class AssignmentWorker:
         self.worker_id = worker_id or str(uuid4())
         self.resource_repository = resource_repository
         self._next_heartbeat = datetime.min.replace(tzinfo=UTC)
+        self._registered = False
 
     def run_once(self) -> bool:
         """Process at most one pending assignment and return whether work ran."""
@@ -50,10 +52,10 @@ class AssignmentWorker:
             return True
         return False
 
-    def run_forever(self) -> None:
+    def run_forever(self, stop_event: ThreadEvent | None = None) -> None:
         """Continuously process assignments until the process is interrupted."""
 
-        while True:
+        while stop_event is None or not stop_event.is_set():
             try:
                 worked = self.run_once()
             except httpx.HTTPError as exc:
@@ -65,7 +67,10 @@ class AssignmentWorker:
                 )
                 worked = False
             if not worked:
-                time.sleep(self.poll_interval_seconds)
+                if stop_event is None:
+                    time.sleep(self.poll_interval_seconds)
+                else:
+                    stop_event.wait(self.poll_interval_seconds)
 
     def _execute_claimed(self, assignment: Event, claim_token: UUID) -> None:
         task = self._extract_task(assignment)
@@ -104,17 +109,17 @@ class AssignmentWorker:
         if now < self._next_heartbeat:
             return
         try:
-            self.client.heartbeat(self.agent.agent_name)
+            if self._registered:
+                self.client.heartbeat(self.agent.agent_name)
+            else:
+                self.client.register(self.agent.agent_card())
+                self._registered = True
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code != 422:
                 raise
             self.client.register(self.agent.agent_card())
+            self._registered = True
         self._upsert_resource("online")
-        self._record_audit(
-            "heartbeat",
-            "Worker heartbeat recorded.",
-            payload={"worker_id": self.worker_id},
-        )
         self._next_heartbeat = now + timedelta(seconds=self.heartbeat_seconds)
 
     def _upsert_resource(self, status: str) -> None:

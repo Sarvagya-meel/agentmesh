@@ -12,13 +12,14 @@ class Settings(BaseSettings):
     poll_interval_seconds: float = 2.0
     agentmesh_api_url: str = "http://127.0.0.1:8000"
     worker_heartbeat_seconds: float = Field(default=60.0, gt=0)
+    agent_stale_seconds: float = Field(default=180.0, gt=0)
     worker_lease_seconds: int = Field(default=300, ge=10)
     worker_request_timeout_seconds: float = Field(default=30.0, gt=0)
     registry_backend: str = "memory"
     event_store_backend: str = "memory"
     orchestrator_checkpoint_backend: str = "memory"
 
-    llm_provider: str = "mock"
+    llm_provider: str = "groq"
     bedrock_model_id: str = ""
     groq_api_key: SecretStr | None = None
     groq_model: str = "openai/gpt-oss-120b"

@@ -15,13 +15,15 @@ from agentmesh.core.exceptions import (
 )
 from agentmesh.orchestration.checkpoint import create_orchestration_checkpointer
 from agentmesh.orchestration.factory import create_workflow_planner
-from agentmesh.orchestration.master_agent import MasterOrchestratorAgent
+from agentmesh.orchestration.master_agent import ORCHESTRATOR_AGENT_ID, MasterOrchestratorAgent
+from agentmesh.registry.models import AgentCard
 from agentmesh.registry.repository import create_registry_repository
 from agentmesh.registry.service import RegistryService
 from agentmesh.services.event_service import EventService
 from agentmesh.services.state_service import StateService
 from agentmesh.services.worker_service import WorkerService
 from agentmesh.storage.repository import create_claim_repository, create_event_repository
+from agentmesh.storage.resources import PostgresResourceRepository
 
 
 @asynccontextmanager
@@ -35,6 +37,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     registry_service = RegistryService(registry_repository)
     checkpointer, close_checkpointer = create_orchestration_checkpointer(settings)
     planner, close_planner = create_workflow_planner(settings)
+    resource_repository = (
+        PostgresResourceRepository.from_connection_url(settings.database_url)
+        if settings.registry_backend.strip().lower() == "postgres"
+        else None
+    )
+    register_control_plane_resources(
+        settings.agentmesh_api_url, registry_service, resource_repository
+    )
     app.state.settings = settings
     app.state.event_service = event_service
     app.state.state_service = state_service
@@ -45,6 +55,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         state_service=state_service,
         planner=planner,
         checkpointer=checkpointer,
+        agent_stale_seconds=settings.agent_stale_seconds,
     )
     app.state.master_orchestrator = master_orchestrator
     app.state.worker_service = WorkerService(
@@ -59,9 +70,75 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         close_planner()
         close_checkpointer()
+        if resource_repository is not None:
+            resource_repository.close()
         close_registry_repository()
         close_event_repository()
         close_claim_repository()
+
+
+def register_control_plane_resources(
+    api_url: str,
+    registry_service: RegistryService,
+    resource_repository: PostgresResourceRepository | None,
+) -> None:
+    orchestrator_card = AgentCard(
+        agent_id=ORCHESTRATOR_AGENT_ID,
+        name=ORCHESTRATOR_AGENT_ID,
+        version="1.0.0",
+        description="Supervisor agent that plans workflows, routes tasks, and gates approvals.",
+        endpoint=api_url,
+        capabilities=[
+            "ORCHESTRATE",
+            "PLAN",
+            "ROUTE",
+            "APPROVAL_GATE",
+            "WORKFLOW_SUPERVISION",
+        ],
+        skills=[
+            "workflow_planning",
+            "agent_routing",
+            "human_approval",
+            "event_sourcing",
+        ],
+        owner="platform-team",
+        status="online",
+        metadata={"runtime": "fastapi", "resource_type": "orchestrator"},
+    )
+    registry_service.upsert_agent(orchestrator_card)
+    if resource_repository is None:
+        return
+    resource_repository.upsert_resource(
+        ORCHESTRATOR_AGENT_ID,
+        resource_type="orchestrator",
+        name=ORCHESTRATOR_AGENT_ID,
+        status="online",
+        endpoint=api_url,
+        capabilities=orchestrator_card.capabilities,
+        metadata={
+            "agent_id": ORCHESTRATOR_AGENT_ID,
+            "runtime": "fastapi",
+            "registry_card": True,
+        },
+    )
+    resource_repository.upsert_resource(
+        "agentmesh-registry",
+        resource_type="registry",
+        name="agentmesh-registry",
+        status="online",
+        endpoint=f"{api_url.rstrip('/')}/registry",
+        capabilities=["AGENT_DISCOVERY", "AGENT_CARD_LOOKUP", "CAPABILITY_LOOKUP"],
+        metadata={
+            "mcp_server_candidate": True,
+            "future_mcp_tools": [
+                "list_agents",
+                "get_agent_card",
+                "find_agents_by_capability",
+                "read_agent_health",
+            ],
+            "mcp_mutation_policy": "read_first_controlled_writes_later",
+        },
+    )
 
 
 def create_app() -> FastAPI:
@@ -86,9 +163,7 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     @app.exception_handler(ClaimConflictError)
-    async def claim_conflict_handler(
-        _request: Request, exc: ClaimConflictError
-    ) -> JSONResponse:
+    async def claim_conflict_handler(_request: Request, exc: ClaimConflictError) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     @app.exception_handler(AgentMeshError)
