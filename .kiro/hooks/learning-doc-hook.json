@@ -5,10 +5,10 @@
   "when": {
     "type": "fileEdited",
     "patterns": [
-      "mcp/memory-server/src/services/*.py",
-      "mcp/memory-server/src/agents/*.py",
-      "mcp/memory-server/src/core/*.py",
-      "mcp/memory-server/src/storage/*.py"
+      "src/agentmesh/services/**/*.py",
+      "src/agentmesh/agents/**/*.py",
+      "src/agentmesh/**/*.py",
+      "src/agentmesh/database/**/*.py"
     ]
   },
   "then": {

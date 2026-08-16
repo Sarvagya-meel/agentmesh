@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from agentmesh.main import app
+from agentmesh.services.agentmesh_server.app import app
 
 
 @pytest.mark.parametrize(
@@ -40,10 +40,6 @@ async def test_claimed_worker_completes_orchestrated_task(
                 },
             )
             workflow_id = started.json()["workflow_id"]
-            await client.post(
-                f"/workflows/{workflow_id}/approvals",
-                json={"decision": "APPROVE"},
-            )
             assignment_state = await client.post(
                 f"/workflows/{workflow_id}/approvals",
                 json={"decision": "APPROVE"},

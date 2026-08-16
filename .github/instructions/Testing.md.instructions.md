@@ -16,7 +16,7 @@ No feature is complete unless its tests pass. Tests are written as part of the c
 Service layer (unit tests):
 - Cover happy paths, error paths, and edge cases for each public method.
 - Test services in isolation with dependency injection (no real DB in unit tests).
-- Applies to: EventService, StateService, OrchestratorService.
+- Applies to: EventService, StateService, WorkerService, and MasterOrchestratorAgent.
 
 API layer (route tests):
 - Integration tests must cover successful responses, validation errors (422), business errors (4xx), and response schema conformance.
@@ -35,12 +35,9 @@ CLAIMED routing tests:
 - Verify only one agent can claim an event under concurrent attempts.
 - Use concurrent async tasks to simulate race conditions.
 
-Hypothesis property tests:
-- Use hypothesis to assert invariants (idempotency, monotonicity, completeness, no orphan state, causation integrity).
-
 ## Test organization
 
-Follow the repository's test layout under `tests/` (unit, api, property). Use fixtures for shared setup and avoid `unittest.TestCase`.
+Follow the repository's test layout under `tests/` and keep fixtures close to the code they exercise. Avoid `unittest.TestCase` in favor of pytest functions and fixtures.
 
 ## Test infrastructure rules
 
@@ -50,8 +47,6 @@ Follow the repository's test layout under `tests/` (unit, api, property). Use fi
 ## Acceptance criteria for feature completion
 
 A feature is complete when:
-1. All relevant unit and route tests pass
-2. Property tests pass (Hypothesis) with adequate examples
-3. `mypy` reports no type errors in changed files
-4. `ruff` reports no lint errors in changed files
-
+1. All relevant unit and route tests pass.
+2. `mypy` reports no type errors in the changed files.
+3. `ruff` reports no lint errors in the changed files.

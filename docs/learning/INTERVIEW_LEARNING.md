@@ -142,7 +142,7 @@ The business value is operational clarity. Teams can see exactly what happened, 
 
 ## 7. Real Example From AgentMesh
 
-The new `OrchestratorService` in `src/agentmesh/services/orchestrator_service.py` demonstrates this pattern. It defines a workflow of `JOB_DETECT -> EMAIL_FIND -> APPLY` and emits `WORKFLOW_STARTED` plus directed `TASK_ASSIGNED` events. This is the smallest version of the production architecture the repo is designed around.
+The `MasterOrchestratorAgent` in `src/agentmesh/agents/orchestrator_supervisor/agent.py` demonstrates this pattern. It discovers workers by capability, creates a validated plan, pauses at human approval gates, and emits directed `TASK_ASSIGNED` events. The planner and checkpoint implementations remain separate orchestration infrastructure.
 
 ## 8. Trade-offs
 
@@ -221,7 +221,7 @@ Each agent is a Python package (`__init__.py` + multiple modules) rather than a 
 - `prompts.py` — LLM prompt templates, with the LLM provider injected at runtime
 - `config.py` — agent-specific settings loaded from environment variables
 
-Runners in `runners/` provide independently executable entrypoints. `clients/mcp_client.py` is an HTTP client that agents use to communicate with MCP when running as separate processes, without importing the service layer directly.
+Runners in `runners/` provide independently executable entrypoints. `clients/control_plane_client.py` is the REST client workers use for registration and assignments without importing the service layer directly.
 
 ## 3. Why It Matters
 
@@ -233,7 +233,7 @@ I structured each agent as a Python package rather than a single file. This keep
 
 ## 5. Interview Deep-Dive Answer
 
-The key insight is that agents in a multi-agent system are not simple functions — they are mini-services. Each one has its own domain: job detection has different tools, prompts, and schemas than email finding. By making each agent a package, I get clean separation of concerns within the agent itself. The `agent.py` file stays focused on event handling and task execution. External integrations go in `tools.py` behind abstract interfaces, so they can be swapped or mocked in tests. LLM prompts go in `prompts.py` so they can be versioned and iterated without touching the agent logic. Runners in `runners/` mean each agent can be started as a standalone process, which is important for horizontal scaling — if job detection is the bottleneck, I can run three job detector processes without touching anything else. The `MCPClient` in `clients/` keeps the communication contract clean: agents talk to MCP through HTTP, not through direct service imports.
+The key insight is that agents in a multi-agent system are not simple functions - they are mini-services. Each package owns its execution logic and only adds tools, prompts, schemas, or configuration when the behavior needs them. Runners let worker agents start as standalone processes for horizontal scaling. The `ControlPlaneClient` keeps the communication contract clean: workers register, lease tasks, and submit results through HTTP rather than direct service imports.
 
 ## 6. Business Explanation
 
@@ -241,7 +241,7 @@ Think of each agent as a specialist on a team. The job searcher, the email finde
 
 ## 7. Real Example From AgentMesh
 
-In AgentMesh, `agents/job_detector/` is a package. Its `tools.py` will contain the job board API client. Its `prompts.py` will contain the relevance scoring prompt. Its `config.py` will hold the list of job boards to search. The `runners/run_job_detector.py` file will let you start just the job detector as a standalone process: `python -m src.runners.run_job_detector --workflow-id <uuid>`. This agent communicates with MCP only through `clients/mcp_client.py` — it never imports `EventService` directly.
+In AgentMesh, `agents/langgraph_copilot/` and `agents/adk_spark/` are independent worker packages. Their standalone runners use the shared worker runtime and control-plane client, so they can execute locally or in separate containers without importing `EventService` directly. Future domain-specific workers should follow the same package and runner pattern when they contain real behavior.
 
 ## 8. Trade-offs
 
@@ -274,7 +274,7 @@ AgentMesh runs entirely on your laptop for free. But when you're ready to scale,
 
 AgentMesh uses feature flags (`AWS_AGENT_REGISTRY_ENABLED`, `AWS_AGENTCORE_ENABLED`, `LLM_PROVIDER`) to control whether any AWS services are called. When flags are `false`, the corresponding adapters are never instantiated. All AWS clients implement the same abstract interfaces as local implementations, so they are fully injectable and mockable in tests.
 
-AWS Agent Registry stores only agent metadata (agent ID, capabilities, version, governance) — never workflow events or payload data. AgentCore Runtime is optional compute for hosting selected agent workers. Hosted agents still communicate with AgentMesh MCP via `clients/mcp_client.py` — AgentCore does not replace MCP as the event store. Bedrock LLM calls go through the `LLMProvider` protocol; the default implementation is a mock that returns deterministic responses.
+AWS Agent Registry should store only agent metadata (agent ID, capabilities, version, governance), never workflow events or payload data. AgentCore Runtime is optional compute for selected workers. Hosted workers still use `clients/control_plane_client.py`, so AgentCore does not replace AgentMesh persistence or workflow APIs.
 
 ## 3. Why It Matters
 
@@ -294,7 +294,7 @@ This design means the team can build and test the entire system for free on a la
 
 ## 7. Real Example From AgentMesh
 
-In AgentMesh, `agents/job_detector/agent_manifest.json` describes the job detector's capabilities, subscribed event types, and governance metadata. Locally, `RegistryService` reads this manifest from the filesystem. When `AWS_AGENT_REGISTRY_ENABLED=true`, the same service syncs the manifest to AWS Agent Registry. The job detector agent itself doesn't change — it still polls MCP via `clients/mcp_client.py` whether it's running locally or on AgentCore.
+In AgentMesh, every runtime builds an `AgentCard` from the shared `BaseAgent` contract and registers it through the control-plane API. The registry persists cards in PostgreSQL locally. A future AWS registry adapter can synchronize the same metadata while workers continue using stable HTTP contracts whether they run locally, in Docker, or on AgentCore.
 
 ## 8. Trade-offs
 
@@ -359,7 +359,7 @@ A user asks AgentMesh to find a role and apply. The master agent discovers the c
 
 - *Why are both events and checkpoints needed?* Checkpoints resume graph execution; events are the auditable business source of truth and rebuild projected state.
 - *How do you prevent an LLM from selecting a fake agent?* Validate every planned target against the captured online registry snapshot.
-- *Why approve each task after approving the plan?* The plan approves intent; task approval controls the actual side effect at dispatch time.
+- *Why approve only after planning?* The approved plan is the execution boundary for the current MVP. Task-level gates can be restored later for high-risk capabilities without changing the event-driven dispatch model.
 - *How would you add an LLM planner?* Implement the `WorkflowPlanner` protocol and return the same typed plan model; the graph and validation remain unchanged.
 
 ## 10. Resume Bullet

@@ -1,0 +1,25 @@
+FROM python:3.11-slim
+
+ARG AGENT_PACKAGE
+ARG DEPENDENCY_GROUP=agent-langgraph
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app/src \
+    AGENT_PACKAGE=${AGENT_PACKAGE}
+
+WORKDIR /app
+
+COPY pyproject.toml ./
+RUN test -n "${AGENT_PACKAGE}" \
+    && pip install --upgrade "pip>=25.1" \
+    && pip install --group "${DEPENDENCY_GROUP}"
+
+COPY src/agentmesh/__init__.py ./src/agentmesh/__init__.py
+COPY src/agentmesh/config.py ./src/agentmesh/config.py
+COPY src/agentmesh/agents/__init__.py ./src/agentmesh/agents/__init__.py
+COPY src/agentmesh/agents/common ./src/agentmesh/agents/common
+COPY src/agentmesh/agents/${AGENT_PACKAGE} ./src/agentmesh/agents/${AGENT_PACKAGE}
+
+CMD ["sh", "-c", "uvicorn agentmesh.agents.${AGENT_PACKAGE}.app:app --host 0.0.0.0 --port 8100"]

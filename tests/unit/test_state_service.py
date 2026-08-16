@@ -1,9 +1,9 @@
 from uuid import uuid4
 
-from agentmesh.core.models import Event
-from agentmesh.services.event_service import EventService
-from agentmesh.services.state_service import StateService
-from agentmesh.storage.repository import InMemoryEventRepository
+from agentmesh.agents.common.contracts.models import Event
+from agentmesh.services.agentmesh_server.database.repository import InMemoryEventRepository
+from agentmesh.services.agentmesh_server.events.service import EventService
+from agentmesh.services.agentmesh_server.events.state import StateService
 
 
 def test_projection_is_reconstructable_and_deterministic() -> None:

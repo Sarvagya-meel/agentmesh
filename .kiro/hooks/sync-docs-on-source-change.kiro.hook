@@ -7,12 +7,10 @@
     "type": "fileEdited",
     "patterns": [
       "src/**/*.py",
-      "*.py",
+      "scripts/**/*.py",
       "pyproject.toml",
-      "requirements.txt",
-      "requirements-dev.txt",
-      "alembic.ini",
-      "docker-compose*.yml",
+      "deployment/**/*.yml",
+      "deployment/**/*.yaml",
       ".env.example"
     ]
   },

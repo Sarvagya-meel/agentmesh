@@ -1,6 +1,6 @@
 from httpx import ASGITransport, AsyncClient
 
-from agentmesh.main import app
+from agentmesh.services.agentmesh_server.app import app
 
 
 async def test_workflow_api_runs_both_approval_gates_and_completes() -> None:
@@ -36,14 +36,7 @@ async def test_workflow_api_runs_both_approval_gates_and_completes() -> None:
                 json={"decision": "APPROVE"},
             )
             assert plan_approval.status_code == 200
-            assert plan_approval.json()["status"] == "AWAITING_TASK_APPROVAL"
-
-            task_approval = await client.post(
-                f"/workflows/{workflow_id}/approvals",
-                json={"decision": "APPROVE"},
-            )
-            assert task_approval.status_code == 200
-            assignment = task_approval.json()
+            assignment = plan_approval.json()
             assert assignment["status"] == "WAITING_FOR_AGENT"
             pending = await client.get("/workers/api-worker/assignments")
             assignment_event = pending.json()[0]

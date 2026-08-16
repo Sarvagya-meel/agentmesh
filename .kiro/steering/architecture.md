@@ -12,7 +12,7 @@ The system is organized into five distinct layers. Each layer has a single respo
                           │
 ┌─────────────────────────────────────────────────────┐
 │                   Service Layer                      │
-│   EventService  │  StateService  │  OrchestratorSvc  │
+│    EventService  │  StateService  │  WorkerService    │
 └─────────────────────────────────────────────────────┘
                           │
 ┌─────────────────────────────────────────────────────┐
@@ -22,8 +22,7 @@ The system is organized into five distinct layers. Each layer has a single respo
                           │
 ┌─────────────────────────────────────────────────────┐
 │                    Agent Layer                       │
-│  BaseAgent │ JobDetectorAgent │ EmailFinderAgent      │
-│                  ApplicationAgent                    │
+│ BaseAgent │ SupervisorAgent │ LangGraph │ Google ADK  │
 └─────────────────────────────────────────────────────┘
                           │
 ┌─────────────────────────────────────────────────────┐
@@ -46,7 +45,7 @@ Routes: `events`, `state`, `workflows`
 
 - **EventService**: Appends events to MCP, enforces append-only semantics, validates causation chains
 - **StateService**: Projects current workflow state from the event log deterministically
-- **OrchestratorService**: Evaluates workflow state and emits the next task event(s); makes all structured workflow decisions
+- **WorkerService**: Enforces assignment routing and leases, then submits verified results to the supervisor agent
 
 ### Storage Layer
 
@@ -60,23 +59,21 @@ Three tables form the persistence backbone:
 
 ### Agent Layer
 
-- **BaseAgent** (`agents/base.py`): Abstract polling loop, claim logic, causation chain enforcement, routing dispatch
-- **JobDetectorAgent** (`agents/job_detector/`): Package. Polls for `TASK_ASSIGNED` (task_type=JOB_DETECT), emits `JOB_DETECTED` or `TASK_FAILED`
-- **EmailFinderAgent** (`agents/email_finder/`): Package. Polls for `TASK_ASSIGNED` (task_type=EMAIL_FIND), emits `EMAIL_FOUND` or `TASK_FAILED`
-- **ApplicationAgent** (`agents/applicator/`): Package. Polls for `TASK_ASSIGNED` (task_type=APPLY), emits `APPLICATION_SENT` or `TASK_FAILED`
+- **BaseAgent** (`agents/common/agent_models/base_agent.py`): Shared identity, AgentCard, registration, and `run_task` contract
+- **MasterOrchestratorAgent** (`agents/orchestrator_supervisor/`): Registered supervisor for plans, approvals, assignments, and completion
+- **ConversationAgent** (`agents/langgraph_copilot/`): LangGraph chat and review worker
+- **GoogleADKAgent** (`agents/adk_spark/`): Google ADK chat, planning, and research worker
 
-Each agent package contains: `agent.py` (main class), `schemas.py` (I/O models), `tools.py` (external integrations), `prompts.py` (LLM prompts), `config.py` (agent settings).
+Agent packages contain only modules with implemented behavior. Add schemas, tools, prompts, or configuration when they carry real code.
 
 ### Client Layer
 
-- **MCPClient** (`clients/mcp_client.py`): HTTP client wrapping the MCP API. Used by independently running agents and runners to communicate with MCP without importing the service layer directly.
+- **ControlPlaneClient** (`clients/control_plane_client.py`): REST client used by independent workers for registry and assignment APIs.
 
 ### Runner Layer
 
-- **run_orchestrator.py**: Independent entrypoint for the Orchestrator process
-- **run_job_detector.py**: Independent entrypoint for JobDetectorAgent
-- **run_email_finder.py**: Independent entrypoint for EmailFinderAgent
-- **run_applicator.py**: Independent entrypoint for ApplicationAgent
+- **run_langgraph_agent.py**: Independent LangGraph worker entrypoint
+- **run_google_adk_agent.py**: Independent Google ADK worker entrypoint
 
 ### Core Layer
 
@@ -104,8 +101,8 @@ These fields are required at the API, service, storage, and agent layers. Reques
 ### No Direct Agent-to-Agent Calls
 Agents must never call each other directly (no HTTP calls, no function calls, no shared queues between agents). All agent collaboration happens exclusively through MCP events. An agent reads events from MCP, does work, and writes result events back to MCP.
 
-### Orchestrator Emits, Does Not Invoke
-The OrchestratorService evaluates workflow state and emits task events (e.g., `TASK_EMAIL_FIND`). It does not call agents directly. Agents discover their tasks by polling MCP for events addressed to them.
+### Supervisor Emits, Does Not Invoke
+The supervisor agent evaluates workflow state and emits directed `TASK_ASSIGNED` events. It does not call workers directly. Workers discover assignments through the control-plane API.
 
 ### CLAIMED Events Require Atomic Claim Records
 When routing mode is `CLAIMED`, only one agent may process a given event. This is enforced by inserting a record into `event_claims(event_id)` with a unique constraint. The first agent to successfully insert wins the claim; all others receive a conflict error and skip the event.
@@ -129,6 +126,6 @@ Every event carries a `causation_id` pointing to the event that caused it. Befor
 
 The following are **not implemented in v1** but the architecture must not preclude them:
 
-- **Redis Streams / Kafka**: The polling-based agent loop can be replaced with a stream consumer without changing agent business logic, because agents interact with MCP only through the `EventService` interface.
+- **Redis Streams / Kafka**: The polling loop can be replaced with a stream consumer without changing agent business logic because workers use stable control-plane contracts.
 - **Distributed agents**: Agents can run as separate processes or containers because they are stateless and communicate only through the HTTP API.
 - **Event schema versioning**: The `event_types.py` enum and Pydantic models should be versioned to support schema evolution.

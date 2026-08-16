@@ -33,7 +33,7 @@ The implementation plan is organized by wave and phase:
 
 ## Phase 1: bootstrap
 
-- Create the project folder structure under `mcp/memory-server/src/` or the repository's equivalent, matching the spec.
+- Create the project folder structure under the repository's `src/agentmesh/` tree, matching the final architecture and deployment layout.
 - Add `pyproject.toml` with pinned dependencies.
 - Add Docker Compose, environment examples, configuration, and the FastAPI app scaffold.
 - Implement a health endpoint and basic startup validation.

@@ -11,15 +11,15 @@ Follow these coding standards when authoring Python code in this repository. The
 
 - Use type hints everywhere: all parameters, return types, and class attributes must be annotated. Prefer `X | Y` for unions and avoid `Any` unless justified with a comment.
 - Prefer dependency injection over module-level singletons. Services and agents receive dependencies via constructors or FastAPI `Depends()`.
-- Keep domain models (Pydantic v2) separate from ORM models (SQLAlchemy). Repositories convert between layers.
-- Agents must be stateless between polling cycles; any persistent workflow state must be stored in MCP events.
+- Keep Pydantic domain models separate from PostgreSQL row/DDL concerns. Repositories convert between layers.
+- Workers must be stateless between polling cycles; persistent workflow state belongs in events and checkpoints.
 - Keep functions small, pure where possible, and easy to test. Extract complex logic into named helpers.
 - Do not put business logic in FastAPI route handlers — handlers should validate input, call services, and return responses only.
 - Avoid global mutable state. Use FastAPI `lifespan` for startup/shutdown side effects.
 - Add docstrings (Google-style) for core interfaces, public service methods, repository methods, and non-trivial algorithms.
-- Use domain exceptions from `src/core/exceptions.py`; convert these to HTTP responses via FastAPI exception handlers.
+- Use domain exceptions from `src/agentmesh/core/exceptions.py`; convert these to HTTP responses via FastAPI exception handlers.
 - Use absolute imports, grouped: stdlib → third-party → local. Let `ruff` enforce ordering.
-- All I/O-bound work must be async; avoid blocking calls in async functions.
+- Do not perform blocking I/O inside async route handlers or lifespan tasks.
 
 ## Examples and guidance
 
@@ -31,9 +31,9 @@ Follow these coding standards when authoring Python code in this repository. The
   - Good: `EventService(repo: EventRepository)`
   - Bad: creating repository instances inside methods using hidden globals
 
-- Domain vs ORM:
-  - Services and agents work with Pydantic domain models from `src/core/models.py`.
-  - Storage layer defines SQLAlchemy ORM rows in `src/storage/models.py` and is the only layer that imports them.
+- Domain vs persistence:
+  - Services and agents work with Pydantic models from `src/agentmesh/core/models.py`.
+  - Storage repositories own SQL and convert database rows into domain models.
 
 - Route handlers should not implement business logic; they must call services and return domain-mapped responses.
 

@@ -23,7 +23,7 @@ The system is organized into five distinct layers. Each layer has a single respo
                           │
 ┌─────────────────────────────────────────────────────┐
 │                   Service Layer                      │
-│   EventService  │  StateService  │  OrchestratorSvc  │
+│    EventService  │  StateService  │  WorkerService    │
 └─────────────────────────────────────────────────────┘
                           │
 ┌─────────────────────────────────────────────────────┐
@@ -33,8 +33,7 @@ The system is organized into five distinct layers. Each layer has a single respo
                           │
 ┌─────────────────────────────────────────────────────┐
 │                    Agent Layer                       │
-│  BaseAgent │ JobDetectorAgent │ EmailFinderAgent      │
-│                  ApplicationAgent                    │
+│ BaseAgent │ SupervisorAgent │ LangGraph │ Google ADK  │
 └─────────────────────────────────────────────────────┘
                           │
 ┌─────────────────────────────────────────────────────┐
@@ -58,7 +57,7 @@ Routes: `events`, `state`, `workflows`
 
 - `EventService`: append events to MCP, enforce append-only semantics, and validate causation chains.
 - `StateService`: project current workflow state from the event log deterministically.
-- `OrchestratorService`: evaluate workflow state and emit the next task event(s); make all structured workflow decisions.
+- `WorkerService`: validate assignment ownership, manage leases, and submit verified worker results to the supervisor agent.
 
 ### Storage Layer
 
@@ -70,23 +69,21 @@ Three tables form the persistence backbone:
 
 ### Agent Layer
 
-- `BaseAgent`: abstract polling loop, claim logic, causation-chain enforcement, and routing dispatch
-- `JobDetectorAgent`: polls for `TASK_ASSIGNED` (`task_type=JOB_DETECT`) and emits `JOB_DETECTED` or `TASK_FAILED`
-- `EmailFinderAgent`: polls for `TASK_ASSIGNED` (`task_type=EMAIL_FIND`) and emits `EMAIL_FOUND` or `TASK_FAILED`
-- `ApplicationAgent`: polls for `TASK_ASSIGNED` (`task_type=APPLY`) and emits `APPLICATION_SENT` or `TASK_FAILED`
+- `BaseAgent`: shared identity, AgentCard, registration, and `run_task` contract under `agents/common/agent_models/`
+- `MasterOrchestratorAgent`: registered supervisor that plans, gates approval, and emits assignments
+- `ConversationAgent`: LangGraph worker for chat and review capabilities
+- `GoogleADKAgent`: Google ADK worker for chat, planning, and research capabilities
 
-Each agent package contains `agent.py`, `schemas.py`, `tools.py`, `prompts.py`, and `config.py`.
+Agent packages contain only the modules required by their implemented behavior. Add schemas, tools, prompts, or configuration modules when they carry real code.
 
 ### Client Layer
 
-- `MCPClient`: HTTP client used by independently running agents and runners to communicate with MCP without importing the service layer directly.
+- `ControlPlaneClient`: REST client used by independent workers for registry and assignment APIs without importing the service layer directly.
 
 ### Runner Layer
 
-- `run_orchestrator.py`
-- `run_job_detector.py`
-- `run_email_finder.py`
-- `run_applicator.py`
+- `run_langgraph_agent.py`
+- `run_google_adk_agent.py`
 
 ### Core Layer
 
@@ -117,9 +114,9 @@ These fields are required at the API, service, storage, and agent layers. Reques
 
 Agents must never call each other directly (no HTTP calls, no function calls, no shared queues). Collaboration happens exclusively through MCP events. An agent reads events from MCP, does work, and writes result events back to MCP.
 
-### Orchestrator emits, does not invoke
+### Supervisor emits, does not invoke
 
-The `OrchestratorService` evaluates workflow state and emits task events such as `TASK_EMAIL_FIND`. It does not call agents directly. Agents discover their tasks by polling MCP for events addressed to them.
+The supervisor agent evaluates workflow state and emits directed `TASK_ASSIGNED` events. It does not call workers directly. Workers discover assignments by polling the control-plane API.
 
 ### `CLAIMED` events require atomic claim records
 

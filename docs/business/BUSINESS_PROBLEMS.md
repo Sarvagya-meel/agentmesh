@@ -211,7 +211,7 @@ In typical automation scripts or monolithic agent systems, all agent logic lives
 
 ## AgentMesh Solution
 
-Each agent is a Python package with its own `agent.py`, `schemas.py`, `tools.py`, `prompts.py`, and `config.py`. Runners in `runners/` provide independent process entrypoints. `clients/mcp_client.py` keeps the communication contract clean. Agents communicate only through MCP events — never through direct imports.
+Each implemented agent is a Python package with its own execution logic and any domain modules it actually needs. Runners provide independent worker entrypoints, and `clients/control_plane_client.py` keeps registration and assignment communication behind HTTP rather than direct imports.
 
 ## Business Impact
 
@@ -222,7 +222,7 @@ Each agent is a Python package with its own `agent.py`, `schemas.py`, `tools.py`
 
 ## Example Scenario
 
-The job detector is processing 10,000 job listings per day and becoming a bottleneck. Because it is a standalone package with its own runner, the team can deploy three instances of `run_job_detector.py` without touching the email finder or applicator. MCP's CLAIMED routing ensures only one instance processes each job event.
+A worker is processing 10,000 records per day and becoming a bottleneck. Because workers use standalone packages and the shared runner, the team can deploy three instances without touching other capabilities. Atomic assignment leases ensure only one instance processes each task event.
 
 ## Metrics to Track
 

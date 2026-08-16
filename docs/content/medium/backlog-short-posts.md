@@ -74,7 +74,7 @@ In production, agents grow. A job detector might need a job board API client, a 
 
 ## AgentMesh Example
 
-In AgentMesh, `agents/job_detector/` is a package. `tools.py` holds the job board API client behind an abstract interface. `prompts.py` holds the relevance scoring prompt. `runners/run_job_detector.py` lets you start just the job detector as a standalone process. It talks to MCP through `clients/mcp_client.py` — never through direct service imports.
+In AgentMesh, each implemented worker lives in its own agent package and uses a shared standalone runner. Domain tools and prompts stay inside that package, while runtime communication goes through the control-plane client rather than direct service imports.
 
 ## LinkedIn-Ready Version
 
@@ -102,7 +102,7 @@ Cloud costs are real. AWS mistakes are expensive. A local-first design means you
 
 ## AgentMesh Example
 
-In AgentMesh, `agents/job_detector/agent_manifest.json` describes the agent's capabilities and governance metadata. Locally, `RegistryService` reads this from the filesystem. When `AWS_AGENT_REGISTRY_ENABLED=true`, the same service syncs it to AWS Agent Registry. The agent itself doesn't change — it still polls MCP via `clients/mcp_client.py` whether it's running locally or on AgentCore.
+In AgentMesh, each runtime publishes an `AgentCard` containing its capabilities and governance metadata. PostgreSQL stores that card locally, and a future AWS adapter can synchronize the same metadata without changing the worker's task code.
 
 ## LinkedIn-Ready Version
 
@@ -134,7 +134,7 @@ The LangGraph master agent discovers live workers, validates a typed plan, and u
 
 ## LinkedIn-Ready Version
 
-I added two human approval gates to AgentMesh: one for the generated plan and one before every worker task. Plan approval confirms the strategy, while task approval controls the actual side effect. The LangGraph coordinator never calls workers directly; approved work is dispatched through an auditable event log. This keeps multi-agent automation dynamic without making it uncontrollable.
+AgentMesh pauses once after generating the workflow plan. Approval authorizes the planned tasks, which the LangGraph supervisor then dispatches through an auditable event log without interrupting the operator before every worker call. High-risk task-level gates can be added later where a capability requires them.
 
 ## Hashtags
 

@@ -54,23 +54,21 @@ class EventService:
 
 ---
 
-## Domain Models vs ORM Models
+## Domain Models vs Persistence Rows
 
-**Keep domain models separate from ORM models.**
+**Keep domain models separate from database rows and SQL.**
 
-- `src/core/models.py` contains Pydantic v2 domain models — these are the canonical data shapes used throughout the service and agent layers
-- `src/storage/models.py` contains SQLAlchemy ORM models — these are only used in the storage layer
-- The repository layer is responsible for converting between ORM rows and domain models
-- Service and agent code must never import SQLAlchemy ORM models directly
+- `src/agentmesh/core/models.py` contains the canonical Pydantic v2 domain models
+- `src/agentmesh/storage/` owns SQL and conversion from database rows to domain models
+- Service and agent code must not contain database-specific row handling
 
 ```python
 # Good — service works with domain models
 async def get_workflow_state(self, workflow_id: UUID) -> WorkflowState:
     return await self._repo.get_state(workflow_id)  # repo returns domain model
 
-# Bad — service touches ORM model
-from src.storage.models import CurrentStateRow
-async def get_workflow_state(self, workflow_id: UUID) -> CurrentStateRow:
+# Bad - service leaks a database row shape
+async def get_workflow_state(self, workflow_id: UUID) -> tuple:
     ...
 ```
 
@@ -81,7 +79,7 @@ async def get_workflow_state(self, workflow_id: UUID) -> CurrentStateRow:
 **Avoid hidden state in agents.**
 
 - Agent instances must not accumulate mutable state between polling cycles
-- Any state an agent needs between cycles must be stored in MCP (via events), not in instance variables
+- Any state a worker needs between cycles must be stored in events or durable checkpoints, not hidden instance variables
 - Agent `__init__` may store configuration and injected dependencies, but not workflow state
 - If an agent crashes and restarts, it must be able to resume correctly by replaying events from MCP
 
@@ -181,7 +179,7 @@ Optional but encouraged for:
 
 ## Error Handling
 
-- Use domain exceptions from `src/core/exceptions.py` — never raise raw `Exception` or `ValueError` from service code
+- Use domain exceptions from `src/agentmesh/core/exceptions.py` instead of raw `Exception` in service code
 - FastAPI exception handlers in `main.py` convert domain exceptions to HTTP responses
 - Never swallow exceptions silently — log and re-raise, or convert to a domain exception
 - Use `try/except` narrowly around the specific operation that can fail, not around large blocks
@@ -190,7 +188,7 @@ Optional but encouraged for:
 
 ## Imports
 
-- Use absolute imports throughout (`from src.core.models import Event`, not relative `from ..core.models import Event`)
+- Use absolute imports throughout (`from agentmesh.core.models import Event`, not relative `from ..core.models import Event`)
 - Group imports: stdlib → third-party → local, separated by blank lines
 - `ruff` enforces import ordering automatically
 

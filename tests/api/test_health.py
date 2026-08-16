@@ -1,6 +1,6 @@
 from httpx import ASGITransport, AsyncClient
 
-from agentmesh.main import app
+from agentmesh.services.agentmesh_server.app import app
 
 
 async def test_health_returns_ok() -> None:

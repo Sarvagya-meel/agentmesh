@@ -1,13 +1,14 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from agentmesh.orchestration.master_agent import MasterOrchestratorAgent
-from agentmesh.registry.models import AgentCard
-from agentmesh.registry.repository import InMemoryRegistryRepository
-from agentmesh.registry.service import RegistryService
-from agentmesh.services.event_service import EventService
-from agentmesh.services.state_service import StateService
-from agentmesh.storage.repository import InMemoryEventRepository
+from agentmesh.agents.common.agent_models import BaseAgent
+from agentmesh.agents.common.contracts.agent_card import AgentCard
+from agentmesh.agents.orchestrator_supervisor import MasterOrchestratorAgent
+from agentmesh.services.agentmesh_server.database.repository import InMemoryEventRepository
+from agentmesh.services.agentmesh_server.events.service import EventService
+from agentmesh.services.agentmesh_server.events.state import StateService
+from agentmesh.services.agentmesh_server.registry.repository import InMemoryRegistryRepository
+from agentmesh.services.agentmesh_server.registry.service import RegistryService
 
 
 def build_master_agent() -> tuple[MasterOrchestratorAgent, EventService]:
@@ -38,7 +39,7 @@ def build_master_agent() -> tuple[MasterOrchestratorAgent, EventService]:
     )
 
 
-def test_master_agent_requires_plan_and_task_approval_before_dispatch() -> None:
+def test_master_agent_requires_only_plan_approval_before_dispatch() -> None:
     master, event_service = build_master_agent()
 
     started = master.start_workflow(
@@ -58,16 +59,33 @@ def test_master_agent_requires_plan_and_task_approval_before_dispatch() -> None:
     assert "TASK_ASSIGNED" not in [event.event_type for event in event_service.replay(workflow_id)]
 
     plan_approved = master.submit_human_decision(workflow_id, decision="APPROVE")
-    assert plan_approved["status"] == "AWAITING_TASK_APPROVAL"
-    assert "TASK_ASSIGNED" not in [event.event_type for event in event_service.replay(workflow_id)]
-
-    task_approved = master.submit_human_decision(workflow_id, decision="APPROVE")
-    assert task_approved["status"] == "WAITING_FOR_AGENT"
+    assert plan_approved["status"] == "WAITING_FOR_AGENT"
     assigned_events = [
         event for event in event_service.replay(workflow_id) if event.event_type == "TASK_ASSIGNED"
     ]
     assert len(assigned_events) == 1
     assert assigned_events[0].target_agent == "research-agent"
+    assert "TASK_APPROVAL_REQUESTED" not in [
+        event.event_type for event in event_service.replay(workflow_id)
+    ]
+
+
+def test_master_agent_uses_the_shared_agent_contract() -> None:
+    master, _event_service = build_master_agent()
+
+    assert isinstance(master, BaseAgent)
+    assert master.agent_card().agent_id == "orchestrator-supervisor-agent"
+    assert "ORCHESTRATE" in master.agent_card().capabilities
+
+    started = master.run_task(
+        {
+            "conversation_id": "conversation-agent-contract",
+            "goal": "Research an architecture proposal",
+            "preferred_agent_ids": ["research-agent"],
+        }
+    )
+
+    assert started["status"] == "AWAITING_PLAN_APPROVAL"
 
 
 def test_master_agent_completes_all_approved_tasks() -> None:
@@ -79,18 +97,16 @@ def test_master_agent_completes_all_approved_tasks() -> None:
     )
     workflow_id = UUID(started["workflow_id"])
 
-    master.submit_human_decision(workflow_id, decision="APPROVE")
     first_assignment = master.submit_human_decision(workflow_id, decision="APPROVE")
     first_task_id = UUID(first_assignment["current_task"]["task_id"])
-    second_approval = master.submit_task_result(
+    second_assignment = master.submit_task_result(
         workflow_id,
         task_id=first_task_id,
         status="COMPLETED",
         result={"findings": ["event sourcing"]},
     )
 
-    assert second_approval["status"] == "AWAITING_TASK_APPROVAL"
-    second_assignment = master.submit_human_decision(workflow_id, decision="APPROVE")
+    assert second_assignment["status"] == "WAITING_FOR_AGENT"
     second_task_id = UUID(second_assignment["current_task"]["task_id"])
     completed = master.submit_task_result(
         workflow_id,

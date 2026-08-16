@@ -10,33 +10,30 @@
 ## Current Runtime Progress
 
 1. PostgreSQL runs locally through Docker Compose.
-2. FastAPI API runs as a container and uses PostgreSQL for the event store.
-3. `langgraph-agent` runs as an independent container.
-4. `langgraph-agent` heartbeats into `agentmesh_resources`.
-5. `langgraph-agent` emits resource audit events for heartbeat, assignment claim, and assignment completion.
+2. FastAPI runs as a container and uses PostgreSQL for events, claims, registry cards, and LangGraph checkpoints.
+3. `agentmesh-agent-langgraph-copilot` and `agentmesh-agent-googleADK-Chatagent` run as independent workers.
+4. Both workers register, heartbeat, poll, lease assignments, and submit results through the control-plane API.
+5. `orchestrator-supervisor-agent` is a registered `BaseAgent` implementation with a durable LangGraph workflow.
+6. Streamlit provides separate resource, agent playground, and workflow views backed by the API and PostgreSQL timelines.
+7. Worker images use a selective Docker build: each image contains shared contracts and `agents/common`, plus only its own concrete agent package.
+8. Each concrete agent package owns its factory, FastAPI app, and `python -m` entrypoint, so it runs independently or as part of Compose without changing agent code.
 
 ## Next Implementation Order
 
-1. Add `adk-agent` as an independent Docker Compose service.
-2. Verify `adk-agent` appears in `agentmesh_resources`.
-3. Verify `adk-agent` claim/completion events appear in `agentmesh_resource_audit_events`.
-4. Move registry persistence from in-memory compatibility mode to PostgreSQL.
-5. Move orchestrator runtime state and checkpointing to durable PostgreSQL mode.
-6. Add Streamlit views that primarily read `agentmesh_resources`, `agentmesh_resource_audit_events`, and `agentmesh_events`.
+1. Finish repository cleanup and keep runtime documentation aligned with executable code.
+2. Add integration coverage for container startup, registration, assignment leasing, and workflow completion.
+3. Add failure recovery tests for expired leases and restarted orchestration.
+4. Define the read-only registry MCP adapter contract.
+5. Add production deployment adapters without changing agent business logic.
 
 ## Future Enhancements By Priority
 
-1. Registry service backed by PostgreSQL for agent cards, capabilities, status, and heartbeat.
-2. Orchestrator service fully wired to durable PostgreSQL tasks, runs, approvals, and workflow timelines.
-3. Streamlit operator UI that talks to the orchestrator for commands and reads Postgres-backed resource tables for progress.
-4. Redis queue for async jobs, retries, locks, and longer-running tasks after the polling model is proven.
-5. MCP adapter over the registry for tool-style agent discovery and status checks.
-6. Postgres MCP tool server for controlled observability and safe operational reads.
-7. Real LangGraph model provider configuration per environment.
-8. Real Google ADK model provider configuration per environment.
-9. RDS PostgreSQL migration by changing `DATABASE_URL`.
-10. AgentCore, ECS, Fargate, or Kubernetes hosting for production workloads.
-11. Observability with structured logs, traces, metrics, and run-level audit records.
+1. Redis queue for async jobs, retries, locks, and longer-running tasks after the polling model is proven.
+2. MCP adapter over the registry for tool-style agent discovery and status checks.
+3. Postgres MCP tool server for controlled observability and safe operational reads.
+4. RDS PostgreSQL migration by changing `DATABASE_URL`.
+5. AgentCore, ECS, Fargate, or Kubernetes hosting for production workloads.
+6. Observability with structured logs, traces, metrics, and run-level audit records.
 
 ## Future: Postgres MCP Tool Server
 

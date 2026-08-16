@@ -2,8 +2,8 @@ from typing import Any
 
 from httpx import ASGITransport, AsyncClient
 
+from agentmesh.agents.common.runtime import create_agent_runtime_app
 from agentmesh.agents.langgraph_copilot.agent import ConversationAgent
-from agentmesh.agents.runtime import create_agent_runtime_app
 from agentmesh.config import Settings
 
 

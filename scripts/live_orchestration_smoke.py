@@ -8,13 +8,11 @@ from uuid import uuid4
 
 import httpx
 
-from agentmesh.agents.base import BaseAgent
-from agentmesh.agents.factory import (
-    create_google_adk_worker_agent,
-    create_langgraph_worker_agent,
-)
-from agentmesh.agents.worker import AssignmentWorker
-from agentmesh.clients.mcp_client import MCPClient
+from agentmesh.agents.adk_spark.factory import create_google_adk_worker_agent
+from agentmesh.agents.common.agent_models import BaseAgent
+from agentmesh.agents.common.control_plane_client import ControlPlaneClient
+from agentmesh.agents.common.worker import AssignmentWorker
+from agentmesh.agents.langgraph_copilot.factory import create_langgraph_worker_agent
 from agentmesh.config import Settings, get_settings
 
 AgentFactory = Callable[[Settings], tuple[BaseAgent, Callable[[], None]]]
@@ -26,7 +24,9 @@ def build_worker(
     api_url: str,
 ) -> tuple[AssignmentWorker, Callable[[], None]]:
     agent, close_agent = factory(settings)
-    client = MCPClient(api_url, timeout_seconds=settings.worker_request_timeout_seconds)
+    client = ControlPlaneClient(
+        api_url, timeout_seconds=settings.worker_request_timeout_seconds
+    )
     worker = AssignmentWorker(
         agent,
         client,
@@ -79,9 +79,8 @@ def run_workflow(
     planned_agents = [task["agent_id"] for task in state["plan"]["tasks"]]
     state = approve(client, state["workflow_id"])
     while state["status"] != "COMPLETED":
-        if state["status"] != "AWAITING_TASK_APPROVAL":
+        if state["status"] != "WAITING_FOR_AGENT":
             raise RuntimeError(f"Unexpected workflow state: {state['status']}")
-        state = approve(client, state["workflow_id"])
         assigned_agent = state["current_task"]["agent_id"]
         if not workers[assigned_agent].run_once():
             raise RuntimeError(f"Worker {assigned_agent} did not find its assignment.")

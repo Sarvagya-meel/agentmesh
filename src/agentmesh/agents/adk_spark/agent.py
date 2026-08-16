@@ -11,7 +11,7 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from agentmesh.agents.base import BaseAgent
+from agentmesh.agents.common.agent_models import BaseAgent
 
 
 class GoogleADKAgent(BaseAgent):

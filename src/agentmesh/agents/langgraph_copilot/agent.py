@@ -6,7 +6,7 @@ from typing import Any, Protocol, TypedDict, cast
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from agentmesh.agents.base import BaseAgent
+from agentmesh.agents.common.agent_models import BaseAgent
 
 
 class ConversationState(TypedDict, total=False):
