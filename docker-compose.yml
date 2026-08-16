@@ -17,5 +17,50 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build:
+      context: .
+    container_name: agentmesh-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: local
+      DATABASE_URL: postgresql+asyncpg://agentmesh:agentmesh@postgres:5432/agentmesh
+      EVENT_STORE_BACKEND: postgres
+      ORCHESTRATOR_CHECKPOINT_BACKEND: memory
+      LLM_PROVIDER: mock
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  langgraph-agent:
+    build:
+      context: .
+    container_name: agentmesh-langgraph-agent
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: local
+      DATABASE_URL: postgresql+asyncpg://agentmesh:agentmesh@postgres:5432/agentmesh
+      AGENTMESH_API_URL: http://api:8000
+      AGENT_ENDPOINT: http://langgraph-agent:8101
+      LLM_PROVIDER: mock
+      POLL_INTERVAL_SECONDS: 2
+      WORKER_HEARTBEAT_SECONDS: 15
+      WORKER_REQUEST_TIMEOUT_SECONDS: 30
+    command: ["python", "-m", "agentmesh.runners.run_langgraph_agent", "--worker"]
+
 volumes:
   agentmesh-postgres-data:

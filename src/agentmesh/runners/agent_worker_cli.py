@@ -8,6 +8,7 @@ from agentmesh.agents.base import BaseAgent
 from agentmesh.agents.worker import AssignmentWorker
 from agentmesh.clients.mcp_client import MCPClient
 from agentmesh.config import Settings, get_settings
+from agentmesh.storage.resources import PostgresResourceRepository
 
 AgentFactory = Callable[[Settings], tuple[BaseAgent, Callable[[], None]]]
 
@@ -42,17 +43,23 @@ def run_agent_cli(agent_factory: AgentFactory, *, description: str) -> None:
             timeout_seconds=settings.worker_request_timeout_seconds,
         )
         try:
+            resource_repository = PostgresResourceRepository.from_connection_url(
+                settings.database_url
+            )
             worker = AssignmentWorker(
                 agent,
                 client,
                 poll_interval_seconds=settings.poll_interval_seconds,
                 heartbeat_seconds=settings.worker_heartbeat_seconds,
+                resource_repository=resource_repository,
             )
             if args.once:
                 print(json.dumps({"processed": worker.run_once(), "agent": agent.agent_name}))
             else:
                 worker.run_forever()
         finally:
+            if "resource_repository" in locals():
+                resource_repository.close()
             client.close()
     finally:
         close_agent()
