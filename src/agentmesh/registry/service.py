@@ -26,7 +26,7 @@ class RegistryService:
             raise AgentRegistryError(f"Agent {agent_id!r} not found in the registry.")
         card.last_seen = datetime.now(UTC)
         card.status = "online"
-        return card
+        return self.repository.register(card)
 
     def list_agents(self) -> list[AgentCard]:
         return self.repository.list_agents()

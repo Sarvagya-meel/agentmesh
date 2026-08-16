@@ -25,6 +25,7 @@ class AgentCard(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     registered_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     last_seen: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @field_validator("agent_id", "name")
     @classmethod

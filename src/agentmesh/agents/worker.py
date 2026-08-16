@@ -54,7 +54,16 @@ class AssignmentWorker:
         """Continuously process assignments until the process is interrupted."""
 
         while True:
-            worked = self.run_once()
+            try:
+                worked = self.run_once()
+            except httpx.HTTPError as exc:
+                self._record_audit(
+                    "worker_poll_failed",
+                    "Worker could not reach the AgentMesh API and will retry.",
+                    severity="warning",
+                    payload={"worker_id": self.worker_id, "error": str(exc)},
+                )
+                worked = False
             if not worked:
                 time.sleep(self.poll_interval_seconds)
 

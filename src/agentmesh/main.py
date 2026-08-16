@@ -16,7 +16,7 @@ from agentmesh.core.exceptions import (
 from agentmesh.orchestration.checkpoint import create_orchestration_checkpointer
 from agentmesh.orchestration.factory import create_workflow_planner
 from agentmesh.orchestration.master_agent import MasterOrchestratorAgent
-from agentmesh.registry.repository import InMemoryRegistryRepository
+from agentmesh.registry.repository import create_registry_repository
 from agentmesh.registry.service import RegistryService
 from agentmesh.services.event_service import EventService
 from agentmesh.services.state_service import StateService
@@ -29,9 +29,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     event_repository, close_event_repository = create_event_repository(settings)
     claim_repository, close_claim_repository = create_claim_repository(settings)
+    registry_repository, close_registry_repository = create_registry_repository(settings)
     event_service = EventService(event_repository)
     state_service = StateService(event_service)
-    registry_service = RegistryService(InMemoryRegistryRepository())
+    registry_service = RegistryService(registry_repository)
     checkpointer, close_checkpointer = create_orchestration_checkpointer(settings)
     planner, close_planner = create_workflow_planner(settings)
     app.state.settings = settings
@@ -58,6 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         close_planner()
         close_checkpointer()
+        close_registry_repository()
         close_event_repository()
         close_claim_repository()
 

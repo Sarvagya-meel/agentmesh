@@ -27,8 +27,9 @@ services:
     environment:
       APP_ENV: local
       DATABASE_URL: postgresql+asyncpg://agentmesh:agentmesh@postgres:5432/agentmesh
+      REGISTRY_BACKEND: postgres
       EVENT_STORE_BACKEND: postgres
-      ORCHESTRATOR_CHECKPOINT_BACKEND: memory
+      ORCHESTRATOR_CHECKPOINT_BACKEND: postgres
       LLM_PROVIDER: mock
     ports:
       - "8000:8000"

@@ -7,9 +7,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY requirements.txt pyproject.toml ./
-COPY src ./src
 RUN pip install --upgrade pip \
-    && pip install -r requirements.txt \
-    && pip install -e .
+    && pip install -r requirements.txt
+
+COPY src ./src
+RUN pip install -e . --no-deps
 
 CMD ["uvicorn", "agentmesh.main:app", "--host", "0.0.0.0", "--port", "8000"]

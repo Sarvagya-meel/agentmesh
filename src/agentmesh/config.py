@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     worker_heartbeat_seconds: float = Field(default=60.0, gt=0)
     worker_lease_seconds: int = Field(default=300, ge=10)
     worker_request_timeout_seconds: float = Field(default=30.0, gt=0)
+    registry_backend: str = "memory"
     event_store_backend: str = "memory"
     orchestrator_checkpoint_backend: str = "memory"
 
