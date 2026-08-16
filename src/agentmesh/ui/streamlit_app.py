@@ -270,11 +270,20 @@ worker_ids = list(worker_cards_by_id)
 
 if page == "Resource Dashboard":
     st.title("Resource Dashboard")
+    resource_rows = fetch_resource_rows()
+    total_resources = len(resource_rows)
+    active_resources = sum(row.get("status") == "online" for row in resource_rows)
+    stale_resources = sum(row.get("status") == "stale" for row in resource_rows)
+
+    metric_columns = st.columns(3)
+    metric_columns[0].metric("Resources", total_resources)
+    metric_columns[1].metric("Active", active_resources)
+    metric_columns[2].metric("Stale", stale_resources)
+
     if st.button("Refresh data"):
         st.rerun()
 
     st.subheader("Resources")
-    resource_rows = fetch_resource_rows()
     if resource_rows:
         st.dataframe(resource_rows, width="stretch", hide_index=True)
     else:
