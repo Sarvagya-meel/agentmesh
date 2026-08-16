@@ -458,3 +458,21 @@ AWS integrations are **disabled by default** and controlled entirely by environm
 - Use AWS Budgets and Free Tier / credits before enabling cloud execution
 
 To enable AWS features, set the relevant flags in your `.env` file and ensure your AWS credentials are configured (`aws configure` or environment variables).
+
+---
+
+## Future Enhancement: Postgres MCP Tools
+
+AgentMesh can later expose PostgreSQL through a dedicated MCP server as a controlled tool surface for agents and operators.
+
+This should be used for observability and safe operational reads, not as a replacement for the core runtime repositories. The API, registry, orchestrator, and workers should continue writing lifecycle state through application services and repositories.
+
+Initial MCP tools should be curated and narrow:
+
+- `query_resource_status` — read `agentmesh_resources`
+- `get_workflow_timeline` — read `agentmesh_events`
+- `get_resource_audit_trail` — read `agentmesh_resource_audit_events`
+- `lookup_agent_capabilities` — read registered agent/tool capabilities
+- `append_audit_note` — add a controlled audit note for an existing resource
+
+Avoid raw SQL access for agents by default. If raw SQL is ever enabled, keep it read-only, scoped to approved schemas, and gated separately from production credentials.

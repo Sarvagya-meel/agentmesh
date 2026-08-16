@@ -104,3 +104,16 @@ agentmesh_events
 ```
 
 This keeps the dashboard generic instead of hardcoding only agents. Agents, orchestrators, MCP servers, and tools can all appear as resources and emit audit events.
+
+## Future: Postgres MCP Server
+
+A future `postgres-mcp-server` can expose this database as a controlled tool provider for agents and dashboards.
+
+Recommended scope:
+
+- read resource inventory from `agentmesh_resources`
+- read workflow timelines from `agentmesh_events`
+- read audit trails from `agentmesh_resource_audit_events`
+- append controlled audit notes for existing resources
+
+Keep core lifecycle writes in the application repositories. The MCP server should start as an observability and controlled-tool layer, not as the primary way agents mutate registry, workflow, claim, or run state.

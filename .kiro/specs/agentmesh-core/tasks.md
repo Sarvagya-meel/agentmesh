@@ -64,6 +64,10 @@ Every phase must satisfy the documentation quality gates defined in `design.md` 
     {
       "wave": 12,
       "tasks": ["Phase 13: Optional AgentCore Runtime Demo"]
+    },
+    {
+      "wave": 13,
+      "tasks": ["Phase 14: Optional Postgres MCP Tool Server"]
     }
   ]
 }
@@ -267,3 +271,16 @@ Every phase must satisfy the documentation quality gates defined in `design.md` 
 - [ ] 6. Add rollback instructions: how to switch back to local runner if AgentCore deployment is disabled
 - [ ] 7. Write integration test (skipped unless `AWS_AGENTCORE_ENABLED=true` and credentials present): deploy demo agent, verify it polls MCP and emits events correctly
 - [ ] 8. **MCP remains the source of truth.** AgentCore is compute only. No workflow state lives in AgentCore.
+
+---
+
+## Phase 14: Optional Postgres MCP Tool Server
+
+- [ ] 1. Add a `postgres-mcp-server` service that connects to the same PostgreSQL database with least-privilege credentials.
+- [ ] 2. Expose curated tools only: `query_resource_status`, `get_workflow_timeline`, `get_resource_audit_trail`, `lookup_agent_capabilities`, and `append_audit_note`.
+- [ ] 3. Keep raw SQL disabled by default. If enabled later, make it read-only, schema-scoped, and separately configured from production credentials.
+- [ ] 4. Register the MCP server itself in `agentmesh_resources` with `resource_type='mcp_server'`.
+- [ ] 5. Emit MCP server startup, heartbeat, tool-call, and error records into `agentmesh_resource_audit_events`.
+- [ ] 6. Ensure agents use the MCP tools for observability and controlled reads only; lifecycle writes still go through AgentMesh application services and repositories.
+- [ ] 7. Add API or Streamlit visibility for MCP server status and recent tool calls.
+- [ ] 8. Write tests for tool authorization, read-only behavior, audit event creation, and failure handling when Postgres is unavailable.
