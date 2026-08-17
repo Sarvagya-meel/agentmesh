@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from agentmesh.agents.agent_langgraph_orchestrator_supervisor import MasterOrchestratorAgent
 from agentmesh.agents.common.base_agent import BaseAgent
-from agentmesh.core.agent_card import AgentCard
+from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.services.service_agentmesh_server.database.repository import InMemoryEventRepository
 from agentmesh.services.service_agentmesh_server.events.service import EventService
 from agentmesh.services.service_agentmesh_server.events.state import StateService

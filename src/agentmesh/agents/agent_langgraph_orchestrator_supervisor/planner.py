@@ -7,9 +7,9 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
-from agentmesh.core.agent_card import AgentCard
-from agentmesh.core.exceptions import AgentRegistryError, ModelProviderError
 from agentmesh.core.models import PlanTask, WorkflowPlan
+from agentmesh.core.models.agent_card import AgentCard
+from agentmesh.core.models.exceptions import AgentRegistryError, ModelProviderError
 
 
 class WorkflowPlanner(Protocol):

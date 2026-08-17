@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     event_store_backend: str = "memory"
     orchestrator_checkpoint_backend: str = "memory"
 
-    llm_provider: str = "groq"
+    llm_provider: str = "mock"
     bedrock_model_id: str = ""
     groq_api_key: SecretStr | None = None
     groq_model: str = "openai/gpt-oss-120b"

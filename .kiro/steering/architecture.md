@@ -77,9 +77,8 @@ Agent packages contain only modules with implemented behavior. Add schemas, tool
 
 ### Core Layer
 
-- **models.py**: Pydantic v2 domain models (`Event`, `WorkflowState`, `Task`, `WorkflowContext`, `EventFilters`)
-- **event_types.py**: Enum of all valid event type strings
-- **exceptions.py**: Domain exception hierarchy
+- **models/**: Pydantic v2 domain models package — `workflow.py`, `agent_card.py`, `event_types.py`, `exceptions.py`
+  - **exceptions.py**: Domain exception hierarchy (`src/agentmesh/core/models/exceptions.py`)
 
 ---
 

@@ -87,9 +87,9 @@ Agent packages contain only the modules required by their implemented behavior. 
 
 ### Core Layer
 
-- `models.py`: Pydantic v2 domain models (`Event`, `WorkflowState`, `Task`, `WorkflowContext`, `EventFilters`)
-- `event_types.py`: enum of valid event type strings
-- `exceptions.py`: domain exception hierarchy
+- `models/` package: Pydantic v2 domain models split across `workflow.py` (`Event`, `WorkflowState`, `Task`, `WorkflowContext`, `EventFilters`), `agent_card.py`
+- `models/event_types.py`: enum of valid event type strings
+- `models/exceptions.py`: domain exception hierarchy
 
 ## Architectural rules
 

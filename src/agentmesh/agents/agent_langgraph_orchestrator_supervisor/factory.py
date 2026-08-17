@@ -8,7 +8,7 @@ from agentmesh.agents.agent_langgraph_orchestrator_supervisor.planner import (
     WorkflowPlanner,
 )
 from agentmesh.config import Settings
-from agentmesh.core.exceptions import ValidationError
+from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.core.providers.groq import GroqStructuredOutputClient
 
 
@@ -29,7 +29,7 @@ def create_workflow_planner(
         else ""
     )
     if not api_key:
-        raise ValidationError("GROQ_API_KEY is required when LLM_PROVIDER=groq.")
+        return CapabilityWorkflowPlanner(), lambda: None
 
     client = GroqStructuredOutputClient(
         api_key=api_key,

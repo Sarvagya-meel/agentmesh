@@ -4,12 +4,12 @@ from typing import Any
 from uuid import UUID
 
 from agentmesh.agents.agent_langgraph_orchestrator_supervisor import MasterOrchestratorAgent
-from agentmesh.core.exceptions import (
+from agentmesh.core.models import AssignmentClaim, Event
+from agentmesh.core.models.exceptions import (
     AgentRegistryError,
     ClaimConflictError,
     ValidationError,
 )
-from agentmesh.core.models import AssignmentClaim, Event
 from agentmesh.services.service_agentmesh_server.database.repository import ClaimRepository
 from agentmesh.services.service_agentmesh_server.events.service import EventService
 from agentmesh.services.service_agentmesh_server.registry.service import RegistryService

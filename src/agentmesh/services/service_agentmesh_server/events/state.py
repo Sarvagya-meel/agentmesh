@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from agentmesh.core.exceptions import WorkflowNotFoundError
 from agentmesh.core.models import Event, WorkflowState, WorkflowStatus
+from agentmesh.core.models.exceptions import WorkflowNotFoundError
 from agentmesh.services.service_agentmesh_server.events.service import EventService
 
 

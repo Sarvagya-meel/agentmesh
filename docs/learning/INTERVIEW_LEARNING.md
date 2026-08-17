@@ -416,3 +416,54 @@ For "Research suitable software roles and review the shortlist," Groq produced a
 ## 10. Resume Bullet
 
 Integrated Groq GPT-OSS 120B as a strict-schema planning agent behind a provider-neutral protocol, with deterministic policy validation, centralized secret management, and quota-free mocked testing.
+
+---
+
+# Feature: Operational Runtime Hardening and Docker Recovery
+
+## 1. Simple Explanation
+
+This feature is about making the system resilient in real development and deployment environments. Instead of assuming every service will start with a live API key or a correct host URL, the runtime gracefully falls back to safe defaults and the team has a clear, repeatable way to manage each Docker component.
+
+## 2. Technical Explanation
+
+The runtime now treats Groq as an optional execution provider rather than a mandatory startup dependency. The root `.env` can specify `LLM_PROVIDER=groq` only when a valid key is present; otherwise the app falls back to a safe local mock path. The orchestration layer, worker factories, and ADK runtime all check provider configuration before constructing LLM-backed clients. A separate Docker helper script uses the repo-root project directory so the stack automatically reads `.env` without repeating `--env-file` on every command. Operational recovery is reduced to a deterministic set of actions: start, stop, restart, health-check, and log-following per service.
+
+## 3. Why It Matters
+
+Real systems fail because of bad configuration, not just code bugs. A valid Groq key, a correct URL, and the right network context determine whether an agent can actually do work. Making the system handle blank credentials and host-vs-container endpoint differences prevents fragile startup behavior and makes local troubleshooting much faster.
+
+## 4. Interview Short Answer
+
+I hardened the runtime by separating safe local defaults from provider-backed execution and by adding repeatable Docker operations for each service. That means the stack stays healthy without a live Groq key, while Groq mode is still supported when a valid key is configured. I also fixed the issue where internal Docker hostnames were used from outside the compose network, which was causing false 503s.
+
+## 5. Interview Deep-Dive Answer
+
+The important operational lesson is that infrastructure reliability is a product feature. Our teams saw two recurring issues: provider keys were missing or invalid, and host-to-container networking assumptions were wrong. I solved that by forcing a provider-safe default, adding fallback logic to the orchestration and worker factories, and validating the `localhost` endpoints used outside Docker. In parallel, I built a component manager script that can start, stop, restart, log, and health-check individual services while reading the project-root `.env` automatically. This reduces the cognitive load during local testing and gives a clear path to debugging failed startup states without guessing.
+
+## 6. Business Explanation
+
+The business value is operational confidence. Developers and operators can start the stack reliably, know which component failed, and recover quickly without a full rebuild or long debugging session. It also reduces the risk of false alarms caused by environment mismatch rather than real software faults.
+
+## 7. Real Example From AgentMesh
+
+The project previously returned `500` and `503` errors when the Google ADK runtime hit Groq with an invalid key or when a Docker-internal hostname was used from the host. The fix included a safe local fallback path, explicit default provider settings, and the `docker_component_manager.ps1` helper under `scripts/` for service-level management. The documentation in `docs/docker-log-audit-action-plan.md` and `docs/docker-operations.md` captures the workflow and the recovery procedure.
+
+## 8. Trade-offs
+
+**Pros:** safer defaults, easier local development, deterministic recovery steps, and faster debugging.
+
+**Cons:** mock fallback can hide provider misconfiguration if it is not surfaced clearly, and the operational scripts add a small maintenance burden.
+
+**Alternatives considered:** Requiring Groq for every environment, using only Docker service names from the host, or leaving developers to manually inspect and restart every container. The chosen approach gives reliability without removing provider flexibility.
+
+## 9. Follow-up Questions
+
+- *How do you prevent hidden fallback behavior from masking real production issues?* — Log provider selection and warn if the system is running in mock mode.
+- *Why not always use `docker compose up` without helpers?* — Because component-level operations and health checks are much easier to reason about when they are standardized.
+- *How do you know the stack is really healthy?* — Use explicit health endpoints and container-level log audits after every restart.
+- *What if a new service is added?* — Extend the service catalog in the Docker manager with the same health-check conventions.
+
+## 10. Resume Bullet
+
+Hardened the local runtime and Docker operations by adding provider-safe fallbacks, explicit host-vs-container endpoint handling, and a reusable component manager for health, restart, and log operations — reducing startup failures and making troubleshooting repeatable.

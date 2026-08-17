@@ -9,7 +9,7 @@ from psycopg import Connection
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from agentmesh.core.agent_card import AgentCard
+from agentmesh.core.models.agent_card import AgentCard
 
 
 def normalise_postgres_url(connection_url: str) -> str:

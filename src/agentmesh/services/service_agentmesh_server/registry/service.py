@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from agentmesh.core.agent_card import AgentCard
-from agentmesh.core.exceptions import AgentRegistryError
+from agentmesh.core.models.agent_card import AgentCard
+from agentmesh.core.models.exceptions import AgentRegistryError
 from agentmesh.services.service_agentmesh_server.registry.repository import RegistryRepository
 
 

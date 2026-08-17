@@ -17,7 +17,7 @@ Follow these coding standards when authoring Python code in this repository. The
 - Do not put business logic in FastAPI route handlers — handlers should validate input, call services, and return responses only.
 - Avoid global mutable state. Use FastAPI `lifespan` for startup/shutdown side effects.
 - Add docstrings (Google-style) for core interfaces, public service methods, repository methods, and non-trivial algorithms.
-- Use domain exceptions from `src/agentmesh/core/exceptions.py`; convert these to HTTP responses via FastAPI exception handlers.
+- Use domain exceptions from `src/agentmesh/core/models/exceptions.py`; convert these to HTTP responses via FastAPI exception handlers.
 - Use absolute imports, grouped: stdlib → third-party → local. Let `ruff` enforce ordering.
 - Do not perform blocking I/O inside async route handlers or lifespan tasks.
 

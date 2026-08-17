@@ -13,8 +13,8 @@ from agentmesh.agents.agent_langgraph_orchestrator_supervisor.planner import (
     GroqWorkflowPlanner,
 )
 from agentmesh.config import Settings
-from agentmesh.core.agent_card import AgentCard
-from agentmesh.core.exceptions import (
+from agentmesh.core.models.agent_card import AgentCard
+from agentmesh.core.models.exceptions import (
     AgentRegistryError,
     ModelProviderError,
     ValidationError,

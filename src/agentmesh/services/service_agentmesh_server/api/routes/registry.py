@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from agentmesh.core.agent_card import AgentCard
+from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.services.service_agentmesh_server.api.dependencies import get_registry_service
 from agentmesh.services.service_agentmesh_server.registry.service import RegistryService
 

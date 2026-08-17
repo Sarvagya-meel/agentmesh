@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import httpx
 
-from agentmesh.core.agent_card import AgentCard
+from agentmesh.core.models.agent_card import AgentCard
 
 
 class BaseAgent(ABC):

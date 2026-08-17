@@ -6,8 +6,8 @@ from uuid import UUID
 
 import httpx
 
-from agentmesh.core.agent_card import AgentCard
 from agentmesh.core.models import AssignmentClaim, Event
+from agentmesh.core.models.agent_card import AgentCard
 
 
 class ControlPlaneClient:

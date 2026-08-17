@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from agentmesh.config import Settings
-from agentmesh.core.exceptions import ValidationError
+from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.core.providers.groq import GroqStructuredOutputClient
 
 

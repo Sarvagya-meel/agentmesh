@@ -1,4 +1,4 @@
-from agentmesh.core.agent_card import AgentCard
+from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.services.service_agentmesh_server.registry.repository import (
     InMemoryRegistryRepository,
 )

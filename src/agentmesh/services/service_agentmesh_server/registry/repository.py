@@ -10,8 +10,8 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from agentmesh.config import Settings
-from agentmesh.core.agent_card import AgentCard
-from agentmesh.core.exceptions import ValidationError
+from agentmesh.core.models.agent_card import AgentCard
+from agentmesh.core.models.exceptions import ValidationError
 
 
 class RegistryRepository(ABC):

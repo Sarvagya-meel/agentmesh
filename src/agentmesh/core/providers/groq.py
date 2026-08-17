@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import httpx
 
-from agentmesh.core.exceptions import ModelProviderError
+from agentmesh.core.models.exceptions import ModelProviderError
 
 
 class GroqStructuredOutputClient:

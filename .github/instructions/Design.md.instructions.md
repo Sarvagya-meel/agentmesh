@@ -20,7 +20,7 @@ The expected package structure is:
 - `src/agentmesh/services/` for event, state-projection, and worker-lease services
 - `src/agentmesh/database/postgres/` for PostgreSQL adapters and query logic
 - `deployment/postgres/` for ordered PostgreSQL DDL and schema application scripts
-- `src/agentmesh/core/models.py`, `event_types.py`, `exceptions.py`
+- `src/agentmesh/core/models/` package: `workflow.py`, `agent_card.py`, `event_types.py`, `exceptions.py`
 
 ## Architectural layers
 

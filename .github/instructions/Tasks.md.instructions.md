@@ -41,9 +41,9 @@ The implementation plan is organized by wave and phase:
 
 ## Phase 2: core models
 
-- Add `src/core/models.py` with typed dataclasses and enums.
-- Add `src/core/event_types.py` with all valid event types.
-- Add `src/core/exceptions.py` with the event system exception hierarchy.
+- Add `src/core/models/` package with typed dataclasses and enums (`workflow.py`, `agent_card.py`).
+- Add `src/core/models/event_types.py` with all valid event types.
+- Add `src/core/models/exceptions.py` with the event system exception hierarchy.
 - Add validation helpers that enforce conversation, workflow, routing, and causation invariants.
 - Add agent registry support with `orchestrator` as a valid built-in source.
 - Cover models and validation with unit tests.

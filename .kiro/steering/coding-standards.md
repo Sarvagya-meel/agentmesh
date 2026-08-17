@@ -179,7 +179,7 @@ Optional but encouraged for:
 
 ## Error Handling
 
-- Use domain exceptions from `src/agentmesh/core/exceptions.py` instead of raw `Exception` in service code
+- Use domain exceptions from `src/agentmesh/core/models/exceptions.py` instead of raw `Exception` in service code
 - FastAPI exception handlers in `main.py` convert domain exceptions to HTTP responses
 - Never swallow exceptions silently — log and re-raise, or convert to a domain exception
 - Use `try/except` narrowly around the specific operation that can fail, not around large blocks
