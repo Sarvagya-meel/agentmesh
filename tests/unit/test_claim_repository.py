@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from agentmesh.services.agentmesh_server.database.repository import InMemoryClaimRepository
+from agentmesh.services.service_agentmesh_server.database.repository import InMemoryClaimRepository
 
 
 def test_only_one_worker_claims_an_assignment_concurrently() -> None:

@@ -1,6 +1,6 @@
 from httpx import ASGITransport, AsyncClient
 
-from agentmesh.services.agentmesh_server.app import app
+from agentmesh.services.service_agentmesh_server.app import app
 
 
 async def test_workflow_api_runs_both_approval_gates_and_completes() -> None:

@@ -1,4 +1,4 @@
-from agentmesh.agents.langgraph_copilot.agent import ConversationAgent
+from agentmesh.agents.agent_langgraph_copilot.agent import ConversationAgent
 
 
 def test_conversation_agent_builds_a_graph_and_returns_a_reply() -> None:

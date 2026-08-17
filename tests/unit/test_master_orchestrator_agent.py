@@ -1,14 +1,16 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from agentmesh.agents.common.agent_models import BaseAgent
-from agentmesh.agents.common.contracts.agent_card import AgentCard
-from agentmesh.agents.orchestrator_supervisor import MasterOrchestratorAgent
-from agentmesh.services.agentmesh_server.database.repository import InMemoryEventRepository
-from agentmesh.services.agentmesh_server.events.service import EventService
-from agentmesh.services.agentmesh_server.events.state import StateService
-from agentmesh.services.agentmesh_server.registry.repository import InMemoryRegistryRepository
-from agentmesh.services.agentmesh_server.registry.service import RegistryService
+from agentmesh.agents.agent_langgraph_orchestrator_supervisor import MasterOrchestratorAgent
+from agentmesh.agents.common.base_agent import BaseAgent
+from agentmesh.core.agent_card import AgentCard
+from agentmesh.services.service_agentmesh_server.database.repository import InMemoryEventRepository
+from agentmesh.services.service_agentmesh_server.events.service import EventService
+from agentmesh.services.service_agentmesh_server.events.state import StateService
+from agentmesh.services.service_agentmesh_server.registry.repository import (
+    InMemoryRegistryRepository,
+)
+from agentmesh.services.service_agentmesh_server.registry.service import RegistryService
 
 
 def build_master_agent() -> tuple[MasterOrchestratorAgent, EventService]:

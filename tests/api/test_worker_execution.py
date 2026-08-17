@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from agentmesh.services.agentmesh_server.app import app
+from agentmesh.services.service_agentmesh_server.app import app
 
 
 @pytest.mark.parametrize(

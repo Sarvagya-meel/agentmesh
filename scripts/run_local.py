@@ -26,7 +26,7 @@ def start_api() -> subprocess.Popen[str] | None:
         sys.executable,
         "-m",
         "uvicorn",
-        "agentmesh.services.agentmesh_server.app:app",
+        "agentmesh.services.service_agentmesh_server.app:app",
         "--host",
         "127.0.0.1",
         "--port",
@@ -43,7 +43,7 @@ def start_streamlit() -> subprocess.Popen[str] | None:
     project_root = Path(__file__).resolve().parents[1]
     env = os.environ.copy()
     env["PYTHONPATH"] = str(project_root / "src")
-    app_path = project_root / "src" / "agentmesh" / "services" / "agentmesh_ui" / "app.py"
+    app_path = project_root / "src" / "agentmesh" / "services" / "service_agentmesh_ui" / "app.py"
     cmd = [
         sys.executable,
         "-m",

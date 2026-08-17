@@ -1,4 +1,4 @@
-from agentmesh.agents.adk_spark.agent import GoogleADKAgent
+from agentmesh.agents.agent_adk_spark.agent import GoogleADKAgent
 
 
 def test_google_adk_agent_returns_structured_response() -> None:

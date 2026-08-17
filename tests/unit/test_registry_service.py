@@ -1,6 +1,8 @@
-from agentmesh.agents.common.contracts.agent_card import AgentCard
-from agentmesh.services.agentmesh_server.registry.repository import InMemoryRegistryRepository
-from agentmesh.services.agentmesh_server.registry.service import RegistryService
+from agentmesh.core.agent_card import AgentCard
+from agentmesh.services.service_agentmesh_server.registry.repository import (
+    InMemoryRegistryRepository,
+)
+from agentmesh.services.service_agentmesh_server.registry.service import RegistryService
 
 
 def test_agent_registration_and_capability_lookup() -> None:

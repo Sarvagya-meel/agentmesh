@@ -4,7 +4,7 @@ import argparse
 import json
 from collections.abc import Callable
 
-from agentmesh.agents.common.agent_models import BaseAgent
+from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.control_plane_client import ControlPlaneClient
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
 from agentmesh.agents.common.worker import AssignmentWorker

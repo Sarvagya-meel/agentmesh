@@ -1,6 +1,6 @@
 """Checkpoint creation helpers for LangGraph orchestration."""
 
-from agentmesh.services.agentmesh_server.database.checkpoint import (
+from agentmesh.services.service_agentmesh_server.database.checkpoint import (
     create_orchestration_checkpointer,
 )
 

@@ -94,7 +94,7 @@ The business benefit is governance and safety. Enterprises need to know which ag
 
 ## 7. Real Example From AgentMesh
 
-The new registry files under `src/agentmesh/registry/` and the `ConversationAgent` under `src/agentmesh/agents/langgraph_copilot/` implement exactly this pattern.
+The new registry files under `src/agentmesh/registry/` and the `ConversationAgent` under `src/agentmesh/agents/agent_langgraph_copilot/` implement exactly this pattern.
 
 ## 8. Trade-offs
 
@@ -142,7 +142,7 @@ The business value is operational clarity. Teams can see exactly what happened, 
 
 ## 7. Real Example From AgentMesh
 
-The `MasterOrchestratorAgent` in `src/agentmesh/agents/orchestrator_supervisor/agent.py` demonstrates this pattern. It discovers workers by capability, creates a validated plan, pauses at human approval gates, and emits directed `TASK_ASSIGNED` events. The planner and checkpoint implementations remain separate orchestration infrastructure.
+The `MasterOrchestratorAgent` in `src/agentmesh/agents/agent_langgraph_orchestrator_supervisor/agent.py` demonstrates this pattern. It discovers workers by capability, creates a validated plan, pauses at human approval gates, and emits directed `TASK_ASSIGNED` events. The planner and checkpoint implementations remain separate orchestration infrastructure.
 
 ## 8. Trade-offs
 
@@ -241,7 +241,7 @@ Think of each agent as a specialist on a team. The job searcher, the email finde
 
 ## 7. Real Example From AgentMesh
 
-In AgentMesh, `agents/langgraph_copilot/` and `agents/adk_spark/` are independent worker packages. Their standalone runners use the shared worker runtime and control-plane client, so they can execute locally or in separate containers without importing `EventService` directly. Future domain-specific workers should follow the same package and runner pattern when they contain real behavior.
+In AgentMesh, `agents/agent_langgraph_copilot/` and `agents/agent_adk_spark/` are independent worker packages. Their standalone runners use the shared worker runtime and control-plane client, so they can execute locally or in separate containers without importing `EventService` directly. Future domain-specific workers should follow the same package and runner pattern when they contain real behavior.
 
 ## 8. Trade-offs
 

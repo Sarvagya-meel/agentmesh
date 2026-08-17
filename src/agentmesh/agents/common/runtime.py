@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field
 
-from agentmesh.agents.common.agent_models import BaseAgent
+from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.control_plane_client import ControlPlaneClient
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
 from agentmesh.agents.common.worker import AssignmentWorker

@@ -7,19 +7,19 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from agentmesh.agents.common.contracts.agent_card import AgentCard
-from agentmesh.agents.common.contracts.exceptions import (
-    AgentRegistryError,
-    ModelProviderError,
-    ValidationError,
-)
-from agentmesh.agents.common.providers.groq import GroqStructuredOutputClient
-from agentmesh.agents.orchestrator_supervisor.factory import create_workflow_planner
-from agentmesh.agents.orchestrator_supervisor.planner import (
+from agentmesh.agents.agent_langgraph_orchestrator_supervisor.factory import create_workflow_planner
+from agentmesh.agents.agent_langgraph_orchestrator_supervisor.planner import (
     CapabilityWorkflowPlanner,
     GroqWorkflowPlanner,
 )
 from agentmesh.config import Settings
+from agentmesh.core.agent_card import AgentCard
+from agentmesh.core.exceptions import (
+    AgentRegistryError,
+    ModelProviderError,
+    ValidationError,
+)
+from agentmesh.core.providers.groq import GroqStructuredOutputClient
 
 
 class FakeStructuredOutputClient:

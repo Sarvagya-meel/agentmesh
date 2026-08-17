@@ -8,10 +8,10 @@ from uuid import UUID, uuid4
 
 import httpx
 
-from agentmesh.agents.common.agent_models import BaseAgent
-from agentmesh.agents.common.contracts.models import Event
+from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.control_plane_client import ControlPlaneClient
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
+from agentmesh.core.models import Event
 
 
 class AssignmentWorker:

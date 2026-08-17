@@ -87,11 +87,11 @@ The compose stack keeps the `agentmesh` project name and runs a one-shot migrati
 ## Agent entrypoints
 
 ```powershell
-python -m agentmesh.agents.langgraph_copilot --worker
-python -m agentmesh.agents.adk_spark --worker
+python -m agentmesh.agents.agent_langgraph_copilot --worker
+python -m agentmesh.agents.agent_adk_spark --worker
 ```
 
-The control plane is served from `agentmesh.services.agentmesh_server.app`; worker-specific code remains isolated to its concrete agent package.
+The control plane is served from `agentmesh.services.service_agentmesh_server.app`; worker-specific code remains isolated to its concrete agent package.
 
 ## Validation
 

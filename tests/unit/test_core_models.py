@@ -4,13 +4,13 @@ from uuid import uuid4
 
 import pytest
 
-from agentmesh.agents.common.contracts.event_types import VALID_EVENT_TYPES
-from agentmesh.agents.common.contracts.exceptions import (
+from agentmesh.core.event_types import VALID_EVENT_TYPES
+from agentmesh.core.exceptions import (
     CausationLoopError,
     InvalidEventTypeError,
     InvalidRoutingError,
 )
-from agentmesh.agents.common.contracts.models import Event, RoutingMode, WorkflowState
+from agentmesh.core.models import Event, RoutingMode, WorkflowState
 
 
 def test_valid_event_types_are_registered() -> None:

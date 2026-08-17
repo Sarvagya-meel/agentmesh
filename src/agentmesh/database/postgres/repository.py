@@ -1,6 +1,6 @@
 """PostgreSQL repository adapters for AgentMesh."""
 
-from agentmesh.services.agentmesh_server.database.repository import (
+from agentmesh.services.service_agentmesh_server.database.repository import (
     ClaimRepository,
     EventRepository,
     InMemoryClaimRepository,

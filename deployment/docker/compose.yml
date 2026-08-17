@@ -113,7 +113,7 @@ services:
     command:
       [
         "uvicorn",
-        "agentmesh.agents.langgraph_copilot.app:app",
+        "agentmesh.agents.agent_langgraph_copilot.app:app",
         "--host=0.0.0.0",
         "--port=8101",
       ]
@@ -164,7 +164,7 @@ services:
     command:
       [
         "uvicorn",
-        "agentmesh.agents.adk_spark.app:app",
+        "agentmesh.agents.agent_adk_spark.app:app",
         "--host=0.0.0.0",
         "--port=8102",
       ]
@@ -209,7 +209,7 @@ services:
       [
         "streamlit",
         "run",
-        "src/agentmesh/services/agentmesh_ui/app.py",
+        "src/agentmesh/services/service_agentmesh_ui/app.py",
         "--server.address=0.0.0.0",
         "--server.port=8501",
       ]

@@ -15,4 +15,4 @@ RUN pip install --upgrade "pip>=25.1" \
 COPY src ./src
 RUN pip install -e . --no-deps
 
-CMD ["uvicorn", "agentmesh.services.agentmesh_server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "agentmesh.services.service_agentmesh_server.app:app", "--host", "0.0.0.0", "--port", "8000"]
