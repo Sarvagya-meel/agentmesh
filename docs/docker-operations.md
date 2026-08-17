@@ -2,7 +2,7 @@
 
 This document contains the standard commands for managing the AgentMesh Docker stack from the repository root.
 
-## Quick commands
+## Quick commands for Powershell
 
 ### Start everything
 

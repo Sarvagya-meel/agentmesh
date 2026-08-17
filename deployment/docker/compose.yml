@@ -1,15 +1,15 @@
 name: agentmesh
 
-# ─── LLM configuration (hardcoded for local dev) ─────────────────────────────
+# ─── LLM configuration (read from .env via --env-file) ───────────────────────
 x-llm-config: &llm-config
-  LLM_PROVIDER: "${LLM_PROVIDER:-groq}"
-  GROQ_API_KEY: "${GROQ_API_KEY:-}"
-  GROQ_MODEL: "openai/gpt-oss-120b"
-  GROQ_API_BASE: "https://api.groq.com/openai/v1"
-  GROQ_REASONING_EFFORT: "medium"
-  GROQ_TEMPERATURE: "0.1"
-  GROQ_MAX_COMPLETION_TOKENS: "4096"
-  GROQ_TIMEOUT_SECONDS: "45"
+  LLM_PROVIDER: ${LLM_PROVIDER}
+  GROQ_API_KEY: ${GROQ_API_KEY}
+  GROQ_MODEL: ${GROQ_MODEL}
+  GROQ_API_BASE: ${GROQ_API_BASE}
+  GROQ_REASONING_EFFORT: ${GROQ_REASONING_EFFORT}
+  GROQ_TEMPERATURE: ${GROQ_TEMPERATURE}
+  GROQ_MAX_COMPLETION_TOKENS: ${GROQ_MAX_COMPLETION_TOKENS}
+  GROQ_TIMEOUT_SECONDS: ${GROQ_TIMEOUT_SECONDS}
 
 services:
 

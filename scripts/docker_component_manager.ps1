@@ -44,6 +44,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $composeFile = Join-Path $RepoRoot "deployment\docker\compose.yml"
+$composeDir = Split-Path -Path $composeFile -Parent
 $dotenvFile = Join-Path $RepoRoot ".env"
 
 if (-not (Test-Path $composeFile)) {
@@ -91,7 +92,8 @@ function Invoke-Compose {
     )
 
     Write-Host "==> $StepLabel"
-    & docker compose --project-directory $RepoRoot -f $composeFile @ComposeArgs
+    # Use --env-file to specify the .env file location (project root)
+    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile @ComposeArgs
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose command failed: $StepLabel"
     }
@@ -183,7 +185,7 @@ switch ($Action) {
     "logs" {
         foreach ($svc in $servicesToManage) {
             Write-Host "===== $svc ====="
-            & docker compose --project-directory $RepoRoot -f $composeFile logs --tail $TailLines $svc
+            & docker compose --project-directory $composeDir -f $composeFile logs --tail $TailLines $svc
             if ($LASTEXITCODE -ne 0) {
                 throw "docker logs failed for $svc"
             }
@@ -194,7 +196,7 @@ switch ($Action) {
     "logs-iterative" {
         foreach ($svc in $servicesToManage) {
             Write-Host "===== FOLLOWING LOGS FOR $svc ====="
-            & docker compose --project-directory $RepoRoot -f $composeFile logs --tail $TailLines -f $svc
+            & docker compose --project-directory $composeDir -f $composeFile logs --tail $TailLines -f $svc
             if ($LASTEXITCODE -ne 0) {
                 throw "Follow logs failed for $svc"
             }
