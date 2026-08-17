@@ -1,0 +1,24 @@
+# ─── Dockerfile.Migrate ──────────────────────────────────────────────────────
+# Lightweight one-shot image that applies all DDL migrations to PostgreSQL.
+# Runs once at startup (restart: "no") before any service comes online.
+#
+# Expects DATABASE_URL to be set in the environment.
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Install only what the migration script needs
+RUN pip install --upgrade "pip>=25.1" \
+    && pip install "psycopg[binary]" python-dotenv
+
+# Copy migration artefacts only
+COPY deployment/postgres/ddls   ./deployment/postgres/ddls
+COPY deployment/postgres/scripts/apply_ddls.py ./deployment/postgres/scripts/apply_ddls.py
+
+CMD ["python", "deployment/postgres/scripts/apply_ddls.py"]

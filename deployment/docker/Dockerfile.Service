@@ -1,0 +1,41 @@
+# ─── Dockerfile.Service ──────────────────────────────────────────────────────
+# Builds the AgentMesh control-plane server (orchestrator + API) and the
+# Streamlit UI. Both share the same image; the entrypoint differs in compose.
+#
+# Optional build arg:
+#   DEPENDENCY_GROUP — pyproject.toml group to install
+#                      control-plane  → API server (default)
+#                      local          → API server + UI + dev deps
+#
+# Usage:
+#   docker build \
+#     --build-arg DEPENDENCY_GROUP=control-plane \
+#     -f deployment/docker/Dockerfile.Service .
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM python:3.11-slim AS base
+
+ARG DEPENDENCY_GROUP=control-plane
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app/src
+
+WORKDIR /app
+
+# ── Install dependencies first (cached layer) ────────────────────────────────
+COPY pyproject.toml ./
+RUN pip install --upgrade "pip>=25.1" \
+    && pip install --group "${DEPENDENCY_GROUP}"
+
+# ── Copy full source tree (service needs everything) ─────────────────────────
+COPY src ./src
+
+# Install the package in non-editable mode so the src layout is importable
+# without PYTHONPATH tricks in production images.
+RUN pip install --no-deps --no-build-isolation .
+
+# ── Default entrypoint: control-plane API server ─────────────────────────────
+CMD ["uvicorn", "agentmesh.services.service_agentmesh_server.app:app", \
+     "--host", "0.0.0.0", "--port", "8000"]

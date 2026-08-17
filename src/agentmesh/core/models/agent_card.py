@@ -1,3 +1,4 @@
+"""AgentCard — the metadata shape published by every agent at registration."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -5,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from agentmesh.core.exceptions import ValidationError
+from agentmesh.core.models.exceptions import ValidationError
 
 
 class AgentCard(BaseModel):

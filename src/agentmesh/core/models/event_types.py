@@ -1,3 +1,8 @@
+"""Canonical event type registry for AgentMesh.
+
+All valid event_type strings must be declared here. The Event model
+validator rejects any string not present in VALID_EVENT_TYPES.
+"""
 from __future__ import annotations
 
 from enum import StrEnum

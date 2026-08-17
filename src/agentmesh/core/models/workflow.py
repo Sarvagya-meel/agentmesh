@@ -1,3 +1,8 @@
+"""Workflow domain models — Event, WorkflowState, Task, Plans, Claims, etc.
+
+This module has no dependencies outside core/models/. It must never import
+from agents/, services/, database/, or config.
+"""
 from __future__ import annotations
 
 import json
@@ -9,8 +14,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from agentmesh.core.event_types import VALID_EVENT_TYPES
-from agentmesh.core.exceptions import (
+from agentmesh.core.models.event_types import VALID_EVENT_TYPES
+from agentmesh.core.models.exceptions import (
     AgentRegistryError,
     CausationLoopError,
     InvalidEventTypeError,
@@ -78,33 +83,29 @@ def _normalise_string(value: str | None, *, field_name: str) -> str:
 
 def validate_workflow_id(workflow_id: str | UUID, *, require_v4: bool = True) -> UUID:
     """Validate a workflow UUID and optionally enforce UUIDv4 semantics."""
-
     try:
         parsed = UUID(str(workflow_id))
     except (ValueError, TypeError, AttributeError) as exc:
         raise InvalidWorkflowIdError(f"Invalid workflow_id: {workflow_id!r}.") from exc
-
     if require_v4 and parsed.version != 4:
         raise InvalidWorkflowIdError("workflow_id must be a valid UUID v4.")
-
     return parsed
 
 
 def validate_conversation_id(conversation_id: str | None) -> str:
     """Validate a conversation identifier; non-empty values only."""
-
     return _normalise_string(conversation_id, field_name="conversation_id")
 
 
 def validate_agent_name(agent_name: str | None, *, field_name: str = "agent_name") -> str:
     """Validate an agent identifier used by routing or registry checks."""
-
     return _normalise_string(agent_name, field_name=field_name)
 
 
-def validate_agent_registry(agent_name: str | None, *, known_agents: set[str] | None = None) -> str:
-    """Validate source/target agents against the built-in registry or the supplied allowlist."""
-
+def validate_agent_registry(
+    agent_name: str | None, *, known_agents: set[str] | None = None
+) -> str:
+    """Validate source/target agents against the built-in registry or supplied allowlist."""
     cleaned = validate_agent_name(agent_name, field_name="source_agent")
     registry = {
         "orchestrator",
@@ -130,7 +131,6 @@ def validate_agent_registry(agent_name: str | None, *, known_agents: set[str] | 
 
 def validate_json_payload(payload: Any) -> Any:
     """Ensure an event payload is JSON-serialisable."""
-
     try:
         json.dumps(payload)
     except (TypeError, ValueError) as exc:
@@ -138,14 +138,10 @@ def validate_json_payload(payload: Any) -> Any:
     return payload
 
 
-def validate_causation_chain(
-    entries: Sequence[str | UUID] | None,
-) -> list[UUID]:
+def validate_causation_chain(entries: Sequence[str | UUID] | None) -> list[UUID]:
     """Transform and validate a causation chain without allowing cycles."""
-
     if entries is None:
         return []
-
     parsed: list[UUID] = []
     seen: set[UUID] = set()
     for item in entries:
@@ -154,7 +150,6 @@ def validate_causation_chain(
             raise CausationLoopError("causation_chain contains duplicate event identifiers.")
         seen.add(value)
         parsed.append(value)
-
     return parsed
 
 
@@ -227,7 +222,6 @@ class Event(BaseModel):
         routing_mode = self.routing_mode
         if isinstance(routing_mode, str):
             routing_mode = RoutingMode(routing_mode)
-
         if routing_mode == RoutingMode.DIRECTED:
             if not self.target_agent:
                 raise InvalidRoutingError("DIRECTED events require target_agent.")
@@ -236,23 +230,18 @@ class Event(BaseModel):
                 routing_mode.value if isinstance(routing_mode, RoutingMode) else str(routing_mode)
             )
             raise InvalidRoutingError(f"{mode_name} events must not include target_agent.")
-
         if self.routing_weights is not None and any(
-            value < 0 for value in self.routing_weights.values()
+            v < 0 for v in self.routing_weights.values()
         ):
             raise InvalidRoutingError("routing_weights cannot contain negative values.")
-
         if self.causation_id is not None and self.causation_id == self.event_id:
             raise CausationLoopError("An event cannot be its own cause.")
-
         normalized_chain = validate_causation_chain(self.causation_chain)
         if self.event_id in normalized_chain:
             raise CausationLoopError("causation_chain cannot contain the current event id.")
         object.__setattr__(self, "causation_chain", normalized_chain)
-
         if self.causation_id is not None and self.causation_id in normalized_chain:
             raise CausationLoopError("causation_id cannot appear in the causation_chain.")
-
         return self
 
 
@@ -555,8 +544,7 @@ class AssignmentClaim(BaseModel):
 
 
 def validate_event(event: Event, *, known_agents: set[str] | None = None) -> Event:
-    """Validate a domain event object and ensure it satisfies routing invariants."""
-
+    """Validate a domain event and ensure it satisfies routing invariants."""
     candidate = event.model_copy(deep=True)
     if known_agents:
         candidate.source_agent = validate_agent_registry(
@@ -564,15 +552,13 @@ def validate_event(event: Event, *, known_agents: set[str] | None = None) -> Eve
         )
         if candidate.target_agent is not None:
             candidate.target_agent = validate_agent_registry(
-                candidate.target_agent,
-                known_agents=known_agents,
+                candidate.target_agent, known_agents=known_agents
             )
     return candidate
 
 
 def validate_event_type(value: str) -> str:
     """Compatibility helper for validating raw event-type strings."""
-
     return Event.model_validate(
         {
             "conversation_id": "conversation",
@@ -581,29 +567,3 @@ def validate_event_type(value: str) -> str:
             "source_agent": "orchestrator",
         }
     ).event_type
-
-
-__all__ = [
-    "WorkflowStatus",
-    "RoutingMode",
-    "Event",
-    "WorkflowState",
-    "Task",
-    "WorkflowContext",
-    "EventFilters",
-    "WorkflowDecision",
-    "ApprovalRequest",
-    "AssignmentClaim",
-    "ApprovalType",
-    "HumanDecision",
-    "HumanDecisionType",
-    "JsonPrimitive",
-    "PlanTask",
-    "TaskExecutionStatus",
-    "WorkflowPlan",
-    "validate_agent_registry",
-    "validate_event",
-    "validate_event_type",
-    "validate_workflow_id",
-    "validate_conversation_id",
-]

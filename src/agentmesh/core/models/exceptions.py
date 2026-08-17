@@ -1,3 +1,9 @@
+"""Domain exception hierarchy for AgentMesh.
+
+All exceptions raised by service, storage, and agent code should derive
+from AgentMeshError so callers can catch the entire domain surface with
+a single base class.
+"""
 from __future__ import annotations
 
 

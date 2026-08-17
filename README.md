@@ -11,8 +11,9 @@ agentmesh/
 ├── deployment/
 │   ├── docker/
 │   │   ├── compose.yml
-│   │   ├── Dockerfile.control-plane
-│   │   └── Dockerfile.agent
+│   │   ├── Dockerfile.Service   # control-plane and UI images
+│   │   ├── Dockerfile.Agent     # worker agent images
+│   │   └── Dockerfile.Migrate   # one-shot schema migration image
 │   ├── agentcore/
 │   │   └── README.md
 │   └── postgres/
@@ -78,11 +79,22 @@ The launcher starts the API and UI together. Health checks are exposed through t
 
 ## Docker and migration flow
 
+Copy `.env.example` to `.env` and set at minimum `GROQ_API_KEY` before starting the stack:
+
 ```powershell
 docker compose -f deployment/docker/compose.yml up --build
 ```
 
-The compose stack keeps the `agentmesh` project name and runs a one-shot migration service before the control plane starts. That migration service applies SQL in `deployment/postgres/ddls/` and exits successfully once the schema is current.
+The compose stack (`agentmesh` project name) starts in dependency order:
+
+1. **postgres** — PostgreSQL 15, health-checked
+2. **migrate** (`Dockerfile.Migrate`) — one-shot container that applies all DDLs from `deployment/postgres/ddls/` and exits
+3. **orchestrator-supervisor** (`Dockerfile.Service`, `DEPENDENCY_GROUP=control-plane`) — control plane + API on port 8000
+4. **agent-langgraph-copilot** (`Dockerfile.Agent`, `AGENT_PACKAGE=agent_langgraph_copilot`) — LangGraph worker on port 8101
+5. **agent-googleadk-chatagent** (`Dockerfile.Agent`, `AGENT_PACKAGE=agent_adk_spark`) — Google ADK worker on port 8102
+6. **streamlit** (`Dockerfile.Service`, `DEPENDENCY_GROUP=local`) — UI on port 8501
+
+LLM environment variables (`GROQ_API_KEY`, `GROQ_MODEL`, etc.) are defined once in the `x-llm-env` YAML anchor and merged into all services that need them.
 
 ## Agent entrypoints
 

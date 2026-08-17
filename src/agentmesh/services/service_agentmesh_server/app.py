@@ -18,10 +18,10 @@ from agentmesh.core.exceptions import (
     WorkflowConflictError,
     WorkflowNotFoundError,
 )
-from agentmesh.database.postgres.checkpoint import create_orchestration_checkpointer
-from agentmesh.database.postgres.repository import (
+from agentmesh.core.database import (
     create_claim_repository,
     create_event_repository,
+    create_orchestration_checkpointer,
 )
 from agentmesh.services.service_agentmesh_server.api.routes import (
     events,

@@ -1,6 +1,19 @@
 name: agentmesh
 
+# ─── Reusable LLM env fragment ────────────────────────────────────────────────
+x-llm-env: &llm-env
+  LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+  GROQ_API_KEY: ${GROQ_API_KEY}
+  GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+  GROQ_API_BASE: ${GROQ_API_BASE:-https://api.groq.com/openai/v1}
+  GROQ_REASONING_EFFORT: ${GROQ_REASONING_EFFORT:-medium}
+  GROQ_TEMPERATURE: ${GROQ_TEMPERATURE:-0.1}
+  GROQ_MAX_COMPLETION_TOKENS: ${GROQ_MAX_COMPLETION_TOKENS:-4096}
+  GROQ_TIMEOUT_SECONDS: ${GROQ_TIMEOUT_SECONDS:-45}
+
 services:
+
+  # ── Infrastructure ────────────────────────────────────────────────────────
   postgres:
     image: postgres:15
     container_name: agentmesh-postgres
@@ -20,35 +33,31 @@ services:
       retries: 5
 
   migrate:
-    image: python:3.11-slim
-    working_dir: /workspace
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.Migrate
+    container_name: agentmesh-migrate
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
-    volumes:
-      - ../..:/workspace:ro
-    command:
-      [
-        "sh",
-        "-c",
-        "pip install --upgrade \"pip>=25.1\" && pip install psycopg[binary] python-dotenv && python deployment/postgres/scripts/apply_ddls.py",
-      ]
     restart: "no"
 
+  # ── Control Plane (orchestrator + API) ───────────────────────────────────
   orchestrator-supervisor-agent:
     build:
       context: ../..
-      dockerfile: deployment/docker/Dockerfile.control-plane
+      dockerfile: deployment/docker/Dockerfile.Service
       args:
         DEPENDENCY_GROUP: control-plane
-    image: agentmesh-agent-orchestrator-supervisor-agent
-    container_name: agentmesh-agent-orchestrator-supervisor-agent
+    image: agentmesh-service-control-plane
+    container_name: agentmesh-orchestrator-supervisor
     depends_on:
       migrate:
         condition: service_completed_successfully
     environment:
+      <<: *llm-env
       APP_ENV: local
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
       AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
@@ -56,32 +65,21 @@ services:
       EVENT_STORE_BACKEND: postgres
       ORCHESTRATOR_CHECKPOINT_BACKEND: postgres
       AGENT_STALE_SECONDS: 180
-      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
-      GROQ_API_KEY: ${GROQ_API_KEY}
-      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
-      GROQ_API_BASE: ${GROQ_API_BASE:-https://api.groq.com/openai/v1}
-      GROQ_REASONING_EFFORT: ${GROQ_REASONING_EFFORT:-medium}
-      GROQ_TEMPERATURE: ${GROQ_TEMPERATURE:-0.1}
-      GROQ_MAX_COMPLETION_TOKENS: ${GROQ_MAX_COMPLETION_TOKENS:-4096}
-      GROQ_TIMEOUT_SECONDS: ${GROQ_TIMEOUT_SECONDS:-45}
     ports:
       - "8000:8000"
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)\"",
-        ]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)\""]
       interval: 10s
       timeout: 5s
       retries: 10
 
+  # ── Worker Agents ─────────────────────────────────────────────────────────
   agent-langgraph-copilot:
     build:
       context: ../..
-      dockerfile: deployment/docker/Dockerfile.agent
+      dockerfile: deployment/docker/Dockerfile.Agent
       args:
-        AGENT_PACKAGE: langgraph_copilot
+        AGENT_PACKAGE: agent_langgraph_copilot
         DEPENDENCY_GROUP: agent-langgraph
     image: agentmesh-agent-langgraph-copilot
     container_name: agentmesh-agent-langgraph-copilot
@@ -91,38 +89,21 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
+      <<: *llm-env
       APP_ENV: local
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
       AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
       AGENT_REGISTRY_URL: http://orchestrator-supervisor-agent:8000/registry/agents
       AGENT_ENDPOINT: http://agent-langgraph-copilot:8101
       AGENT_WORKER_ENABLED: "true"
-      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
-      GROQ_API_KEY: ${GROQ_API_KEY}
-      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
-      GROQ_API_BASE: ${GROQ_API_BASE:-https://api.groq.com/openai/v1}
-      GROQ_REASONING_EFFORT: ${GROQ_REASONING_EFFORT:-medium}
-      GROQ_TEMPERATURE: ${GROQ_TEMPERATURE:-0.1}
-      GROQ_MAX_COMPLETION_TOKENS: ${GROQ_MAX_COMPLETION_TOKENS:-4096}
-      GROQ_TIMEOUT_SECONDS: ${GROQ_TIMEOUT_SECONDS:-45}
       POLL_INTERVAL_SECONDS: 2
       WORKER_HEARTBEAT_SECONDS: 60
       WORKER_REQUEST_TIMEOUT_SECONDS: 30
     ports:
       - "8101:8101"
-    command:
-      [
-        "uvicorn",
-        "agentmesh.agents.agent_langgraph_copilot.app:app",
-        "--host=0.0.0.0",
-        "--port=8101",
-      ]
+    command: ["uvicorn", "agentmesh.agents.agent_langgraph_copilot.app:app", "--host=0.0.0.0", "--port=8101"]
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health', timeout=2)\"",
-        ]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health', timeout=2)\""]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -130,62 +111,49 @@ services:
   agent-googleadk-chatagent:
     build:
       context: ../..
-      dockerfile: deployment/docker/Dockerfile.agent
+      dockerfile: deployment/docker/Dockerfile.Agent
       args:
-        AGENT_PACKAGE: adk_spark
+        AGENT_PACKAGE: agent_adk_spark
         DEPENDENCY_GROUP: agent-adk
     image: agentmesh-agent-googleadk-chatagent
-    container_name: agentmesh-agent-googleADK-Chatagent
+    container_name: agentmesh-agent-googleadk-chatagent
     depends_on:
       orchestrator-supervisor-agent:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
     environment:
+      <<: *llm-env
       APP_ENV: local
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
       AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
       AGENT_REGISTRY_URL: http://orchestrator-supervisor-agent:8000/registry/agents
       AGENT_ENDPOINT: http://agent-googleadk-chatagent:8102
       AGENT_WORKER_ENABLED: "true"
-      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
-      GROQ_API_KEY: ${GROQ_API_KEY}
-      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
-      GROQ_API_BASE: ${GROQ_API_BASE:-https://api.groq.com/openai/v1}
-      GROQ_REASONING_EFFORT: ${GROQ_REASONING_EFFORT:-medium}
-      GROQ_TEMPERATURE: ${GROQ_TEMPERATURE:-0.1}
-      GROQ_MAX_COMPLETION_TOKENS: ${GROQ_MAX_COMPLETION_TOKENS:-4096}
-      GROQ_TIMEOUT_SECONDS: ${GROQ_TIMEOUT_SECONDS:-45}
       POLL_INTERVAL_SECONDS: 2
       WORKER_HEARTBEAT_SECONDS: 60
       WORKER_REQUEST_TIMEOUT_SECONDS: 30
     ports:
       - "8102:8102"
-    command:
-      [
-        "uvicorn",
-        "agentmesh.agents.agent_adk_spark.app:app",
-        "--host=0.0.0.0",
-        "--port=8102",
-      ]
+    command: ["uvicorn", "agentmesh.agents.agent_adk_spark.app:app", "--host=0.0.0.0", "--port=8102"]
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8102/health', timeout=2)\"",
-        ]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8102/health', timeout=2)\""]
       interval: 10s
       timeout: 5s
       retries: 10
 
+  # ── UI ────────────────────────────────────────────────────────────────────
   streamlit:
     build:
       context: ../..
-      dockerfile: deployment/docker/Dockerfile.control-plane
+      dockerfile: deployment/docker/Dockerfile.Service
       args:
         DEPENDENCY_GROUP: local
-    image: agentmesh-streamlit-ui
+    image: agentmesh-service-ui
     container_name: agentmesh-streamlit
+    depends_on:
+      orchestrator-supervisor-agent:
+        condition: service_healthy
     environment:
       APP_ENV: local
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
@@ -196,14 +164,7 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
     ports:
       - "8501:8501"
-    command:
-      [
-        "streamlit",
-        "run",
-        "src/agentmesh/services/service_agentmesh_ui/app.py",
-        "--server.address=0.0.0.0",
-        "--server.port=8501",
-      ]
+    command: ["streamlit", "run", "src/agentmesh/services/service_agentmesh_ui/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
 
 volumes:
   agentmesh-postgres-data:

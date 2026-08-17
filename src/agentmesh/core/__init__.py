@@ -1,4 +1,8 @@
-"""Core domain layer — pure Pydantic models, exceptions, and event types.
+"""AgentMesh core — domain models, exceptions, event types, providers, and database.
 
-No dependencies on agents, services, or infrastructure.
+Package layout:
+  core/
+    models/         ← Pydantic domain models, exceptions, event types, AgentCard
+    database/       ← event/claim repositories and LangGraph checkpointer
+    providers/      ← LLM provider clients (Groq, etc.)
 """

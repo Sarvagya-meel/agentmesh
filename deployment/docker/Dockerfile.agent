@@ -1,6 +1,20 @@
-FROM python:3.11-slim
+# ─── Dockerfile.Agent ───────────────────────────────────────────────────────
+# Builds a selective agent image. The agent package name is provided as a
+# build-arg AGENT_PACKAGE (e.g., agent_langgraph_copilot or adk_spark).
+# Optional build args:
+#   AGENT_PACKAGE — Python package under src/agentmesh/agents to include
+#   DEPENDENCY_GROUP — pyproject.toml group to install (agent-langgraph, agent-adk)
+#
+# Usage:
+#   docker build \
+#     --build-arg AGENT_PACKAGE=agent_langgraph_copilot \
+#     --build-arg DEPENDENCY_GROUP=agent-langgraph \
+#     -f deployment/docker/Dockerfile.Agent .
+# ─────────────────────────────────────────────────────────────────────────────
 
-ARG AGENT_PACKAGE
+FROM python:3.11-slim AS base
+
+ARG AGENT_PACKAGE=agent_langgraph_copilot
 ARG DEPENDENCY_GROUP=agent-langgraph
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -11,15 +25,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Install dependencies (cached layer)
 COPY pyproject.toml ./
-RUN test -n "${AGENT_PACKAGE}" \
-    && pip install --upgrade "pip>=25.1" \
+RUN pip install --upgrade "pip>=25.1" \
     && pip install --group "${DEPENDENCY_GROUP}"
 
-COPY src/agentmesh/__init__.py ./src/agentmesh/__init__.py
-COPY src/agentmesh/config.py ./src/agentmesh/config.py
-COPY src/agentmesh/agents/__init__.py ./src/agentmesh/agents/__init__.py
-COPY src/agentmesh/agents/common ./src/agentmesh/agents/common
-COPY src/agentmesh/agents/${AGENT_PACKAGE} ./src/agentmesh/agents/${AGENT_PACKAGE}
+# Copy source tree and install package
+COPY src ./src
+RUN pip install --no-deps --no-build-isolation .
 
-CMD ["sh", "-c", "uvicorn agentmesh.agents.${AGENT_PACKAGE}.app:app --host 0.0.0.0 --port 8100"]
+# Default command: run the agent app module inside the selected agent package.
+# We use a shell command so the AGENT_PACKAGE env var is expanded at runtime.
+CMD ["sh", "-c", "uvicorn agentmesh.agents.${AGENT_PACKAGE}.app:app --host 0.0.0.0 --port ${PORT:-8101}"]
