@@ -186,15 +186,6 @@ services:
         DEPENDENCY_GROUP: local
     image: agentmesh-streamlit-ui
     container_name: agentmesh-streamlit
-    depends_on:
-      orchestrator-supervisor-agent:
-        condition: service_healthy
-      agent-langgraph-copilot:
-        condition: service_healthy
-      agent-googleadk-chatagent:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     environment:
       APP_ENV: local
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
