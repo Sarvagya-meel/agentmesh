@@ -24,6 +24,7 @@ class BaseAgent(ABC):
         description: str | None = None,
         endpoint: str | None = None,
         owner: str = "platform-team",
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         self.agent_name = agent_name
         self.capabilities = capabilities or []
@@ -33,6 +34,7 @@ class BaseAgent(ABC):
             "AGENT_ENDPOINT"
         ) or "http://localhost:8001"
         self.owner = owner
+        self.metadata = dict(metadata or {})
         self.auto_register = auto_register and os.getenv(
             "AUTO_REGISTER_AGENTS", "true"
         ).lower() in {"1", "true", "yes"}
@@ -91,6 +93,7 @@ class BaseAgent(ABC):
             capabilities=capabilities if capabilities is not None else self.capabilities,
             skills=skills if skills is not None else self.skills,
             owner=owner or self.owner,
+            metadata=dict(self.metadata),
             status="online",
         )
 

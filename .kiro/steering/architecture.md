@@ -61,7 +61,7 @@ Three tables form the persistence backbone:
 
 - **BaseAgent** (`agents/common/agent_models/base_agent.py`): Shared identity, AgentCard, registration, and `run_task` contract
 - **MasterOrchestratorAgent** (`agents/agent_langgraph_orchestrator_supervisor/`): Registered supervisor for plans, approvals, assignments, and completion
-- **ConversationAgent** (`agents/agent_langgraph_copilot/`): LangGraph chat and review worker
+- **ConversationAgent** (`agents/agent_langgraph_copilot/`): LangGraph chat and review worker with human-in-the-loop approval
 - **GoogleADKAgent** (`agents/agent_adk_spark/`): Google ADK chat, planning, and research worker
 
 Agent packages contain only modules with implemented behavior. Add schemas, tools, prompts, or configuration when they carry real code.

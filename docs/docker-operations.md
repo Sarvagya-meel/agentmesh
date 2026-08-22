@@ -5,6 +5,9 @@ This document contains the standard commands for managing the AgentMesh Docker s
 ## Quick commands for Powershell
 
 ### Start everything
+```
+.venv\Scripts\Activate
+```
 
 ```powershell
 pwsh -File .\scripts\docker_component_manager.ps1 -Action start -Service all
@@ -14,6 +17,18 @@ pwsh -File .\scripts\docker_component_manager.ps1 -Action start -Service all
 
 ```powershell
 pwsh -File .\scripts\docker_component_manager.ps1 -Action restart -Service orchestrator-supervisor-agent
+```
+
+### Rebuild and restart one component
+
+```powershell
+pwsh -File .\scripts\docker_component_manager.ps1 -Action rebuild -Service agent-langgraph-copilot
+```
+
+To rebuild without cache:
+
+```powershell
+pwsh -File .\scripts\docker_component_manager.ps1 -Action rebuild -Service agent-langgraph-copilot -NoCache
 ```
 
 ### Stop one service
@@ -49,6 +64,17 @@ pwsh -File .\scripts\docker_component_manager.ps1 -Action health
   - http://localhost:8102/health
   - http://localhost:8501
 - Docker service names such as `orchestrator-supervisor-agent` are only valid inside the compose network.
+
+## Supported actions
+
+- `start` - Starts services (builds by default)
+- `stop` - Stops services
+- `restart` - Restarts services (rebuilds by default)
+- `rebuild` - Rebuilds images from local code and starts services
+- `status` - Shows container status
+- `logs` - Shows recent logs
+- `logs-iterative` - Follows logs in real-time
+- `health` - Runs health checks on all services
 
 ## Supported service names
 

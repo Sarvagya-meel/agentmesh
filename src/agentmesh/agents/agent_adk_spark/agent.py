@@ -36,7 +36,7 @@ class GoogleADKAgent(BaseAgent):
             agent_name,
             auto_register=auto_register,
             endpoint=os.getenv("AGENT_ENDPOINT", "http://localhost:8002"),
-            capabilities=["CHAT", "REVIEW", "ADK"],
+            capabilities=["CHAT", "TRIP PLANNER", "GoogleADK"],
             skills=["google_adk", "conversation", "llm_connector"],
             description="Google ADK LLM worker for conversational and review tasks",
             owner="platform-team",

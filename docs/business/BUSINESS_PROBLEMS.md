@@ -78,7 +78,7 @@ Teams often keep agent metadata in spreadsheets, readmes, or tribal knowledge. T
 
 ## AgentMesh Solution
 
-The new registry stores Agent Cards with capabilities, health, ownership, and endpoint metadata. Agents advertise themselves when they come online and send heartbeats to confirm they are still alive. A LangGraph conversation agent also includes an approval checkpoint before finalizing a response.
+The new registry stores Agent Cards with capabilities, health, ownership, and endpoint metadata. Agents advertise themselves when they come online and send heartbeats to confirm they are still alive. A LangGraph conversation agent includes an approval checkpoint and human-in-the-loop capabilities before finalizing a response.
 
 ## Business Impact
 

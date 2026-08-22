@@ -10,6 +10,7 @@ without repeatedly typing docker compose commands.
 .EXAMPLE
 pwsh -File scripts\docker_component_manager.ps1 -Action start -Service orchestrator-supervisor-agent
 pwsh -File scripts\docker_component_manager.ps1 -Action restart -Service all
+pwsh -File scripts\docker_component_manager.ps1 -Action rebuild -Service agent-langgraph-copilot
 pwsh -File scripts\docker_component_manager.ps1 -Action logs-iterative -Service agent-googleadk-chatagent
 
 .NOTES
@@ -24,7 +25,7 @@ Available services:
 #>
 
 param(
-    [ValidateSet("start", "stop", "restart", "status", "logs", "logs-iterative", "health")]
+    [ValidateSet("start", "stop", "restart", "rebuild", "status", "logs", "logs-iterative", "health")]
     [string]$Action = "status",
 
     [string[]]$Service = @("all"),
@@ -32,6 +33,8 @@ param(
     [string]$RepoRoot = $(Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
 
     [switch]$NoBuild,
+
+    [switch]$NoCache,
 
     [int]$TailLines = 80,
 
@@ -173,6 +176,26 @@ switch ($Action) {
                     Invoke-Compose -ComposeArgs @("up", "-d", "--force-recreate", $svc) -StepLabel "Restarting $svc"
             } else {
                     Invoke-Compose -ComposeArgs @("up", "--build", "-d", "--force-recreate", $svc) -StepLabel "Restarting $svc (with rebuild)"
+            }
+            Wait-ForServiceHealth -ServiceName $svc
+        }
+    }
+
+    "rebuild" {
+        foreach ($svc in $servicesToManage) {
+            Write-Host "==> Building $svc"
+            if ($NoCache) {
+                & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build --no-cache $svc
+            } else {
+                & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build $svc
+            }
+            if ($LASTEXITCODE -ne 0) {
+                throw "docker build failed for $svc"
+            }
+            Write-Host "==> Starting $svc after rebuild"
+            & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile up -d $svc
+            if ($LASTEXITCODE -ne 0) {
+                throw "docker start failed for $svc"
             }
             Wait-ForServiceHealth -ServiceName $svc
         }
