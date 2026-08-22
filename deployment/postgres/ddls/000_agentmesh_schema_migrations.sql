@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS agentmesh_schema_migrations (
+    file_name TEXT PRIMARY KEY,
+    checksum TEXT NOT NULL,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

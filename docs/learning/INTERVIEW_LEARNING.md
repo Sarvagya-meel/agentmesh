@@ -66,6 +66,102 @@ Example format: "Designed X using Y, enabling Z with measurable outcome."
 
 ---
 
+# Feature: Dynamic Agent Registration and Human-in-the-Loop Conversation
+
+## 1. Simple Explanation
+
+This feature adds two important ideas: an agent can register itself as soon as it comes online, and a conversation agent can pause for human approval before sending a final answer. Together, they make the system more practical for real enterprise workflows.
+
+## 2. Technical Explanation
+
+The registry uses an `AgentCard` model that stores metadata such as `agent_id`, `name`, `capabilities`, `skills`, `endpoint`, and `last_seen`. The `RegistryService` keeps an in-memory list of live agents and supports registration, heartbeat updates, and capability lookup. The conversation agent uses LangGraph to draft a reply and then route through a human approval node before finalization.
+
+## 3. Why It Matters
+
+Dynamic registration gives the system a real discovery layer. Humans can review high-risk answers before they are sent, which is essential in enterprise workflows. This reduces bad automations, makes onboarding easier, and lays the groundwork for future A2A-style inter-agent interaction.
+
+## 4. Interview Short Answer
+
+I added a lightweight registry for agent discovery and a LangGraph conversation flow with a human approval checkpoint. The registry lets agents advertise capabilities at startup, while the approval node ensures no automated answer is sent without a human review when needed.
+
+## 5. Interview Deep-Dive Answer
+
+Agent discovery and control are easy to overlook in demo systems but crucial in production. My approach is to give each agent an Agent Card, publish it when the service comes online, and then let the orchestrator select agents by capability instead of hardcoded names. That makes the system extensible and supports future A2A negotiation. The conversation agent uses a LangGraph graph to draft a response, interrupt for human approval, and then finalize only when the human approves. This creates a safe and auditable workflow without making the system brittle.
+
+## 6. Business Explanation
+
+The business benefit is governance and safety. Enterprises need to know which agents exist, what they can do, which ones are alive, and when a human should review a result. This reduces operational risk and supports compliance and trust in automation.
+
+## 7. Real Example From AgentMesh
+
+The new registry files under `src/agentmesh/registry/` and the `ConversationAgent` under `src/agentmesh/agents/agent_langgraph_copilot/` implement exactly this pattern.
+
+## 8. Trade-offs
+
+Pros: capability-based selection, simpler scaling, safer human review.
+Cons: a registry adds operational complexity and a human approval step can slow some flows.
+The trade-off is worthwhile because it improves control and trust.
+
+## 9. Follow-up Questions
+
+- How do you handle stale agents?
+- What happens if multiple agents claim the same capability?
+- How would this scale to A2A peer discovery later?
+
+## 10. Resume Bullet
+
+Built a dynamic Agent Card registry with capability-based discovery and a LangGraph-based conversation agent with human-in-the-loop approval, creating a safer foundation for enterprise multi-agent workflows.
+
+---
+
+# Feature: Minimal Multi-Agent Orchestration
+
+## 1. Simple Explanation
+
+A minimal multi-agent orchestration is a simple loop where one orchestrator decides the next task, assigns it to the correct specialist, and records every step as an event. The system stays small enough to understand quickly, but it still follows the same production pattern as a larger workflow engine.
+
+## 2. Technical Explanation
+
+The smallest useful orchestration has three moving parts: a planner/orchestrator, a list of agent tasks, and a durable event log. In AgentMesh, the orchestrator emits `WORKFLOW_STARTED` and `TASK_ASSIGNED` events. Each agent receives a directed task, does its work, and emits `TASK_COMPLETED` or `TASK_FAILED`. The orchestrator advances the plan by assigning the next task. This creates a graph-like flow without requiring direct agent-to-agent calls.
+
+## 3. Why It Matters
+
+Most agent failures happen not because the model is bad, but because orchestration is brittle and hard to debug. A minimal orchestrator makes task sequencing, retries, and observability explicit from day one. It also gives teams a clear migration path to a more complex graph engine without rewriting the whole system.
+
+## 4. Interview Short Answer
+
+I start multi-agent systems with a tiny orchestrator that emits tasks and records them in a shared event log. That gives me explicit sequencing, observability, and retryability without introducing a large runtime dependency. Once the pattern is proven, the same architecture can expand into a more complex graph or state machine.
+
+## 5. Interview Deep-Dive Answer
+
+The minimal orchestrator is intentionally boring but powerful. It does one job: decide which specialist should act next and write the decision into a durable event stream. Each step is a task assignment, and every task completion is another event. If the workflow fails or a task is retried, the same event history still tells the full story. That is the core advantage of event-driven orchestration. It keeps the control plane explicit and the reasoning about failures straightforward.
+
+## 6. Business Explanation
+
+The business value is operational clarity. Teams can see exactly what happened, where work paused, and which agent owns each step. That reduces debugging time, improves reliability, and gives product owners confidence that the system is not just a black-box chat loop.
+
+## 7. Real Example From AgentMesh
+
+The `MasterOrchestratorAgent` in `src/agentmesh/agents/agent_langgraph_orchestrator_supervisor/agent.py` demonstrates this pattern. It discovers workers by capability, creates a validated plan, pauses at human approval gates, and emits directed `TASK_ASSIGNED` events. The planner and checkpoint implementations remain separate orchestration infrastructure.
+
+## 8. Trade-offs
+
+Pros: easy to reason about, fast to test, minimal dependencies, clear observability.
+Cons: not as expressive as a full graph framework for highly dynamic branching.
+Why we chose it: it gives a strong foundation while staying small enough to understand and validate quickly.
+
+## 9. Follow-up Questions
+
+- What happens when a task fails and needs a retry?
+- How do you make an orchestrator deterministic and testable?
+- When should a workflow move to a more graph-based framework?
+
+## 10. Resume Bullet
+
+Designed a minimal event-driven multi-agent orchestration pattern with explicit task assignment and observability, enabling deterministic workflow progression and a clear path to production-scale agent systems.
+
+---
+
 # Feature: AgentMesh Core — Project Overview
 
 ## 1. Simple Explanation
@@ -125,7 +221,7 @@ Each agent is a Python package (`__init__.py` + multiple modules) rather than a 
 - `prompts.py` — LLM prompt templates, with the LLM provider injected at runtime
 - `config.py` — agent-specific settings loaded from environment variables
 
-Runners in `runners/` provide independently executable entrypoints. `clients/mcp_client.py` is an HTTP client that agents use to communicate with MCP when running as separate processes, without importing the service layer directly.
+Runners in `runners/` provide independently executable entrypoints. `clients/control_plane_client.py` is the REST client workers use for registration and assignments without importing the service layer directly.
 
 ## 3. Why It Matters
 
@@ -137,7 +233,7 @@ I structured each agent as a Python package rather than a single file. This keep
 
 ## 5. Interview Deep-Dive Answer
 
-The key insight is that agents in a multi-agent system are not simple functions — they are mini-services. Each one has its own domain: job detection has different tools, prompts, and schemas than email finding. By making each agent a package, I get clean separation of concerns within the agent itself. The `agent.py` file stays focused on event handling and task execution. External integrations go in `tools.py` behind abstract interfaces, so they can be swapped or mocked in tests. LLM prompts go in `prompts.py` so they can be versioned and iterated without touching the agent logic. Runners in `runners/` mean each agent can be started as a standalone process, which is important for horizontal scaling — if job detection is the bottleneck, I can run three job detector processes without touching anything else. The `MCPClient` in `clients/` keeps the communication contract clean: agents talk to MCP through HTTP, not through direct service imports.
+The key insight is that agents in a multi-agent system are not simple functions - they are mini-services. Each package owns its execution logic and only adds tools, prompts, schemas, or configuration when the behavior needs them. Runners let worker agents start as standalone processes for horizontal scaling. The `ControlPlaneClient` keeps the communication contract clean: workers register, lease tasks, and submit results through HTTP rather than direct service imports.
 
 ## 6. Business Explanation
 
@@ -145,7 +241,7 @@ Think of each agent as a specialist on a team. The job searcher, the email finde
 
 ## 7. Real Example From AgentMesh
 
-In AgentMesh, `agents/job_detector/` is a package. Its `tools.py` will contain the job board API client. Its `prompts.py` will contain the relevance scoring prompt. Its `config.py` will hold the list of job boards to search. The `runners/run_job_detector.py` file will let you start just the job detector as a standalone process: `python -m src.runners.run_job_detector --workflow-id <uuid>`. This agent communicates with MCP only through `clients/mcp_client.py` — it never imports `EventService` directly.
+In AgentMesh, `agents/agent_langgraph_copilot/` and `agents/agent_adk_spark/` are independent worker packages. Their standalone runners use the shared worker runtime and control-plane client, so they can execute locally or in separate containers without importing `EventService` directly. Future domain-specific workers should follow the same package and runner pattern when they contain real behavior.
 
 ## 8. Trade-offs
 
@@ -178,7 +274,7 @@ AgentMesh runs entirely on your laptop for free. But when you're ready to scale,
 
 AgentMesh uses feature flags (`AWS_AGENT_REGISTRY_ENABLED`, `AWS_AGENTCORE_ENABLED`, `LLM_PROVIDER`) to control whether any AWS services are called. When flags are `false`, the corresponding adapters are never instantiated. All AWS clients implement the same abstract interfaces as local implementations, so they are fully injectable and mockable in tests.
 
-AWS Agent Registry stores only agent metadata (agent ID, capabilities, version, governance) — never workflow events or payload data. AgentCore Runtime is optional compute for hosting selected agent workers. Hosted agents still communicate with AgentMesh MCP via `clients/mcp_client.py` — AgentCore does not replace MCP as the event store. Bedrock LLM calls go through the `LLMProvider` protocol; the default implementation is a mock that returns deterministic responses.
+AWS Agent Registry should store only agent metadata (agent ID, capabilities, version, governance), never workflow events or payload data. AgentCore Runtime is optional compute for selected workers. Hosted workers still use `clients/control_plane_client.py`, so AgentCore does not replace AgentMesh persistence or workflow APIs.
 
 ## 3. Why It Matters
 
@@ -198,7 +294,7 @@ This design means the team can build and test the entire system for free on a la
 
 ## 7. Real Example From AgentMesh
 
-In AgentMesh, `agents/job_detector/agent_manifest.json` describes the job detector's capabilities, subscribed event types, and governance metadata. Locally, `RegistryService` reads this manifest from the filesystem. When `AWS_AGENT_REGISTRY_ENABLED=true`, the same service syncs the manifest to AWS Agent Registry. The job detector agent itself doesn't change — it still polls MCP via `clients/mcp_client.py` whether it's running locally or on AgentCore.
+In AgentMesh, every runtime builds an `AgentCard` from the shared `BaseAgent` contract and registers it through the control-plane API. The registry persists cards in PostgreSQL locally. A future AWS registry adapter can synchronize the same metadata while workers continue using stable HTTP contracts whether they run locally, in Docker, or on AgentCore.
 
 ## 8. Trade-offs
 
@@ -218,3 +314,156 @@ In AgentMesh, `agents/job_detector/agent_manifest.json` describes the job detect
 ## 10. Resume Bullet
 
 Designed a local-first multi-agent system with optional AWS AgentCore and Agent Registry integration using feature flags and injectable adapter interfaces — enabling zero-cost local development with a clear, non-breaking upgrade path to cloud deployment.
+
+---
+
+# Feature: Governed LangGraph Master Orchestrator
+
+## 1. Simple Explanation
+
+The master agent turns a user's goal into a plan, shows that plan to a human, and waits for approval. Before it sends each task to a specialist agent, it asks again. This gives people control over both the overall approach and every external action.
+
+## 2. Technical Explanation
+
+`MasterOrchestratorAgent` is a LangGraph state machine with explicit nodes for registry discovery, plan creation, plan review, task preparation, task review, dispatch, result waiting, and completion. LangGraph interrupts suspend execution at human and worker boundaries. The planner consumes a runtime `AgentCard` snapshot and returns validated `WorkflowPlan` and `PlanTask` models, so worker IDs are discovered dynamically instead of hardcoded. The graph writes domain events through `EventService`; `StateService` rebuilds the workflow projection from those events. Memory backends support local development, while PostgreSQL implementations provide durable events and checkpoints.
+
+## 3. Why It Matters
+
+An LLM should not be allowed to silently invent a plan and trigger many downstream actions. Separate approval gates limit the blast radius of a bad plan, make responsibility explicit, and produce an audit trail that explains who approved what and when.
+
+## 4. Interview Short Answer
+
+I used LangGraph for the master agent because the workflow has real pause-and-resume boundaries. It discovers workers from a dynamic registry, creates a typed plan, interrupts for plan approval, interrupts again before every task, and dispatches only through directed events. AgentMesh remains the system of record, so workflow state is replayable even though LangGraph manages execution checkpoints.
+
+## 5. Interview Deep-Dive Answer
+
+I separated execution state from business history. LangGraph is responsible for control flow and resumable interrupts, while the append-only AgentMesh event log records durable facts such as plan creation, approval decisions, task proposals, assignments, and results. At workflow start, the coordinator snapshots online Agent Cards. The planner can be replaced by an LLM-backed implementation, but its output must conform to Pydantic models and pass deterministic validation before a human sees it. Plan revision creates a new version rather than mutating history. After plan approval, every task gets its own approval request. An approved task emits `TASK_ASSIGNED`; the coordinator never imports or invokes the worker. It suspends until the API receives the matching worker result, then continues to the next task. This preserves service boundaries and makes tests deterministic. PostgreSQL advisory locks provide per-workflow event ordering, and a PostgreSQL LangGraph saver can restore suspended runs after restart.
+
+## 6. Business Explanation
+
+The company gets automation without surrendering control. A reviewer can correct an unsuitable plan before any work starts and can stop a risky individual action even after approving the overall approach. Every decision is recorded for audit and incident review.
+
+## 7. Real Example From AgentMesh
+
+A user asks AgentMesh to find a role and apply. The master agent discovers the currently registered job-search agents, proposes the ordered tasks, and pauses. After the plan is approved, it proposes the job-search task. Only after a second approval does it emit a directed assignment to the selected live agent. The next task remains blocked until that worker reports completion.
+
+## 8. Trade-offs
+
+**Pros:** explicit governance, dynamic worker discovery, replayable history, process-resumable interrupts, framework-independent planner contract, and deterministic tests.
+
+**Cons:** two approval levels add latency; durable mode requires PostgreSQL for both events and checkpoints; human decisions need authorization in a production deployment.
+
+**Alternatives considered:** ADK provides useful agent building blocks but is less focused on durable state-machine interrupts. AutoGen is strong for conversational agent teams, but its conversation-first abstraction is less natural for strict approval gates and event-sourced dispatch. LangGraph best matches AgentMesh's explicit workflow lifecycle.
+
+## 9. Follow-up Questions
+
+- *Why are both events and checkpoints needed?* Checkpoints resume graph execution; events are the auditable business source of truth and rebuild projected state.
+- *How do you prevent an LLM from selecting a fake agent?* Validate every planned target against the captured online registry snapshot.
+- *Why approve only after planning?* The approved plan is the execution boundary for the current MVP. Task-level gates can be restored later for high-risk capabilities without changing the event-driven dispatch model.
+- *How would you add an LLM planner?* Implement the `WorkflowPlanner` protocol and return the same typed plan model; the graph and validation remain unchanged.
+
+## 10. Resume Bullet
+
+Built a governed LangGraph master agent with dynamic capability-based planning, two-level human approval, event-driven worker dispatch, deterministic replay, and optional PostgreSQL checkpoint recovery.
+
+---
+
+# Feature: Strict Groq Planning Brain
+
+## 1. Simple Explanation
+
+The orchestrator now uses a real language model to understand a goal and propose which specialist agents should work in which order. The model can suggest work, but AgentMesh still checks everything and asks a human before acting.
+
+## 2. Technical Explanation
+
+`GroqWorkflowPlanner` implements the existing `WorkflowPlanner` protocol and calls Groq's OpenAI-compatible chat-completions endpoint with `openai/gpt-oss-120b`. The request uses strict JSON-schema output for a small `PlanDraft` model. The draft contains task text, target agent IDs, advertised capabilities, and dependency positions, but no domain UUIDs or execution state. AgentMesh converts it into `WorkflowPlan` and `PlanTask` objects, generates UUIDs locally, and performs deterministic registry and dependency validation. `create_workflow_planner` selects `mock` or `groq` from the root `.env`.
+
+## 3. Why It Matters
+
+Deterministic orchestration is safe but cannot understand arbitrary user goals. Unconstrained LLM orchestration is flexible but risky. This design combines model reasoning with schema constraints, policy checks, human approval, and an immutable event history.
+
+## 4. Interview Short Answer
+
+I made the orchestrator agentic only at the planning boundary. Groq GPT-OSS 120B proposes a strict JSON plan from the goal and live Agent Cards. AgentMesh then generates identifiers, validates every agent and capability, and keeps approvals and dispatch inside LangGraph. Tests force mock mode, so CI never calls an external model.
+
+## 5. Interview Deep-Dive Answer
+
+The important boundary is proposal versus authority. The model sees only the goal, revision feedback, and minimal registry metadata. Strict structured output prevents free-form parsing, while a separate draft schema prevents the provider from inventing workflow IDs, approval states, or event metadata. The adapter converts dependency positions into AgentMesh-owned UUID references. A central validator then checks contiguous ordering, backward-only dependencies, live agent membership, and advertised capabilities. The model cannot append events or call workers. Provider configuration and the secret key are read from one ignored `.env`; safe placeholders live in `.env.example`. Tests set the provider to `mock` at collection time, and HTTP contract tests use `MockTransport`, keeping tests deterministic and quota-free.
+
+## 6. Business Explanation
+
+Users can describe new workflows in ordinary language without engineers hardcoding every sequence. The business still retains approval, audit, and policy controls before any specialist agent receives work.
+
+## 7. Real Example From AgentMesh
+
+For "Research suitable software roles and review the shortlist," Groq produced a research task followed by a dependent review task. It selected only the supplied `RESEARCH` and `REVIEW` agents. AgentMesh generated the task IDs and paused before both the plan and each dispatch.
+
+## 8. Trade-offs
+
+**Pros:** flexible natural-language planning, guaranteed response shape, dynamic agent selection, centralized secrets, provider isolation, and offline tests.
+
+**Cons:** external latency and rate limits, user goals are sent to the provider, model plans still require semantic evaluation, and free tiers do not provide production SLAs.
+
+**Alternatives considered:** Hugging Face hosted inference has a very small free credit; OpenRouter free routing has lower limits and variable model selection; local Ollama avoids API costs but requires sufficient hardware. Groq provided the best combination of reasoning quality, strict schemas, and useful free limits for this phase.
+
+## 9. Follow-up Questions
+
+- *Why not let the model generate task UUIDs?* IDs are control-plane data and should remain deterministic application-owned values.
+- *Why not let Groq call worker tools directly?* That would bypass event sourcing and human approval boundaries.
+- *How are secrets protected?* The key exists only in the ignored root `.env` and is represented as `SecretStr` in settings.
+- *How do tests avoid spending quota?* `tests/conftest.py` forces `LLM_PROVIDER=mock`, and provider tests use an in-memory HTTP transport.
+
+## 10. Resume Bullet
+
+Integrated Groq GPT-OSS 120B as a strict-schema planning agent behind a provider-neutral protocol, with deterministic policy validation, centralized secret management, and quota-free mocked testing.
+
+---
+
+# Feature: Operational Runtime Hardening and Docker Recovery
+
+## 1. Simple Explanation
+
+This feature is about making the system resilient in real development and deployment environments. Instead of assuming every service will start with a live API key or a correct host URL, the runtime gracefully falls back to safe defaults and the team has a clear, repeatable way to manage each Docker component.
+
+## 2. Technical Explanation
+
+The runtime now treats Groq as an optional execution provider rather than a mandatory startup dependency. The root `.env` can specify `LLM_PROVIDER=groq` only when a valid key is present; otherwise the app falls back to a safe local mock path. The orchestration layer, worker factories, and ADK runtime all check provider configuration before constructing LLM-backed clients. A separate Docker helper script uses the repo-root project directory so the stack automatically reads `.env` without repeating `--env-file` on every command. Operational recovery is reduced to a deterministic set of actions: start, stop, restart, health-check, and log-following per service.
+
+## 3. Why It Matters
+
+Real systems fail because of bad configuration, not just code bugs. A valid Groq key, a correct URL, and the right network context determine whether an agent can actually do work. Making the system handle blank credentials and host-vs-container endpoint differences prevents fragile startup behavior and makes local troubleshooting much faster.
+
+## 4. Interview Short Answer
+
+I hardened the runtime by separating safe local defaults from provider-backed execution and by adding repeatable Docker operations for each service. That means the stack stays healthy without a live Groq key, while Groq mode is still supported when a valid key is configured. I also fixed the issue where internal Docker hostnames were used from outside the compose network, which was causing false 503s.
+
+## 5. Interview Deep-Dive Answer
+
+The important operational lesson is that infrastructure reliability is a product feature. Our teams saw two recurring issues: provider keys were missing or invalid, and host-to-container networking assumptions were wrong. I solved that by forcing a provider-safe default, adding fallback logic to the orchestration and worker factories, and validating the `localhost` endpoints used outside Docker. In parallel, I built a component manager script that can start, stop, restart, log, and health-check individual services while reading the project-root `.env` automatically. This reduces the cognitive load during local testing and gives a clear path to debugging failed startup states without guessing.
+
+## 6. Business Explanation
+
+The business value is operational confidence. Developers and operators can start the stack reliably, know which component failed, and recover quickly without a full rebuild or long debugging session. It also reduces the risk of false alarms caused by environment mismatch rather than real software faults.
+
+## 7. Real Example From AgentMesh
+
+The project previously returned `500` and `503` errors when the Google ADK runtime hit Groq with an invalid key or when a Docker-internal hostname was used from the host. The fix included a safe local fallback path, explicit default provider settings, and the `docker_component_manager.ps1` helper under `scripts/` for service-level management. The active recovery procedure is maintained in `docs/docker-operations.md`.
+
+## 8. Trade-offs
+
+**Pros:** safer defaults, easier local development, deterministic recovery steps, and faster debugging.
+
+**Cons:** mock fallback can hide provider misconfiguration if it is not surfaced clearly, and the operational scripts add a small maintenance burden.
+
+**Alternatives considered:** Requiring Groq for every environment, using only Docker service names from the host, or leaving developers to manually inspect and restart every container. The chosen approach gives reliability without removing provider flexibility.
+
+## 9. Follow-up Questions
+
+- *How do you prevent hidden fallback behavior from masking real production issues?* — Log provider selection and warn if the system is running in mock mode.
+- *Why not always use `docker compose up` without helpers?* — Because component-level operations and health checks are much easier to reason about when they are standardized.
+- *How do you know the stack is really healthy?* — Use explicit health endpoints and container-level log audits after every restart.
+- *What if a new service is added?* — Extend the service catalog in the Docker manager with the same health-check conventions.
+
+## 10. Resume Bullet
+
+Hardened the local runtime and Docker operations by adding provider-safe fallbacks, explicit host-vs-container endpoint handling, and a reusable component manager for health, restart, and log operations — reducing startup failures and making troubleshooting repeatable.

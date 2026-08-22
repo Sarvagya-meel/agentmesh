@@ -1,0 +1,38 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	validate_input(validate_input)
+	load_context(load_context)
+	classify_task(classify_task)
+	plan_task(plan_task)
+	generate_response(generate_response)
+	validate_output(validate_output)
+	evaluate_output(evaluate_output)
+	human_approval(human_approval)
+	finalize(finalize)
+	reject(reject)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> validate_input;
+	classify_task -. &nbsp;simple&nbsp; .-> generate_response;
+	classify_task -. &nbsp;multi_step&nbsp; .-> plan_task;
+	evaluate_output -. &nbsp;complete&nbsp; .-> finalize;
+	evaluate_output -. &nbsp;revise&nbsp; .-> generate_response;
+	evaluate_output -. &nbsp;approval&nbsp; .-> human_approval;
+	generate_response --> validate_output;
+	human_approval -. &nbsp;approve&nbsp; .-> finalize;
+	human_approval -. &nbsp;revise&nbsp; .-> generate_response;
+	human_approval -.-> reject;
+	load_context --> classify_task;
+	plan_task --> generate_response;
+	validate_input --> load_context;
+	validate_output --> evaluate_output;
+	finalize --> __end__;
+	reject --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+

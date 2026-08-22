@@ -1,1 +1,1 @@
-# Service layer — EventService, StateService, OrchestratorService
+"""Application services for events, state projections, and worker leases."""

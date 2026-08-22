@@ -1,190 +1,173 @@
 # AgentMesh
 
-A production-grade hybrid multi-agent system for job-search automation and future agentic workflows.
+AgentMesh is a durable multi-agent runtime. FastAPI agent processes register with a
+control plane, PostgreSQL stores assignments and workflow history, and Streamlit stays
+a thin client. The UI never creates agents, runs workers, or writes workflow events.
 
-AgentMesh combines centralized orchestration with decentralized event-driven agent collaboration. Every action is recorded as an immutable event. State is always reconstructable from the event log. Agents never call each other directly.
+> Authentication is deferred. Published ports are for local development or trusted
+> networks only; do not expose this stack directly to the public internet.
 
----
+## Architecture
 
-## What This Project Demonstrates
+```text
+Streamlit
+  |-- Direct --> ready API/combined agent --> shared agent executor
+  `-- Queued --> control plane --> PostgreSQL assignment --> worker/combined agent
+                                      |
+                                      `--> result event --> supervisor LangGraph
 
-- Append-only event sourcing with deterministic state projection
-- Hybrid orchestration: centralized Orchestrator + decentralized A2A agent events
-- Atomic event claiming for exclusive task processing
-- Causation chain tracking and loop prevention
-- Full workflow replayability and observability
-- Clean API → Service → Storage layering with FastAPI and PostgreSQL
+agentmesh_agents       stable Agent Card identity and compatibility
+agentmesh_resources    one row per runtime instance and other platform resource
+agentmesh_events       append-only workflow and task timeline
+agentmesh_event_claims renewable assignment leases, retries, and dead letters
+LangGraph tables       checkpoints, pending interrupts, replay, and Store memory
+```
 
----
+Each process creates exactly one concrete agent and one concurrency-limited executor.
+Direct HTTP requests and queued assignments share that executor in `combined` mode.
+Executions with the same `thread_id` are serialized; unrelated threads can overlap.
 
-## Tech Stack
+## Repository Layout
 
-| Layer | Technology |
-|-------|-----------|
-| Language | Python 3.11+ |
-| Web Framework | FastAPI |
-| ASGI Server | Uvicorn |
-| ORM | SQLAlchemy (async) |
-| DB Driver | asyncpg |
-| Migrations | Alembic |
-| Validation | Pydantic v2 |
-| Database | PostgreSQL 15 |
-| Testing | pytest, pytest-asyncio, hypothesis |
-| Linting | ruff |
-| Type Checking | mypy |
-| Local DB | Docker Compose |
+```text
+agentmesh/
+|-- deployment/
+|   |-- docker/             Compose and selective service/agent images
+|   |-- postgres/           Idempotent DDLs and migration runner
+|   `-- agentcore/          Future managed-runtime adapter boundary
+|-- docs/                   Active operating and business documentation
+|-- scripts/                Local launch, smoke, and graph-export helpers
+|-- src/agentmesh/
+|   |-- agents/             Concrete agents and shared runtime primitives
+|   |-- core/               Models, providers, persistence, and observability
+|   |-- mcp_servers/        Reserved MCP adapter packages
+|   `-- services/           Control plane and Streamlit UI
+|-- tests/
+`-- pyproject.toml          Single dependency source of truth
+```
 
----
+## Install Locally
 
-## Project Status
-
-Currently in Phase 1A — environment and folder bootstrap only.
-No application logic has been implemented yet.
-
----
-
-## Virtual Environment Setup
-
-### Windows PowerShell
+Python 3.11 or newer and pip 25.1 or newer are required for dependency groups.
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements-dev.txt
+python -m pip install --upgrade "pip>=25.1"
+python -m pip install -e . --group local
+$env:PYTHONPATH = "src"
+python scripts/run_local.py
 ```
 
-### Git Bash / macOS / Linux
+`pyproject.toml` owns the install sets:
 
-```bash
-python -m venv .venv
-source .venv/Scripts/activate
-python -m pip install --upgrade pip
-pip install -r requirements-dev.txt
+- `control-plane`: FastAPI supervisor, PostgreSQL, and LangGraph
+- `agent-langgraph`: selective Copilot runtime
+- `agent-adk`: selective Google ADK runtime
+- `ui`: thin Streamlit service
+- `local`: all runtime and development dependencies
+
+## Docker Quick Start
+
+The easiest way to manage the stack is using the PowerShell helper scripts:
+
+```powershell
+# Start all services (postgres, migrate, orchestrator, agents, streamlit)
+pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
+
+# Check health
+pwsh -File scripts\docker_component_manager.ps1 -Action health
+
+# View logs
+pwsh -File scripts\docker_component_manager.ps1 -Action logs -Service all
+
+# Stop all services
+pwsh -File scripts\docker_component_manager.ps1 -Action stop -Service all
 ```
 
----
+The scripts automatically:
+- Detect your `COMPOSE_PROFILES` setting from `.env`
+- Apply the correct service set (combined or split profile)
+- Rebuild the `migrate` service on each start/restart to apply any new/changed DDLs
+- Wait for services to be healthy before returning
 
-## Install Dependencies
+See [`docs/docker-operations.md`](docs/docker-operations.md) for the complete runbook.
 
-```bash
-# Runtime dependencies only
-pip install -r requirements.txt
+## Docker Quick Start
 
-# Runtime + development dependencies (recommended)
-pip install -r requirements-dev.txt
+Copy `.env.example` to the ignored `.env` file and set `COMPOSE_PROFILES`:
+
+```dotenv
+COMPOSE_PROFILES=combined
 ```
 
----
+The easiest way to manage the stack is using the PowerShell helper scripts:
 
-## Folder Structure
+```powershell
+# Start all services (postgres, migrate, orchestrator, agents, streamlit)
+pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
 
-```
-agentmesh/
-├── src/
-│   └── agentmesh/              # Main Python package
-│       ├── __init__.py
-│       ├── main.py             # FastAPI app entrypoint
-│       ├── api/
-│       │   ├── routes/         # FastAPI route handlers (events, state, workflows)
-│       │   └── dependencies.py
-│       ├── services/           # Business logic (EventService, StateService, OrchestratorService)
-│       ├── storage/            # ORM models, repositories, Alembic migrations
-│       ├── agents/
-│       │   ├── base.py         # Shared abstract BaseAgent
-│       │   ├── job_detector/   # JobDetectorAgent package
-│       │   ├── email_finder/   # EmailFinderAgent package
-│       │   └── applicator/     # ApplicationAgent package
-│       ├── clients/
-│       │   └── mcp_client.py   # HTTP client for agents running as separate processes
-│       ├── runners/            # Independent process entrypoints
-│       ├── registry/           # Local + optional AWS agent registry
-│       ├── integrations/
-│       │   ├── aws/            # Optional AWS adapters (disabled by default)
-│       │   └── local/          # Local registry and mock providers
-│       └── core/               # Domain models, event types, exceptions
-├── tests/
-│   ├── unit/
-│   └── integration/
-├── docs/
-│   ├── learning/               # Interview learning notes
-│   ├── business/               # Business problem documentation
-│   └── content/medium/         # Medium-ready content drafts
-├── .kiro/
-│   ├── specs/agentmesh-core/   # Requirements, design, tasks
-│   ├── steering/               # Project-wide coding rules
-│   └── hooks/                  # Automation hooks
-├── requirements.txt
-├── requirements-dev.txt
-├── pyproject.toml
-└── docker-compose.yml
+# The migrate service rebuilds on each start to apply any new/changed DDLs
+# It only applies new or modified DDLs (idempotent - checksum tracked)
+# Orchestrator waits for migrate to complete before starting
 ```
 
----
+See [`docs/docker-operations.md`](docs/docker-operations.md) for:
+- Complete runbook with health checks, logs, and troubleshooting
+- Direct Docker Compose commands for advanced use
+- Split profile configuration and scaling
 
-## Run Commands
+**Note:** The `migrate` service runs once and exits. When you run `start` or `restart`:
+- It rebuilds to pick up any new/changed DDL files
+- It applies only new or changed DDLs (checksum-tracked and idempotent)
+- It exits with status 0 after completion
 
-```bash
-# Start the MCP API server
-uvicorn agentmesh.main:app --reload
+## Runtime Roles
 
-# Run agents as independent processes
-python -m agentmesh.runners.run_orchestrator --workflow-id <uuid>
-python -m agentmesh.runners.run_job_detector --workflow-id <uuid>
-python -m agentmesh.runners.run_email_finder --workflow-id <uuid>
-python -m agentmesh.runners.run_applicator --workflow-id <uuid>
+- `combined`: `/invoke`, health/readiness, Agent Card, and assignment consumption
+- `api`: `/invoke`, health/readiness, and Agent Card; never polls assignments
+- `worker`: health/readiness and assignment consumption; never exposes `/invoke`
+
+Every instance publishes its agent ID, runtime instance ID, role, lifecycle status,
+endpoint, active count, start time, last model success, and heartbeat. Direct readiness
+requires an `api` or `combined` instance; assignment readiness requires a `worker` or
+`combined` instance.
+
+## Agent Playground Contracts
+
+Direct mode waits on the selected agent API:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:8101/invoke `
+  -ContentType "application/json" `
+  -Body '{"message":"Make Dubai travel plans","approval_required":false}'
 ```
 
----
+Queued mode creates a directed assignment through the control plane and follows its
+PostgreSQL event timeline:
 
-## Agent Package Structure
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://localhost:8000/workers/langgraph-copilot/assignments `
+  -ContentType "application/json" `
+  -Body '{"message":"Make Dubai travel plans"}'
+```
 
-Each agent is a Python package, not a single file. This allows each agent to grow independently, be tested in isolation, and be deployed as a separate process.
+Normal workflows always use supervisor planning, plan approval, directed assignment,
+worker leasing, and a separate agent-output approval when policy requires it.
 
-- `agent.py` — main agent class extending `BaseAgent`
-- `schemas.py` — agent-specific input/output Pydantic models
-- `tools.py` — external integrations behind abstract interfaces
-- `prompts.py` — LLM prompts and templates (provider injected, never hardcoded)
-- `config.py` — agent-specific settings loaded from environment
+## Validation
 
-`runners/` contains independent process entrypoints. Each agent can be started as a standalone process via its runner, without starting the full MCP server.
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\ruff.exe check src tests
+.\.venv\Scripts\mypy.exe --strict src
+$env:COMPOSE_PROFILES = "combined"
+docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
+$env:COMPOSE_PROFILES = "split"
+docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
+Remove-Item Env:COMPOSE_PROFILES
+```
 
-`clients/mcp_client.py` is the HTTP client used by runners and independently deployed agents to communicate with MCP. Agents must not import the service layer directly when running as separate processes.
-
-Agents must not directly import or call other agents. All agent collaboration happens through MCP events. Shared contracts (domain models, event types, exceptions) live in `core/`.
-
----
-
-## Documentation Quality Gate
-
-A task is not complete unless:
-
-1. Tests pass, where applicable.
-2. Technical learning is added to `docs/learning/INTERVIEW_LEARNING.md`.
-3. Business value is added to `docs/business/BUSINESS_PROBLEMS.md` or explicitly marked technical-only.
-4. Medium-ready content is created under `docs/content/medium/` or added to `backlog-short-posts.md`.
-5. The task summary explains what changed.
-
----
-
-## Optional AWS AgentCore / Agent Registry Usage
-
-AgentMesh is **local-first and free by default**. All core functionality runs on your machine with Docker Compose and a local PostgreSQL instance. No AWS account is required to develop, test, or run workflows.
-
-AWS integrations are **disabled by default** and controlled entirely by environment flags.
-
-| Feature | Default | When to enable |
-|---------|---------|----------------|
-| AWS Agent Registry | `false` | When you want centralised agent discovery/governance metadata |
-| AgentCore Runtime | `false` | When you want to deploy a selected agent to AWS compute |
-| Bedrock LLM | `mock` | When you want real LLM calls (requires AWS credentials + cost) |
-
-**Rules:**
-- Local mode always works without AWS credentials
-- Unit tests never call AWS — all AWS clients are mockable interfaces
-- AWS Agent Registry syncs only metadata (agent ID, capabilities, version) — never workflow events or payload logs
-- AgentCore Runtime is optional compute for selected agents — AgentMesh MCP remains the event store
-- If a cloud operation fails, the system logs the failure and continues in local mode
-- Use AWS Budgets and Free Tier / credits before enabling cloud execution
-
-To enable AWS features, set the relevant flags in your `.env` file and ensure your AWS credentials are configured (`aws configure` or environment variables).
+The active LangGraph delivery status is in
+[`src/agentmesh/agents/ROADMAP.md`](src/agentmesh/agents/ROADMAP.md).

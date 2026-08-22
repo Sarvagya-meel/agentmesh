@@ -1,6 +1,76 @@
+[project]
+name = "agentmesh"
+version = "0.1.0"
+description = "A production-grade hybrid multi-agent system for job-search automation."
+requires-python = ">=3.11"
+
+[dependency-groups]
+shared = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
+    "httpx",
+    "psycopg[binary]",
+]
+langgraph-framework = [
+    "langgraph",
+]
+adk-framework = [
+    "google-adk[db]==2.7.0",
+    "litellm==1.97.0",
+    "google-genai",
+    "asyncpg",
+]
+postgres-checkpoint = [
+    "langgraph-checkpoint-postgres",
+]
+ui-framework = [
+    "streamlit",
+]
+dev-tools = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+]
+
+control-plane = [
+  { include-group = "shared" },
+  { include-group = "langgraph-framework" },
+  { include-group = "postgres-checkpoint" },
+]
+
+agent-langgraph = [
+  { include-group = "shared" },
+  { include-group = "langgraph-framework" },
+  { include-group = "postgres-checkpoint" },
+]
+
+agent-adk = [
+  { include-group = "shared" },
+  { include-group = "adk-framework" },
+]
+
+ui = [
+  { include-group = "shared" },
+  { include-group = "ui-framework" },
+]
+
+local = [
+  { include-group = "shared" },
+  { include-group = "langgraph-framework" },
+  { include-group = "adk-framework" },
+  { include-group = "postgres-checkpoint" },
+  { include-group = "ui-framework" },
+  { include-group = "dev-tools" },
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
@@ -16,10 +86,6 @@ plugins = ["pydantic.mypy"]
 # src layout: tell mypy where to find the package
 mypy_path = "src"
 
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-
 # src layout: package lives under src/agentmesh
 # When using pip install -e . or setuptools, this ensures correct discovery
 [tool.setuptools.packages.find]
@@ -27,4 +93,4 @@ where = ["src"]
 
 [build-system]
 requires = ["setuptools>=68"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"

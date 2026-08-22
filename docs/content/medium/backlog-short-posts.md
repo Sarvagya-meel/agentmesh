@@ -74,7 +74,7 @@ In production, agents grow. A job detector might need a job board API client, a 
 
 ## AgentMesh Example
 
-In AgentMesh, `agents/job_detector/` is a package. `tools.py` holds the job board API client behind an abstract interface. `prompts.py` holds the relevance scoring prompt. `runners/run_job_detector.py` lets you start just the job detector as a standalone process. It talks to MCP through `clients/mcp_client.py` — never through direct service imports.
+In AgentMesh, each implemented worker lives in its own agent package and uses a shared standalone runner. Domain tools and prompts stay inside that package, while runtime communication goes through the control-plane client rather than direct service imports.
 
 ## LinkedIn-Ready Version
 
@@ -102,7 +102,7 @@ Cloud costs are real. AWS mistakes are expensive. A local-first design means you
 
 ## AgentMesh Example
 
-In AgentMesh, `agents/job_detector/agent_manifest.json` describes the agent's capabilities and governance metadata. Locally, `RegistryService` reads this from the filesystem. When `AWS_AGENT_REGISTRY_ENABLED=true`, the same service syncs it to AWS Agent Registry. The agent itself doesn't change — it still polls MCP via `clients/mcp_client.py` whether it's running locally or on AgentCore.
+In AgentMesh, each runtime publishes an `AgentCard` containing its capabilities and governance metadata. PostgreSQL stores that card locally, and a future AWS adapter can synchronize the same metadata without changing the worker's task code.
 
 ## LinkedIn-Ready Version
 
@@ -111,3 +111,59 @@ Most AI projects start with cloud dependencies baked in. I took the opposite app
 ## Hashtags
 
 #Python #AWSAgentCore #SystemDesign #MultiAgent #CloudArchitecture #LocalFirst
+
+---
+
+# Topic: Why My Master Agent Has Two Human Approval Gates
+
+## Hook
+
+Approving an AI plan is not the same as approving every action that plan can trigger.
+
+## Core Idea
+
+AgentMesh pauses once after planning and again before each task dispatch. The first decision validates the strategy; the second controls the concrete side effect and target agent.
+
+## Why It Matters
+
+Plans can become stale, individual tasks can carry different risk, and a single broad confirmation should not authorize an unlimited chain of actions. Two explicit gates create a stronger audit trail and smaller failure radius.
+
+## AgentMesh Example
+
+The LangGraph master agent discovers live workers, validates a typed plan, and uses interrupts for approval. It emits `TASK_ASSIGNED` only after both gates pass, then waits for the external worker result through the AgentMesh event boundary.
+
+## LinkedIn-Ready Version
+
+AgentMesh pauses once after generating the workflow plan. Approval authorizes the planned tasks, which the LangGraph supervisor then dispatches through an auditable event log without interrupting the operator before every worker call. High-risk task-level gates can be added later where a capability requires them.
+
+## Hashtags
+
+#LangGraph #HumanInTheLoop #MultiAgent #AIEngineering #EventSourcing
+
+---
+
+# Topic: Make the Orchestrator Agentic, Not Authoritative
+
+## Hook
+
+I gave my orchestrator an LLM brain without giving the LLM permission to act.
+
+## Core Idea
+
+Groq GPT-OSS proposes a strict JSON workflow plan from the user's goal and live Agent Cards. AgentMesh creates the IDs, validates capabilities and dependencies, and keeps approval and dispatch inside deterministic LangGraph nodes.
+
+## Why It Matters
+
+Hardcoded plans cannot handle arbitrary goals, but autonomous tool-calling models can bypass important controls. Separating proposal from authority gives the system flexibility without weakening governance.
+
+## AgentMesh Example
+
+The model proposed a research task followed by review and linked their dependency. AgentMesh verified both advertised capabilities, generated local UUIDs, and paused for plan approval before preparing either task.
+
+## LinkedIn-Ready Version
+
+I made the AgentMesh orchestrator agentic at exactly one boundary: planning. Groq GPT-OSS 120B returns a strict JSON plan, but it cannot create events or call workers. AgentMesh validates every agent, capability, and dependency before asking for human approval. The AI proposes; the control plane remains authoritative.
+
+## Hashtags
+
+#Groq #LangGraph #MultiAgent #StructuredOutputs #AIEngineering
