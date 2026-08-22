@@ -37,17 +37,11 @@ x-langgraph-agent: &langgraph-agent
       DEPENDENCY_GROUP: agent-langgraph
   image: agentmesh-agent-langgraph-copilot
   depends_on: *agent-dependencies
-  volumes:
-    - type: bind
-      source: ./src
-      target: /app/src
-      read_only: false
   command:
     - uvicorn
     - agentmesh.agents.agent_langgraph_copilot.app:app
     - --host=0.0.0.0
     - --port=8101
-    - --reload
   healthcheck:
     test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health', timeout=2)\""]
     interval: 10s
@@ -63,17 +57,11 @@ x-adk-agent: &adk-agent
       DEPENDENCY_GROUP: agent-adk
   image: agentmesh-agent-googleadk-chatagent
   depends_on: *agent-dependencies
-  volumes:
-    - type: bind
-      source: ./src
-      target: /app/src
-      read_only: false
   command:
     - uvicorn
     - agentmesh.agents.agent_adk_spark.app:app
     - --host=0.0.0.0
     - --port=8102
-    - --reload
   healthcheck:
     test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8102/health', timeout=2)\""]
     interval: 10s
@@ -122,11 +110,6 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    volumes:
-      - type: bind
-        source: ./src
-        target: /app/src
-        read_only: false
     environment:
       <<: *llm-config
       APP_ENV: local
@@ -220,11 +203,6 @@ services:
     depends_on:
       orchestrator-supervisor-agent:
         condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./src
-        target: /app/src
-        read_only: false
     environment:
       APP_ENV: local
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
@@ -240,8 +218,6 @@ services:
       - src/agentmesh/services/service_agentmesh_ui/app.py
       - --server.address=0.0.0.0
       - --server.port=8501
-      - --server.fileWatcherType
-      - "poll"
 
 volumes:
   agentmesh-postgres-data:

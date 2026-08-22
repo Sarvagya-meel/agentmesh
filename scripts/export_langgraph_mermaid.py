@@ -27,9 +27,6 @@ def main() -> int:
     output_dir = Path(__file__).resolve().parents[1] / "docs" / "graphs"
     if not args.check:
         output_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        # In check mode, ensure directory exists
-        output_dir.mkdir(parents=True, exist_ok=True)
 
     copilot = ConversationAgent(auto_register=False)
     event_service = EventService(InMemoryEventRepository())

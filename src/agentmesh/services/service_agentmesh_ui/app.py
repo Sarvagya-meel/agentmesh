@@ -88,7 +88,7 @@ def invoke_agent(card: JsonObject, prompt: str) -> JsonObject:
         f"{agent_endpoint(card)}/invoke",
         json={
             "message": prompt,
-            "approval_required": True,  # Default to approval required for LangGraph
+            "approval_required": card.get("agent_id") == "langgraph-copilot",
             "thread_id": str(uuid4()),
         },
         timeout=AGENT_TIMEOUT_SECONDS,
@@ -289,28 +289,6 @@ def fetch_workflow_events(workflow_id: str) -> list[JsonObject]:
     )
 
 
-def get_agent_graph_mermaid(agent_id: str, agent_endpoint: str) -> str | None:
-    """Fetch the Mermaid graph for a registered agent from the agent's /graph/mermaid endpoint."""
-    try:
-        response = httpx.get(
-            f"{agent_endpoint}/graph/mermaid",
-            timeout=5.0,
-        )
-        if response.status_code == 200:
-            return response.text
-        return None
-    except httpx.HTTPError:
-        return None
-
-
-def get_langsmith_url(thread_id: str, workflow_id: str) -> str | None:
-    """Construct LangSmith URL if tracing is enabled."""
-    langsmith_project = os.getenv("LANGSMITH_PROJECT", "agentmesh-local")
-    if os.getenv("LANGSMITH_TRACING", "false").lower() == "true" and thread_id:
-        return f"https://smith.langchain.com/studio/thread/{thread_id}?projectName={langsmith_project}"
-    return None
-
-
 def clear_agent_chat() -> None:
     selected = st.session_state.get("selected_agent_id", "agent")
     st.session_state.agent_messages = [
@@ -318,7 +296,6 @@ def clear_agent_chat() -> None:
     ]
     st.session_state.pending_human_input = None
     st.session_state.agent_queue_events = []
-    st.session_state.agent_graph = None
 
 
 def mode_is_ready(card: JsonObject, mode: str) -> bool:
@@ -405,13 +382,6 @@ def render_workflow_plan(
         st.json(selected.get("value", {}), expanded=True)
 
 
-def render_langsmith_link(thread_id: str, workflow_id: str | None = None) -> None:
-    """Render LangSmith tracing link if enabled."""
-    langsmith_url = get_langsmith_url(thread_id, workflow_id or "")
-    if langsmith_url:
-        st.markdown(f"[View in LangSmith]({langsmith_url})", unsafe_allow_html=True)
-
-
 st.set_page_config(page_title="AgentMesh", layout="wide")
 st.sidebar.title("AgentMesh")
 page = st.sidebar.radio(
@@ -470,10 +440,6 @@ elif page == "Agent Playground":
         )
     )
     selected_card = worker_cards_by_id[selected_agent_id]
-    
-    # Render LangSmith link at top if enabled
-    render_langsmith_link(thread_id=f"playground-{selected_agent_id}")
-    
     execution_mode = str(
         st.segmented_control(
             "Execution",
@@ -486,19 +452,6 @@ elif page == "Agent Playground":
     )
     if not mode_is_ready(selected_card, execution_mode):
         st.warning(f"{selected_agent_id} has no ready {execution_mode.lower()} runtime.")
-
-    # Check if graph is cached, otherwise fetch it
-    if execution_mode == "Direct" and st.session_state.get("agent_graph") is None:
-        agent_ep = agent_endpoint(selected_card)
-        graph_md = get_agent_graph_mermaid(selected_agent_id, agent_ep)
-        if graph_md:
-            st.session_state.agent_graph = graph_md
-
-    # Display Mermaid graph for Direct mode
-    if execution_mode == "Direct" and st.session_state.get("agent_graph"):
-        with st.expander("Agent Graph (Mermaid)", expanded=False):
-            st.code(st.session_state.agent_graph, language="mermaid")
-            st.caption("Copy and paste this into a .mmd file to view in Mermaid Live Editor")
 
     for message in st.session_state.agent_messages:
         with st.chat_message(message["role"]):
@@ -542,8 +495,6 @@ elif page == "Agent Playground":
             if execution_mode == "Direct":
                 with st.spinner(f"{selected_agent_id} is processing your request..."):
                     result = invoke_agent(selected_card, prompt)
-                    thread_id = result.get("thread_id", "")
-                    render_langsmith_link(thread_id=thread_id)
             else:
                 with st.status(
                     f"{selected_agent_id} is processing the queued assignment...",
@@ -553,7 +504,6 @@ elif page == "Agent Playground":
                     workflow_id = str(queued["workflow_id"])
                     result, queue_events = wait_for_queued_agent(workflow_id)
                     st.session_state.agent_queue_events = queue_events
-                    st.session_state.workflow_id = workflow_id
                     queued_status.update(label="Queued assignment completed.", state="complete")
             human_input = extract_human_input(result, selected_agent_id)
             if human_input:
@@ -574,58 +524,24 @@ elif page == "Agent Playground":
 
     queue_events = st.session_state.get("agent_queue_events", [])
     if queue_events:
-        # Use columns for right-side workflow trail (Queue mode)
-        col1, col2 = st.columns([3, 2])
-        
-        with col1:
-            with st.expander("Queued run timeline"):
-                st.dataframe(
-                    [
-                        {
-                            "sequence": event.get("sequence_number"),
-                            "event": event.get("event_type"),
-                            "source": event.get("source_agent"),
-                            "target": event.get("target_agent"),
-                            "time": event.get("timestamp"),
-                        }
-                        for event in queue_events
-                    ],
-                    width="stretch",
-                    hide_index=True,
-                )
-        
-        with col2:
-            st.subheader("Workflow Trail")
-            workflow_id = st.session_state.get("workflow_id", "")
-            if workflow_id:
-                event_rows = fetch_workflow_events(workflow_id)
-                if event_rows:
-                    # Render workflow events as a timeline
-                    for event in event_rows:
-                        with st.expander(f"{event.get('event_type')} ({event.get('source_agent')})"):
-                            st.json({
-                                "sequence": event.get("sequence_number"),
-                                "source_agent": event.get("source_agent"),
-                                "routing_mode": event.get("routing_mode"),
-                                "target_agent": event.get("target_agent"),
-                                "timestamp": event.get("timestamp"),
-                            }, expanded=False)
-                    # Show LangSmith link for queued workflow
-                    render_langsmith_link(thread_id=f"playground-{workflow_id}", workflow_id=workflow_id)
-                else:
-                    st.info("Waiting for workflow events...")
-            else:
-                st.info("No workflow ID available yet.")
+        with st.expander("Queued run timeline"):
+            st.dataframe(
+                [
+                    {
+                        "sequence": event.get("sequence_number"),
+                        "event": event.get("event_type"),
+                        "source": event.get("source_agent"),
+                        "target": event.get("target_agent"),
+                        "time": event.get("timestamp"),
+                    }
+                    for event in queue_events
+                ],
+                width="stretch",
+                hide_index=True,
+            )
 
 else:
     st.title("Orchestration Playground")
-    
-    # Render LangSmith link at top if enabled
-    if "workflow_result" in st.session_state:
-        workflow = st.session_state.workflow_result
-        workflow_id = str(workflow.get("workflow_id", ""))
-        render_langsmith_link(thread_id=workflow_id, workflow_id=workflow_id)
-    
     workflow_goal = st.text_area(
         "Workflow goal",
         placeholder="Describe the result you want the orchestrator to produce",
@@ -664,31 +580,12 @@ else:
                 cast(list[JsonObject], workflow.get("task_results", [])),
             )
 
-        # Use columns for workflow trail on right side
-        col1, col2 = st.columns([3, 2])
-        
-        with col1:
-            st.subheader("Workflow Event Trail")
-            event_rows = fetch_workflow_events(workflow_id)
-            if event_rows:
-                st.dataframe(event_rows, width="stretch", hide_index=True)
-            else:
-                st.info("Waiting for workflow events to reach PostgreSQL.")
-
-        with col2:
-            st.subheader("Live Workflow Trail")
-            if event_rows:
-                for event in event_rows:
-                    with st.expander(f"{event.get('event_type')} ({event.get('source_agent')})"):
-                        st.json({
-                            "sequence": event.get("sequence_number"),
-                            "source_agent": event.get("source_agent"),
-                            "routing_mode": event.get("routing_mode"),
-                            "target_agent": event.get("target_agent"),
-                            "timestamp": event.get("timestamp"),
-                        }, expanded=False)
-            else:
-                st.info("Waiting for workflow events...")
+        st.subheader("Workflow Event Trail")
+        event_rows = fetch_workflow_events(workflow_id)
+        if event_rows:
+            st.dataframe(event_rows, width="stretch", hide_index=True)
+        else:
+            st.info("Waiting for workflow events to reach PostgreSQL.")
 
         pending_input = workflow.get("pending_input") or {}
         if pending_input.get("type") == "human_approval":

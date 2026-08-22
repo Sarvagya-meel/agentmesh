@@ -26,16 +26,6 @@ Available services:
   agent-googleadk-chatagent-worker
   streamlit
   all
-
--Service: Service(s) to manage. Use "all" to select all services in current profile.
--Except: Service(s) to exclude from operations (e.g., -Service all -Except postgres,migrate).
-         Useful for rebuild/restart without infrastructure services.
-
-EXAMPLES
-  pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
-  pwsh -File scripts\docker_component_manager.ps1 -Action rebuild -Service all -Except postgres,migrate
-  pwsh -File scripts\docker_component_manager.ps1 -Action logs -Service orchestrator-supervisor-agent
-  pwsh -File scripts\docker_component_manager.ps1 -Action health
 #>
 
 param(
@@ -44,11 +34,11 @@ param(
 
     [string[]]$Service = @("all"),
 
-    [string[]]$Except = @(),
-
     [string]$RepoRoot = $(Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
 
     [switch]$NoBuild,
+
+    [switch]$NoCache,
 
     [int]$TailLines = 80,
 
@@ -107,7 +97,7 @@ if ($envProfiles -eq "split") {
 }
 
 function Resolve-RequestedServices {
-    param([string[]]$Requested, [string[]]$Excluded)
+    param([string[]]$Requested)
 
     $normalized = @()
     foreach ($item in $Requested) {
@@ -126,11 +116,6 @@ function Resolve-RequestedServices {
 
     if (-not $normalized) {
         throw "No services were selected."
-    }
-
-    # Remove excluded services
-    if ($Excluded) {
-        $normalized = $normalized | Where-Object { $Excluded -notcontains $_ }
     }
 
     return $normalized | Select-Object -Unique
@@ -229,13 +214,10 @@ function Wait-ForServiceReady {
     Wait-ForHttp -Url $url -Label $label -TimeoutSec 90 -PollSeconds 2
 }
 
-$servicesToManage = Resolve-RequestedServices -Requested $Service -Excluded $Except
+$servicesToManage = Resolve-RequestedServices -Requested $Service
 Write-Host "Repo root: $RepoRoot"
 Write-Host "Compose file: $composeFile"
 Write-Host "Selected services: $($servicesToManage -join ', ')"
-if ($Except) {
-    Write-Host "Excluded services: $($Except -join ', ')"
-}
 Write-Host "Action: $Action"
 Write-Host ""
 
@@ -286,17 +268,39 @@ switch ($Action) {
 
     "rebuild" {
         foreach ($svc in $servicesToManage) {
-            Write-Host "==> Rebuilding $svc (with --no-cache)"
-            & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build --no-cache $svc
-            if ($LASTEXITCODE -ne 0) {
-                throw "docker build failed for $svc"
+            if ($svc -eq "migrate") {
+                Write-Host "==> Rebuilding $svc"
+                if ($NoCache) {
+                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build --no-cache $svc
+                } else {
+                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build $svc
+                }
+                if ($LASTEXITCODE -ne 0) {
+                    throw "docker build failed for $svc"
+                }
+                Write-Host "==> Starting $svc (will run once and exit)"
+                & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile up -d $svc
+                if ($LASTEXITCODE -ne 0) {
+                    throw "docker start failed for $svc"
+                }
+                Wait-ForServiceReady -ServiceName $svc
+            } else {
+                Write-Host "==> Building $svc"
+                if ($NoCache) {
+                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build --no-cache $svc
+                } else {
+                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build $svc
+                }
+                if ($LASTEXITCODE -ne 0) {
+                    throw "docker build failed for $svc"
+                }
+                Write-Host "==> Starting $svc after rebuild"
+                & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile up -d $svc
+                if ($LASTEXITCODE -ne 0) {
+                    throw "docker start failed for $svc"
+                }
+                Wait-ForServiceReady -ServiceName $svc
             }
-            Write-Host "==> Starting $svc after rebuild"
-            & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile up -d $svc
-            if ($LASTEXITCODE -ne 0) {
-                throw "docker start failed for $svc"
-            }
-            Wait-ForServiceReady -ServiceName $svc
         }
     }
 
