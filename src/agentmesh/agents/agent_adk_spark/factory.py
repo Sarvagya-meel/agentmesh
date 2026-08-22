@@ -5,6 +5,7 @@ from collections.abc import Callable
 from agentmesh.agents.agent_adk_spark.agent import GoogleADKAgent
 from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.config import Settings
+from agentmesh.core.frameworks.google_adk import create_google_adk_session_service
 from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.core.providers import groq_api_key
 
@@ -23,11 +24,11 @@ def create_google_adk_worker_agent(
     except ValidationError:
         return GoogleADKAgent(auto_register=False), lambda: None
 
-    return (
-        GoogleADKAgent(
-            auto_register=False,
-            model_name=settings.groq_model,
-            api_key=api_key,
-        ),
-        lambda: None,
+    session_service = create_google_adk_session_service(settings)
+    agent = GoogleADKAgent(
+        auto_register=False,
+        model_name=settings.groq_model,
+        api_key=api_key,
+        session_service=session_service,
     )
+    return agent, agent.close

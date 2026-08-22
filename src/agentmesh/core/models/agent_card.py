@@ -1,4 +1,5 @@
 """AgentCard — the metadata shape published by every agent at registration."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -45,6 +46,15 @@ class AgentCard(BaseModel):
     @classmethod
     def validate_status(cls, value: str) -> str:
         candidate = value.strip().lower()
-        if candidate not in {"online", "offline", "stale", "starting"}:
-            raise ValidationError("status must be one of: online, offline, stale, starting.")
+        if candidate not in {
+            "online",
+            "offline",
+            "stale",
+            "starting",
+            "degraded",
+            "draining",
+        }:
+            raise ValidationError(
+                "status must be one of: online, offline, stale, starting, degraded, draining."
+            )
         return candidate

@@ -10,6 +10,7 @@ from pydantic import ValidationError as PydanticValidationError
 from agentmesh.core.models import PlanTask, WorkflowPlan
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.core.models.exceptions import AgentRegistryError, ModelProviderError
+from agentmesh.core.providers import StructuredOutputClient
 
 
 class WorkflowPlanner(Protocol):
@@ -24,21 +25,9 @@ class WorkflowPlanner(Protocol):
         preferred_agent_ids: list[str],
         feedback: str = "",
         previous_plan: WorkflowPlan | None = None,
+        long_term_memories: list[dict[str, Any]] | None = None,
     ) -> WorkflowPlan:
         """Return a validated plan using only agents from the registry snapshot."""
-
-
-class StructuredOutputClient(Protocol):
-    """Provider-neutral client used by an LLM workflow planner."""
-
-    def create_structured_output(
-        self,
-        *,
-        messages: list[dict[str, str]],
-        schema_name: str,
-        schema: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Return one JSON object conforming to the supplied schema."""
 
 
 class PlanTaskDraft(BaseModel):
@@ -80,6 +69,7 @@ class GroqWorkflowPlanner:
         preferred_agent_ids: list[str],
         feedback: str = "",
         previous_plan: WorkflowPlan | None = None,
+        long_term_memories: list[dict[str, Any]] | None = None,
     ) -> WorkflowPlan:
         candidate_agents = _resolve_candidate_agents(agents, preferred_agent_ids)
         required_agent_ids = (
@@ -102,6 +92,7 @@ class GroqWorkflowPlanner:
             "previous_plan": (
                 previous_plan.model_dump(mode="json") if previous_plan is not None else None
             ),
+            "approved_user_preferences": long_term_memories or [],
         }
         messages = [
             {
@@ -226,6 +217,7 @@ class CapabilityWorkflowPlanner:
         preferred_agent_ids: list[str],
         feedback: str = "",
         previous_plan: WorkflowPlan | None = None,
+        long_term_memories: list[dict[str, Any]] | None = None,
     ) -> WorkflowPlan:
         candidates = _resolve_candidate_agents(agents, preferred_agent_ids)
         selected_agents = (
@@ -245,7 +237,11 @@ class CapabilityWorkflowPlanner:
                 description=description,
                 required_capability=capability,
                 agent_id=card.agent_id,
-                payload={"goal": goal, "revision_feedback": feedback},
+                payload={
+                    "goal": goal,
+                    "revision_feedback": feedback,
+                    "approved_user_preferences": long_term_memories or [],
+                },
                 dependencies=[previous_task_id] if previous_task_id is not None else [],
                 expected_output=f"Structured result from {card.name}",
             )

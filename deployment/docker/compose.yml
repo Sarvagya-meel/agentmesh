@@ -1,19 +1,74 @@
 name: agentmesh
 
-# ─── LLM configuration (read from .env via --env-file) ───────────────────────
 x-llm-config: &llm-config
-  LLM_PROVIDER: ${LLM_PROVIDER}
-  GROQ_API_KEY: ${GROQ_API_KEY}
-  GROQ_MODEL: ${GROQ_MODEL}
-  GROQ_API_BASE: ${GROQ_API_BASE}
-  GROQ_REASONING_EFFORT: ${GROQ_REASONING_EFFORT}
-  GROQ_TEMPERATURE: ${GROQ_TEMPERATURE}
-  GROQ_MAX_COMPLETION_TOKENS: ${GROQ_MAX_COMPLETION_TOKENS}
-  GROQ_TIMEOUT_SECONDS: ${GROQ_TIMEOUT_SECONDS}
+  LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+  GROQ_API_KEY: ${GROQ_API_KEY:-}
+  GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+  GROQ_API_BASE: ${GROQ_API_BASE:-https://api.groq.com/openai/v1}
+  GROQ_REASONING_EFFORT: ${GROQ_REASONING_EFFORT:-medium}
+  GROQ_TEMPERATURE: ${GROQ_TEMPERATURE:-0.1}
+  GROQ_MAX_COMPLETION_TOKENS: ${GROQ_MAX_COMPLETION_TOKENS:-4096}
+  GROQ_TIMEOUT_SECONDS: ${GROQ_TIMEOUT_SECONDS:-45}
+
+x-agent-environment: &agent-environment
+  <<: *llm-config
+  APP_ENV: local
+  DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
+  AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
+  AGENT_REGISTRY_URL: http://orchestrator-supervisor-agent:8000/registry/agents
+  AGENT_MAX_CONCURRENCY: ${AGENT_MAX_CONCURRENCY:-4}
+  AGENT_SHUTDOWN_TIMEOUT_SECONDS: ${AGENT_SHUTDOWN_TIMEOUT_SECONDS:-30}
+  POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-2}
+  WORKER_HEARTBEAT_SECONDS: ${WORKER_HEARTBEAT_SECONDS:-60}
+  WORKER_REQUEST_TIMEOUT_SECONDS: ${WORKER_REQUEST_TIMEOUT_SECONDS:-30}
+
+x-agent-dependencies: &agent-dependencies
+  orchestrator-supervisor-agent:
+    condition: service_healthy
+  migrate:
+    condition: service_completed_successfully
+
+x-langgraph-agent: &langgraph-agent
+  build:
+    context: ../..
+    dockerfile: deployment/docker/Dockerfile.Agent
+    args:
+      AGENT_PACKAGE: agent_langgraph_copilot
+      DEPENDENCY_GROUP: agent-langgraph
+  image: agentmesh-agent-langgraph-copilot
+  depends_on: *agent-dependencies
+  command:
+    - uvicorn
+    - agentmesh.agents.agent_langgraph_copilot.app:app
+    - --host=0.0.0.0
+    - --port=8101
+  healthcheck:
+    test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health', timeout=2)\""]
+    interval: 10s
+    timeout: 5s
+    retries: 10
+
+x-adk-agent: &adk-agent
+  build:
+    context: ../..
+    dockerfile: deployment/docker/Dockerfile.Agent
+    args:
+      AGENT_PACKAGE: agent_adk_spark
+      DEPENDENCY_GROUP: agent-adk
+  image: agentmesh-agent-googleadk-chatagent
+  depends_on: *agent-dependencies
+  command:
+    - uvicorn
+    - agentmesh.agents.agent_adk_spark.app:app
+    - --host=0.0.0.0
+    - --port=8102
+  healthcheck:
+    test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8102/health', timeout=2)\""]
+    interval: 10s
+    timeout: 5s
+    retries: 10
 
 services:
-
-  # ── Infrastructure ────────────────────────────────────────────────────────
   postgres:
     image: postgres:15
     container_name: agentmesh-postgres
@@ -44,14 +99,13 @@ services:
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
     restart: "no"
 
-  # ── Control Plane (orchestrator + API) ───────────────────────────────────
   orchestrator-supervisor-agent:
     build:
       context: ../..
       dockerfile: deployment/docker/Dockerfile.Service
       args:
         DEPENDENCY_GROUP: control-plane
-    image: agentmesh-service-control-plane
+    image: agentmesh-agent-orchestrator-supervisor
     container_name: agentmesh-orchestrator-supervisor
     depends_on:
       migrate:
@@ -63,8 +117,9 @@ services:
       AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
       REGISTRY_BACKEND: postgres
       EVENT_STORE_BACKEND: postgres
-      ORCHESTRATOR_CHECKPOINT_BACKEND: postgres
-      AGENT_STALE_SECONDS: 180
+      LANGGRAPH_CHECKPOINT_BACKEND: postgres
+      LANGGRAPH_STORE_BACKEND: postgres
+      AGENT_STALE_SECONDS: ${AGENT_STALE_SECONDS:-180}
     ports:
       - "8000:8000"
     healthcheck:
@@ -73,98 +128,96 @@ services:
       timeout: 5s
       retries: 10
 
-  # ── Worker Agents ─────────────────────────────────────────────────────────
   agent-langgraph-copilot:
-    build:
-      context: ../..
-      dockerfile: deployment/docker/Dockerfile.Agent
-      args:
-        AGENT_PACKAGE: agent_langgraph_copilot
-        DEPENDENCY_GROUP: agent-langgraph
-    image: agentmesh-agent-langgraph-copilot
-    container_name: agentmesh-agent-langgraph-copilot
-    depends_on:
-      orchestrator-supervisor-agent:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+    <<: *langgraph-agent
+    profiles: ["combined"]
     environment:
-      <<: *llm-config
-      APP_ENV: local
-      DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
-      AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
-      AGENT_REGISTRY_URL: http://orchestrator-supervisor-agent:8000/registry/agents
+      <<: *agent-environment
+      AGENT_RUNTIME_ROLE: combined
       AGENT_ENDPOINT: http://agent-langgraph-copilot:8101
-      AGENT_WORKER_ENABLED: "true"
-      POLL_INTERVAL_SECONDS: 2
-      WORKER_HEARTBEAT_SECONDS: 60
-      WORKER_REQUEST_TIMEOUT_SECONDS: 30
+      LANGGRAPH_CHECKPOINT_BACKEND: postgres
+      LANGGRAPH_STORE_BACKEND: postgres
+      LANGGRAPH_LONG_TERM_MEMORY_ENABLED: ${LANGGRAPH_LONG_TERM_MEMORY_ENABLED:-false}
     ports:
       - "8101:8101"
-    command: ["uvicorn", "agentmesh.agents.agent_langgraph_copilot.app:app", "--host=0.0.0.0", "--port=8101"]
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health', timeout=2)\""]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+
+  agent-langgraph-copilot-api:
+    <<: *langgraph-agent
+    profiles: ["split"]
+    environment:
+      <<: *agent-environment
+      AGENT_RUNTIME_ROLE: api
+      AGENT_ENDPOINT: http://agent-langgraph-copilot-api:8101
+      LANGGRAPH_CHECKPOINT_BACKEND: postgres
+      LANGGRAPH_STORE_BACKEND: postgres
+      LANGGRAPH_LONG_TERM_MEMORY_ENABLED: ${LANGGRAPH_LONG_TERM_MEMORY_ENABLED:-false}
+
+  agent-langgraph-copilot-worker:
+    <<: *langgraph-agent
+    profiles: ["split"]
+    environment:
+      <<: *agent-environment
+      AGENT_RUNTIME_ROLE: worker
+      AGENT_ENDPOINT: http://agent-langgraph-copilot-api:8101
+      LANGGRAPH_CHECKPOINT_BACKEND: postgres
+      LANGGRAPH_STORE_BACKEND: postgres
+      LANGGRAPH_LONG_TERM_MEMORY_ENABLED: ${LANGGRAPH_LONG_TERM_MEMORY_ENABLED:-false}
 
   agent-googleadk-chatagent:
-    build:
-      context: ../..
-      dockerfile: deployment/docker/Dockerfile.Agent
-      args:
-        AGENT_PACKAGE: agent_adk_spark
-        DEPENDENCY_GROUP: agent-adk
-    image: agentmesh-agent-googleadk-chatagent
-    container_name: agentmesh-agent-googleadk-chatagent
-    depends_on:
-      orchestrator-supervisor-agent:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+    <<: *adk-agent
+    profiles: ["combined"]
     environment:
-      <<: *llm-config
-      APP_ENV: local
-      DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
-      AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
-      AGENT_REGISTRY_URL: http://orchestrator-supervisor-agent:8000/registry/agents
+      <<: *agent-environment
+      AGENT_RUNTIME_ROLE: combined
       AGENT_ENDPOINT: http://agent-googleadk-chatagent:8102
-      AGENT_WORKER_ENABLED: "true"
-      POLL_INTERVAL_SECONDS: 2
-      WORKER_HEARTBEAT_SECONDS: 60
-      WORKER_REQUEST_TIMEOUT_SECONDS: 30
+      GOOGLE_ADK_SESSION_BACKEND: database
     ports:
       - "8102:8102"
-    command: ["uvicorn", "agentmesh.agents.agent_adk_spark.app:app", "--host=0.0.0.0", "--port=8102"]
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8102/health', timeout=2)\""]
-      interval: 10s
-      timeout: 5s
-      retries: 10
 
-  # ── UI ────────────────────────────────────────────────────────────────────
+  agent-googleadk-chatagent-api:
+    <<: *adk-agent
+    profiles: ["split"]
+    environment:
+      <<: *agent-environment
+      AGENT_RUNTIME_ROLE: api
+      AGENT_ENDPOINT: http://agent-googleadk-chatagent-api:8102
+      GOOGLE_ADK_SESSION_BACKEND: database
+
+  agent-googleadk-chatagent-worker:
+    <<: *adk-agent
+    profiles: ["split"]
+    environment:
+      <<: *agent-environment
+      AGENT_RUNTIME_ROLE: worker
+      AGENT_ENDPOINT: http://agent-googleadk-chatagent-api:8102
+      GOOGLE_ADK_SESSION_BACKEND: database
+
   streamlit:
     build:
       context: ../..
       dockerfile: deployment/docker/Dockerfile.Service
       args:
-        DEPENDENCY_GROUP: local
+        DEPENDENCY_GROUP: ui
     image: agentmesh-service-ui
     container_name: agentmesh-streamlit
     depends_on:
       orchestrator-supervisor-agent:
         condition: service_healthy
     environment:
-      <<: *llm-config
       APP_ENV: local
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
       AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
       AGENT_REGISTRY_URL: http://orchestrator-supervisor-agent:8000/registry/agents
       AUTO_REGISTER_AGENTS: "false"
-      AGENT_STALE_SECONDS: 180
+      AGENT_STALE_SECONDS: ${AGENT_STALE_SECONDS:-180}
     ports:
       - "8501:8501"
-    command: ["streamlit", "run", "src/agentmesh/services/service_agentmesh_ui/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+    command:
+      - streamlit
+      - run
+      - src/agentmesh/services/service_agentmesh_ui/app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
 
 volumes:
   agentmesh-postgres-data:

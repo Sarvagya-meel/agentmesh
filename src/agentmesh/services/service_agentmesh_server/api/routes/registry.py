@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.services.service_agentmesh_server.api.dependencies import get_registry_service
+from agentmesh.services.service_agentmesh_server.api.schemas import AgentHeartbeatRequest
 from agentmesh.services.service_agentmesh_server.registry.service import RegistryService
 
 router = APIRouter(prefix="/registry", tags=["registry"])
@@ -51,9 +52,12 @@ def get_agent(
 @router.post("/agents/{agent_id}/heartbeat")
 def heartbeat(
     agent_id: str,
+    body: AgentHeartbeatRequest,
     service: Annotated[RegistryService, Depends(get_registry_service)],
 ) -> AgentCard:
-    return service.heartbeat(agent_id)
+    if body.agent_id != agent_id:
+        raise HTTPException(status_code=400, detail="Path agent_id must match heartbeat agent_id.")
+    return service.heartbeat(agent_id, body.model_dump(exclude_none=True))
 
 
 @router.get("/agents/capabilities/{capability}")

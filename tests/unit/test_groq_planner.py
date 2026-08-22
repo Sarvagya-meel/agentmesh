@@ -203,7 +203,7 @@ def test_groq_client_maps_rate_limits_to_provider_error() -> None:
         transport=httpx.MockTransport(handler),
     )
     try:
-        with pytest.raises(ModelProviderError, match="Retry after 3"):
+        with pytest.raises(ModelProviderError, match="Retry after 3") as captured:
             client.create_structured_output(
                 messages=[{"role": "user", "content": "plan"}],
                 schema_name="plan",
@@ -211,6 +211,10 @@ def test_groq_client_maps_rate_limits_to_provider_error() -> None:
             )
     finally:
         client.close()
+
+    assert captured.value.retryable is True
+    assert captured.value.status_code == 429
+    assert captured.value.retry_after_seconds == 3.0
 
 
 def test_groq_client_retries_a_rate_limit() -> None:
@@ -237,9 +241,7 @@ def test_groq_client_retries_a_rate_limit() -> None:
         transport=httpx.MockTransport(handler),
     )
     try:
-        result = client.create_text_completion(
-            messages=[{"role": "user", "content": "hello"}]
-        )
+        result = client.create_text_completion(messages=[{"role": "user", "content": "hello"}])
     finally:
         client.close()
 

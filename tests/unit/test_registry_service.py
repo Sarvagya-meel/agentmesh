@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.services.service_agentmesh_server.registry.repository import (
     InMemoryRegistryRepository,
@@ -38,4 +40,42 @@ def test_agent_heartbeat_marks_agent_online() -> None:
     refreshed = service.heartbeat("job-detector")
 
     assert refreshed.status == "online"
+
+
+def test_agent_heartbeat_records_runtime_telemetry() -> None:
+    service = RegistryService(InMemoryRegistryRepository())
+    service.register_agent(
+        AgentCard(agent_id="telemetry-agent", name="telemetry-agent", status="starting")
+    )
+
+    refreshed = service.heartbeat(
+        "telemetry-agent",
+        {
+            "runtime_instance_id": "runtime-1",
+            "runtime_status": "READY",
+            "active_task_count": 1,
+        },
+    )
+
+    assert refreshed.status == "online"
+    assert refreshed.metadata["runtime_instance_id"] == "runtime-1"
+    assert refreshed.metadata["active_task_count"] == 1
     assert refreshed.last_seen is not None
+
+
+def test_listing_agents_marks_expired_presence_stale() -> None:
+    repository = InMemoryRegistryRepository()
+    service = RegistryService(repository, stale_seconds=180)
+    repository.register(
+        AgentCard(
+            agent_id="expired-agent",
+            name="expired-agent",
+            status="online",
+            last_seen=datetime.now(UTC) - timedelta(seconds=181),
+        )
+    )
+
+    listed = service.list_agents()
+
+    assert listed[0].status == "stale"
+    assert repository.get("expired-agent").status == "stale"

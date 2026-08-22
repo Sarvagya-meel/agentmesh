@@ -30,8 +30,13 @@ COPY pyproject.toml ./
 RUN pip install --upgrade "pip>=25.1" \
     && pip install --group "${DEPENDENCY_GROUP}"
 
-# Copy source tree and install package
-COPY src ./src
+# Copy shared runtime code and only the selected concrete agent.
+COPY src/agentmesh/__init__.py ./src/agentmesh/__init__.py
+COPY src/agentmesh/config.py ./src/agentmesh/config.py
+COPY src/agentmesh/core ./src/agentmesh/core
+COPY src/agentmesh/agents/__init__.py ./src/agentmesh/agents/__init__.py
+COPY src/agentmesh/agents/common ./src/agentmesh/agents/common
+COPY src/agentmesh/agents/${AGENT_PACKAGE} ./src/agentmesh/agents/${AGENT_PACKAGE}
 RUN pip install --no-deps --no-build-isolation .
 
 # Default command: run the agent app module inside the selected agent package.

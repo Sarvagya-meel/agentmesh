@@ -18,9 +18,10 @@ langgraph-framework = [
     "langgraph",
 ]
 adk-framework = [
-    "google-adk==2.7.0",
+    "google-adk[db]==2.7.0",
     "litellm==1.97.0",
     "google-genai",
+    "asyncpg",
 ]
 postgres-checkpoint = [
     "langgraph-checkpoint-postgres",
@@ -44,11 +45,17 @@ control-plane = [
 agent-langgraph = [
   { include-group = "shared" },
   { include-group = "langgraph-framework" },
+  { include-group = "postgres-checkpoint" },
 ]
 
 agent-adk = [
   { include-group = "shared" },
   { include-group = "adk-framework" },
+]
+
+ui = [
+  { include-group = "shared" },
+  { include-group = "ui-framework" },
 ]
 
 local = [

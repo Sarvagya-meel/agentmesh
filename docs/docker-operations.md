@@ -1,87 +1,163 @@
-# Docker operations guide
+# Docker Operations
 
-This document contains the standard commands for managing the AgentMesh Docker stack from the repository root.
+Run commands from the repository root. Copy `.env.example` to `.env`, keep credentials
+only in the ignored `.env`, and choose exactly one Compose profile through
+`COMPOSE_PROFILES`. Do not add a second profile with the `--profile` flag.
 
-## Quick commands for Powershell
+> The stack has no authentication in this phase. Bind it only to a local machine or a
+> trusted development network.
 
-### Start everything
-```
-.venv\Scripts\Activate
-```
+## Quick Start
 
-```powershell
-pwsh -File .\scripts\docker_component_manager.ps1 -Action start -Service all
-```
-
-### Restart one component
+The easiest way to manage the stack is using the PowerShell helper scripts in `scripts/`:
 
 ```powershell
-pwsh -File .\scripts\docker_component_manager.ps1 -Action restart -Service orchestrator-supervisor-agent
+# Start all services (postgres, migrate, orchestrator, agents, streamlit)
+pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
+
+# Check health of all endpoints
+pwsh -File scripts\docker_component_manager.ps1 -Action health
+
+# View logs for all services
+pwsh -File scripts\docker_component_manager.ps1 -Action logs -Service all
+
+# Stop all services
+pwsh -File scripts\docker_component_manager.ps1 -Action stop -Service all
+
+# Restart a specific service (e.g., migrate rebuilds schema with any DDL changes)
+pwsh -File scripts\docker_component_manager.ps1 -Action restart -Service migrate
 ```
 
-### Rebuild and restart one component
+The scripts automatically:
+- Detect your `COMPOSE_PROFILES` setting from `.env`
+- Apply the correct service set (combined or split profile)
+- Rebuild the `migrate` service on each start/restart to apply any new/changed DDLs
+- Wait for services to be healthy before returning
+
+For step-by-step startup, use the sequential helper:
 
 ```powershell
-pwsh -File .\scripts\docker_component_manager.ps1 -Action rebuild -Service agent-langgraph-copilot
+# Start in order: registry -> streamlit -> agent(s)
+pwsh -File scripts\start_registry_streamlit_agent.ps1
 ```
 
-To rebuild without cache:
+## Docker Compose (Base Commands)
+
+For advanced use, you can run Docker Compose commands directly. The helper scripts wrap these:
 
 ```powershell
-pwsh -File .\scripts\docker_component_manager.ps1 -Action rebuild -Service agent-langgraph-copilot -NoCache
+docker compose --env-file .env -f deployment/docker/compose.yml up -d --build
+docker compose --env-file .env -f deployment/docker/compose.yml ps
+docker compose --env-file .env -f deployment/docker/compose.yml down
+docker compose --env-file .env -f deployment/docker/compose.yml logs --tail 100
+docker compose --env-file .env -f deployment/docker/compose.yml build
+docker compose --env-file .env -f deployment/docker/compose.yml config
 ```
 
-### Stop one service
+**Note:** The `migrate` service runs once and exits. When you run `start` or `restart`:
+- It rebuilds to pick up any new/changed DDL files
+- It applies only new or changed DDLs (idempotent)
+- It exits with status 0 after completion
+- The orchestrator waits for `service_completed_successfully` before starting
+
+## Combined Profile
+
+Combined mode is the simplest local topology. Agent ports are published for direct
+host-side testing.
 
 ```powershell
-pwsh -File .\scripts\docker_component_manager.ps1 -Action stop -Service agent-googleadk-chatagent
+docker compose --env-file .env `
+  -f deployment/docker/compose.yml up -d --build
+docker compose --env-file .env `
+  -f deployment/docker/compose.yml ps
 ```
 
-### View recent logs for the whole stack
+Host endpoints:
+
+- control plane: `http://localhost:8000`
+- LangGraph Copilot: `http://localhost:8101`
+- Google ADK agent: `http://localhost:8102`
+- Streamlit: `http://localhost:8501`
+- PostgreSQL: `localhost:5432`
+
+## Split Profile
+
+Split mode runs API and assignment-consumer roles independently from the same image.
+Agent API ports are internal so replicas can scale without host-port conflicts. Use
+Streamlit, the registry endpoint, or `docker compose exec` for split-mode direct tests.
 
 ```powershell
-pwsh -File .\scripts\docker_component_manager.ps1 -Action logs -Service all
+docker compose --env-file .env `
+  -f deployment/docker/compose.yml up -d --build `
+  --scale agent-langgraph-copilot-api=2 `
+  --scale agent-langgraph-copilot-worker=2 `
+  --scale agent-googleadk-chatagent-api=2 `
+  --scale agent-googleadk-chatagent-worker=2
 ```
 
-### Follow logs for one service
+Do not activate both profiles. Stop one topology before switching:
 
 ```powershell
-pwsh -File .\scripts\docker_component_manager.ps1 -Action logs-iterative -Service orchestrator-supervisor-agent
+docker compose --env-file .env `
+  -f deployment/docker/compose.yml down
 ```
 
-### Health check
+`down` preserves the named PostgreSQL volume unless `--volumes` is explicitly added.
+
+## Health And Logs
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+Invoke-RestMethod http://localhost:8101/ready
+Invoke-RestMethod http://localhost:8102/ready
+
+docker compose --env-file .env `
+  -f deployment/docker/compose.yml logs --tail 100
+docker compose --env-file .env `
+  -f deployment/docker/compose.yml logs -f agent-langgraph-copilot
+```
+
+The repository helper remains convenient for the combined profile:
 
 ```powershell
 pwsh -File .\scripts\docker_component_manager.ps1 -Action health
+pwsh -File .\scripts\docker_component_manager.ps1 `
+  -Action rebuild -Service agent-langgraph-copilot
+pwsh -File .\scripts\docker_component_manager.ps1 `
+  -Action logs -Service orchestrator-supervisor-agent
 ```
 
-## Notes
+## Migrations
 
-- The manager script reads the repo-root `.env` automatically via `--project-directory $RepoRoot`.
-- Use `localhost` URLs for host-side testing, such as:
-  - http://localhost:8000/health
-  - http://localhost:8101/health
-  - http://localhost:8102/health
-  - http://localhost:8501
-- Docker service names such as `orchestrator-supervisor-agent` are only valid inside the compose network.
+The `migrate` service runs once per container lifecycle. It rebuilds on each `start` or
+`restart` to pick up any new/changed DDL files, then applies only the new or modified
+migrations (checksum-tracked and idempotent).
 
-## Supported actions
+```powershell
+# Start services including migrate (rebuilds and applies new DDLs if any)
+docker compose --env-file .env -f deployment/docker/compose.yml up -d migrate
 
-- `start` - Starts services (builds by default)
-- `stop` - Stops services
-- `restart` - Restarts services (rebuilds by default)
-- `rebuild` - Rebuilds images from local code and starts services
-- `status` - Shows container status
-- `logs` - Shows recent logs
-- `logs-iterative` - Follows logs in real-time
-- `health` - Runs health checks on all services
+# Run migration manually (idempotent - skips already applied DDLs)
+docker compose --env-file .env -f deployment/docker/compose.yml run --rm migrate
+```
 
-## Supported service names
+The second run will report all existing migrations as skipped. Never edit an applied
+DDL in place; add the next numbered migration instead.
 
-- `postgres`
-- `migrate`
-- `orchestrator-supervisor-agent`
-- `agent-langgraph-copilot`
-- `agent-googleadk-chatagent`
-- `streamlit`
-- `all`
+**How it works:**
+1. Each DDL file is checksummed (SHA256)
+2. Checksums are stored in `agentmesh_schema_migrations` table
+3. Only new files or changed files (different checksum) get applied
+4. Running multiple times is safe - unchanged DDLs are skipped
+
+## Troubleshooting
+
+- Use `localhost` from Windows and service names such as `postgres` or
+  `orchestrator-supervisor-agent` only inside the Compose network.
+- A healthy container proves process liveness. `/ready` additionally proves registration
+  and role readiness.
+- `LLM_PROVIDER=groq` requires a valid `GROQ_API_KEY`; use `mock` for credential-free
+  local startup.
+- A worker role returning `404` from `/invoke` is expected.
+- Normal heartbeats update runtime presence without writing audit events. Registration,
+  degradation, recovery, stale, draining, and shutdown transitions are audited.

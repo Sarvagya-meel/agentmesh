@@ -19,7 +19,11 @@ Available services:
   migrate
   orchestrator-supervisor-agent
   agent-langgraph-copilot
+  agent-langgraph-copilot-api
+  agent-langgraph-copilot-worker
   agent-googleadk-chatagent
+  agent-googleadk-chatagent-api
+  agent-googleadk-chatagent-worker
   streamlit
   all
 #>
@@ -54,7 +58,17 @@ if (-not (Test-Path $composeFile)) {
     throw "Compose file not found: $composeFile"
 }
 
-$serviceCatalog = @(
+# Load .env file to determine COMPOSE_PROFILES
+$envProfiles = "combined"
+if (Test-Path $dotenvFile) {
+    $envContent = Get-Content $dotenvFile -Raw
+    if ($envContent -match "^COMPOSE_PROFILES=(.+)$" -or $envContent -match "^COMPOSE_PROFILES=(.+)$") {
+        $envProfiles = $matches[1].Trim()
+    }
+}
+
+# Service catalog based on profile
+$combinedServices = @(
     "postgres",
     "migrate",
     "orchestrator-supervisor-agent",
@@ -62,6 +76,25 @@ $serviceCatalog = @(
     "agent-googleadk-chatagent",
     "streamlit"
 )
+
+$splitServices = @(
+    "postgres",
+    "migrate",
+    "orchestrator-supervisor-agent",
+    "agent-langgraph-copilot-api",
+    "agent-langgraph-copilot-worker",
+    "agent-googleadk-chatagent-api",
+    "agent-googleadk-chatagent-worker",
+    "streamlit"
+)
+
+if ($envProfiles -eq "split") {
+    $serviceCatalog = $splitServices
+    Write-Host "[INFO] Using SPLIT profile. Services: $($serviceCatalog -join ', ')" -ForegroundColor Yellow
+} else {
+    $serviceCatalog = $combinedServices
+    Write-Host "[INFO] Using COMBINED profile. Services: $($serviceCatalog -join ', ')" -ForegroundColor Yellow
+}
 
 function Resolve-RequestedServices {
     param([string[]]$Requested)
@@ -78,7 +111,7 @@ function Resolve-RequestedServices {
             $normalized += $candidate
             continue
         }
-        throw "Unknown service '$candidate'. Valid services: $($serviceCatalog -join ', ')"
+        throw "Unknown service '$candidate'. Valid services for current profile: $($serviceCatalog -join ', ')"
     }
 
     if (-not $normalized) {
@@ -95,7 +128,6 @@ function Invoke-Compose {
     )
 
     Write-Host "==> $StepLabel"
-    # Use --env-file to specify the .env file location (project root)
     & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile @ComposeArgs
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose command failed: $StepLabel"
@@ -126,13 +158,43 @@ function Wait-ForHttp {
     throw "Timed out waiting for $Label at $Url"
 }
 
-function Wait-ForServiceHealth {
+function Wait-ForServiceReady {
     param([string]$ServiceName)
 
+    # Migrate service only runs once - check if it completed successfully
+    if ($ServiceName -eq "migrate") {
+        Write-Host "Checking migrate service status..."
+        $status = & docker compose --project-directory $composeDir -f $composeFile ps -q migrate 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $status) {
+            Write-Host "Migrate container not found - running now..."
+            return
+        }
+        
+        $inspect = & docker inspect $status --format='{{.State.Status}}' 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            if ($inspect -eq "exited") {
+                $exitCode = & docker inspect $status --format='{{.State.ExitCode}}' 2>$null
+                if ($exitCode -eq "0") {
+                    Write-Host "Migrate completed successfully (exit code 0)"
+                    return
+                } else {
+                    throw "Migrate failed with exit code: $exitCode"
+                }
+            } elseif ($inspect -eq "running") {
+                Write-Host "Migrate is still running..."
+                return
+            }
+        }
+        return
+    }
+
     $healthMap = @{
+        "postgres" = "http://127.0.0.1:5432";
         "orchestrator-supervisor-agent" = "http://127.0.0.1:8000/health";
         "agent-langgraph-copilot" = "http://127.0.0.1:8101/health";
+        "agent-langgraph-copilot-api" = "http://127.0.0.1:8101/health";
         "agent-googleadk-chatagent" = "http://127.0.0.1:8102/health";
+        "agent-googleadk-chatagent-api" = "http://127.0.0.1:8102/health";
         "streamlit" = "http://127.0.0.1:8501";
     }
 
@@ -142,6 +204,13 @@ function Wait-ForServiceHealth {
 
     $url = $healthMap[$ServiceName]
     $label = $ServiceName
+    
+    # Skip health check for postgres (different health mechanism)
+    if ($ServiceName -eq "postgres") {
+        Write-Host "Postgres health check handled by Docker healthcheck"
+        return
+    }
+    
     Wait-ForHttp -Url $url -Label $label -TimeoutSec 90 -PollSeconds 2
 }
 
@@ -155,12 +224,20 @@ Write-Host ""
 switch ($Action) {
     "start" {
         foreach ($svc in $servicesToManage) {
-            if ($NoBuild) {
+            if ($svc -eq "migrate") {
+                Write-Host "==> Starting $svc (rebuilds to apply any new/changed DDLs, then exits)"
+                if ($NoBuild) {
+                    Invoke-Compose -ComposeArgs @("up", "-d", $svc) -StepLabel "Starting $svc"
+                } else {
+                    Invoke-Compose -ComposeArgs @("up", "--build", "-d", $svc) -StepLabel "Starting $svc (with rebuild)"
+                }
+                Wait-ForServiceReady -ServiceName $svc
+            } elseif ($NoBuild) {
                 Invoke-Compose -ComposeArgs @("up", "-d", $svc) -StepLabel "Starting $svc"
             } else {
-                    Invoke-Compose -ComposeArgs @("up", "--build", "-d", $svc) -StepLabel "Starting $svc (with build)"
+                Invoke-Compose -ComposeArgs @("up", "--build", "-d", $svc) -StepLabel "Starting $svc (with build)"
             }
-            Wait-ForServiceHealth -ServiceName $svc
+            Wait-ForServiceReady -ServiceName $svc
         }
     }
 
@@ -172,32 +249,58 @@ switch ($Action) {
 
     "restart" {
         foreach ($svc in $servicesToManage) {
-            if ($NoBuild) {
+            if ($svc -eq "migrate") {
+                Write-Host "==> Restarting $svc (rebuilds to apply any new/changed DDLs, then exits)"
+                if ($NoBuild) {
                     Invoke-Compose -ComposeArgs @("up", "-d", "--force-recreate", $svc) -StepLabel "Restarting $svc"
-            } else {
+                } else {
                     Invoke-Compose -ComposeArgs @("up", "--build", "-d", "--force-recreate", $svc) -StepLabel "Restarting $svc (with rebuild)"
+                }
+                Wait-ForServiceReady -ServiceName $svc
+            } elseif ($NoBuild) {
+                Invoke-Compose -ComposeArgs @("up", "-d", "--force-recreate", $svc) -StepLabel "Restarting $svc"
+            } else {
+                Invoke-Compose -ComposeArgs @("up", "--build", "-d", "--force-recreate", $svc) -StepLabel "Restarting $svc (with rebuild)"
             }
-            Wait-ForServiceHealth -ServiceName $svc
+            Wait-ForServiceReady -ServiceName $svc
         }
     }
 
     "rebuild" {
         foreach ($svc in $servicesToManage) {
-            Write-Host "==> Building $svc"
-            if ($NoCache) {
-                & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build --no-cache $svc
+            if ($svc -eq "migrate") {
+                Write-Host "==> Rebuilding $svc"
+                if ($NoCache) {
+                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build --no-cache $svc
+                } else {
+                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build $svc
+                }
+                if ($LASTEXITCODE -ne 0) {
+                    throw "docker build failed for $svc"
+                }
+                Write-Host "==> Starting $svc (will run once and exit)"
+                & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile up -d $svc
+                if ($LASTEXITCODE -ne 0) {
+                    throw "docker start failed for $svc"
+                }
+                Wait-ForServiceReady -ServiceName $svc
             } else {
-                & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build $svc
+                Write-Host "==> Building $svc"
+                if ($NoCache) {
+                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build --no-cache $svc
+                } else {
+                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build $svc
+                }
+                if ($LASTEXITCODE -ne 0) {
+                    throw "docker build failed for $svc"
+                }
+                Write-Host "==> Starting $svc after rebuild"
+                & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile up -d $svc
+                if ($LASTEXITCODE -ne 0) {
+                    throw "docker start failed for $svc"
+                }
+                Wait-ForServiceReady -ServiceName $svc
             }
-            if ($LASTEXITCODE -ne 0) {
-                throw "docker build failed for $svc"
-            }
-            Write-Host "==> Starting $svc after rebuild"
-            & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile up -d $svc
-            if ($LASTEXITCODE -ne 0) {
-                throw "docker start failed for $svc"
-            }
-            Wait-ForServiceHealth -ServiceName $svc
         }
     }
 
@@ -232,7 +335,9 @@ switch ($Action) {
         $healthChecks = @(
             @{ Name = "Orchestrator"; Url = "http://127.0.0.1:8000/health" },
             @{ Name = "LangGraph Agent"; Url = "http://127.0.0.1:8101/health" },
+            @{ Name = "LangGraph Agent (API)"; Url = "http://127.0.0.1:8101/health" },
             @{ Name = "Google ADK Agent"; Url = "http://127.0.0.1:8102/health" },
+            @{ Name = "Google ADK Agent (API)"; Url = "http://127.0.0.1:8102/health" },
             @{ Name = "Streamlit"; Url = "http://127.0.0.1:8501" }
         )
 

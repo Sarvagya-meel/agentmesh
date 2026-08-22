@@ -1,4 +1,5 @@
 """PostgreSQL and in-memory event/claim repositories for AgentMesh."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -6,7 +7,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from threading import RLock
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import psycopg
 from psycopg import Connection
@@ -125,9 +126,7 @@ class PostgresEventRepository(EventRepository):
                 "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
                 (str(event.workflow_id),),
             )
-            cursor.execute(
-                "SELECT * FROM agentmesh_events WHERE event_id = %s", (event.event_id,)
-            )
+            cursor.execute("SELECT * FROM agentmesh_events WHERE event_id = %s", (event.event_id,))
             existing = cursor.fetchone()
             if existing is not None:
                 return self._to_event(existing)
@@ -215,6 +214,16 @@ class PostgresEventRepository(EventRepository):
                       AND result.payload ->> 'task_id' =
                           assignment.payload -> 'task' ->> 'task_id'
                   )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM agentmesh_event_claims AS claim
+                    WHERE claim.event_id = assignment.event_id
+                      AND claim.completed_at IS NULL
+                      AND claim.dead_lettered_at IS NULL
+                      AND (
+                        claim.lease_expires_at > CURRENT_TIMESTAMP
+                        OR claim.next_attempt_at > CURRENT_TIMESTAMP
+                      )
+                  )
                 ORDER BY assignment.timestamp ASC, assignment.sequence_number ASC
                 LIMIT %s
                 """,
@@ -248,6 +257,33 @@ class ClaimRepository(ABC):
     ) -> AssignmentClaim | None:
         """Mark an active matching claim completed."""
 
+    @abstractmethod
+    def renew(
+        self,
+        event_id: UUID,
+        *,
+        agent_id: str,
+        worker_id: str,
+        claim_token: UUID,
+        lease_seconds: int,
+    ) -> AssignmentClaim | None:
+        """Extend an active assignment lease."""
+
+    @abstractmethod
+    def record_failure(
+        self,
+        event_id: UUID,
+        *,
+        agent_id: str,
+        worker_id: str,
+        claim_token: UUID,
+        error_code: str,
+        error_message: str,
+        retryable: bool,
+        retry_after_seconds: float,
+    ) -> AssignmentClaim | None:
+        """Persist a failed attempt and either schedule retry or dead-letter it."""
+
 
 class InMemoryClaimRepository(ClaimRepository):
     """Thread-safe leased claim repository for local execution and tests."""
@@ -264,18 +300,24 @@ class InMemoryClaimRepository(ClaimRepository):
         with self._lock:
             existing = self._claims.get(event_id)
             if existing is not None:
-                if existing.completed_at is not None:
+                if existing.completed_at is not None or existing.dead_lettered_at is not None:
+                    return None
+                if existing.next_attempt_at is not None and existing.next_attempt_at > now:
                     return None
                 if existing.lease_expires_at > now:
-                    if existing.agent_id == agent_id and existing.worker_id == worker_id:
-                        return existing.model_copy(deep=True)
                     return None
+            attempt_number = existing.attempt_number + 1 if existing is not None else 1
             claim = AssignmentClaim(
                 event_id=event_id,
                 agent_id=agent_id,
                 worker_id=worker_id,
                 claimed_at=now,
                 lease_expires_at=now + timedelta(seconds=lease_seconds),
+                attempt_number=attempt_number,
+                max_attempts=existing.max_attempts if existing is not None else 3,
+                idempotency_key=(
+                    existing.idempotency_key if existing is not None else str(uuid4())
+                ),
             )
             self._claims[event_id] = claim
             return claim.model_copy(deep=True)
@@ -310,6 +352,62 @@ class InMemoryClaimRepository(ClaimRepository):
             self._claims[event_id] = completed
             return completed.model_copy(deep=True)
 
+    def renew(
+        self,
+        event_id: UUID,
+        *,
+        agent_id: str,
+        worker_id: str,
+        claim_token: UUID,
+        lease_seconds: int,
+    ) -> AssignmentClaim | None:
+        with self._lock:
+            active = self.validate_claim(
+                event_id, agent_id=agent_id, worker_id=worker_id, claim_token=claim_token
+            )
+            if active is None:
+                return None
+            renewed = active.model_copy(
+                update={"lease_expires_at": self._clock() + timedelta(seconds=lease_seconds)}
+            )
+            self._claims[event_id] = renewed
+            return renewed.model_copy(deep=True)
+
+    def record_failure(
+        self,
+        event_id: UUID,
+        *,
+        agent_id: str,
+        worker_id: str,
+        claim_token: UUID,
+        error_code: str,
+        error_message: str,
+        retryable: bool,
+        retry_after_seconds: float,
+    ) -> AssignmentClaim | None:
+        with self._lock:
+            active = self.validate_claim(
+                event_id, agent_id=agent_id, worker_id=worker_id, claim_token=claim_token
+            )
+            if active is None:
+                return None
+            now = self._clock()
+            should_retry = retryable and active.attempt_number < active.max_attempts
+            failed = active.model_copy(
+                update={
+                    "lease_expires_at": now,
+                    "next_attempt_at": (
+                        now + timedelta(seconds=retry_after_seconds) if should_retry else None
+                    ),
+                    "last_error_code": error_code,
+                    "last_error_message": error_message,
+                    "retryable": should_retry,
+                    "dead_lettered_at": None if should_retry else now,
+                }
+            )
+            self._claims[event_id] = failed
+            return failed.model_copy(deep=True)
+
 
 class PostgresClaimRepository(ClaimRepository):
     """PostgreSQL-backed claim leases with row-level locking."""
@@ -339,37 +437,57 @@ class PostgresClaimRepository(ClaimRepository):
             row = cursor.fetchone()
             if row is not None:
                 existing = AssignmentClaim.model_validate(row)
-                if existing.completed_at is not None:
+                if existing.completed_at is not None or existing.dead_lettered_at is not None:
+                    return None
+                if existing.next_attempt_at is not None and existing.next_attempt_at > now:
                     return None
                 if existing.lease_expires_at > now:
-                    if existing.agent_id == agent_id and existing.worker_id == worker_id:
-                        return existing
                     return None
+            attempt_number = existing.attempt_number + 1 if row is not None else 1
             claim = AssignmentClaim(
                 event_id=event_id,
                 agent_id=agent_id,
                 worker_id=worker_id,
                 claimed_at=now,
                 lease_expires_at=now + timedelta(seconds=lease_seconds),
+                attempt_number=attempt_number,
+                max_attempts=existing.max_attempts if row is not None else 3,
+                idempotency_key=existing.idempotency_key if row is not None else str(uuid4()),
             )
             cursor.execute(
                 """
                 INSERT INTO agentmesh_event_claims (
                     event_id, agent_id, worker_id, claim_token,
-                    claimed_at, lease_expires_at, completed_at
-                ) VALUES (%s,%s,%s,%s,%s,%s,NULL)
+                    claimed_at, lease_expires_at, completed_at,
+                    attempt_number, max_attempts, next_attempt_at,
+                    last_error_code, last_error_message, retryable,
+                    dead_lettered_at, idempotency_key
+                ) VALUES (%s,%s,%s,%s,%s,%s,NULL,%s,%s,NULL,NULL,NULL,FALSE,NULL,%s)
                 ON CONFLICT (event_id) DO UPDATE SET
                     agent_id = EXCLUDED.agent_id,
                     worker_id = EXCLUDED.worker_id,
                     claim_token = EXCLUDED.claim_token,
                     claimed_at = EXCLUDED.claimed_at,
                     lease_expires_at = EXCLUDED.lease_expires_at,
-                    completed_at = NULL
+                    completed_at = NULL,
+                    attempt_number = EXCLUDED.attempt_number,
+                    max_attempts = EXCLUDED.max_attempts,
+                    next_attempt_at = NULL,
+                    retryable = FALSE,
+                    dead_lettered_at = NULL,
+                    idempotency_key = EXCLUDED.idempotency_key
                 RETURNING *
                 """,
                 (
-                    claim.event_id, claim.agent_id, claim.worker_id,
-                    claim.claim_token, claim.claimed_at, claim.lease_expires_at,
+                    claim.event_id,
+                    claim.agent_id,
+                    claim.worker_id,
+                    claim.claim_token,
+                    claim.claimed_at,
+                    claim.lease_expires_at,
+                    claim.attempt_number,
+                    claim.max_attempts,
+                    claim.idempotency_key,
                 ),
             )
             stored = cursor.fetchone()
@@ -405,6 +523,82 @@ class PostgresClaimRepository(ClaimRepository):
                 RETURNING *
                 """,
                 (event_id, agent_id, worker_id, claim_token),
+            )
+            row = cursor.fetchone()
+            return AssignmentClaim.model_validate(row) if row is not None else None
+
+    def renew(
+        self,
+        event_id: UUID,
+        *,
+        agent_id: str,
+        worker_id: str,
+        claim_token: UUID,
+        lease_seconds: int,
+    ) -> AssignmentClaim | None:
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE agentmesh_event_claims
+                SET lease_expires_at = CURRENT_TIMESTAMP + (%s * INTERVAL '1 second')
+                WHERE event_id = %s AND agent_id = %s AND worker_id = %s
+                  AND claim_token = %s AND completed_at IS NULL
+                  AND dead_lettered_at IS NULL
+                  AND lease_expires_at > CURRENT_TIMESTAMP
+                RETURNING *
+                """,
+                (lease_seconds, event_id, agent_id, worker_id, claim_token),
+            )
+            row = cursor.fetchone()
+            return AssignmentClaim.model_validate(row) if row is not None else None
+
+    def record_failure(
+        self,
+        event_id: UUID,
+        *,
+        agent_id: str,
+        worker_id: str,
+        claim_token: UUID,
+        error_code: str,
+        error_message: str,
+        retryable: bool,
+        retry_after_seconds: float,
+    ) -> AssignmentClaim | None:
+        active = self.validate_claim(
+            event_id, agent_id=agent_id, worker_id=worker_id, claim_token=claim_token
+        )
+        if active is None:
+            return None
+        should_retry = retryable and active.attempt_number < active.max_attempts
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE agentmesh_event_claims
+                SET lease_expires_at = CURRENT_TIMESTAMP,
+                    next_attempt_at = CASE
+                        WHEN %s THEN CURRENT_TIMESTAMP + (%s * INTERVAL '1 second')
+                        ELSE NULL
+                    END,
+                    last_error_code = %s,
+                    last_error_message = %s,
+                    retryable = %s,
+                    dead_lettered_at = CASE WHEN %s THEN NULL ELSE CURRENT_TIMESTAMP END
+                WHERE event_id = %s AND agent_id = %s AND worker_id = %s
+                  AND claim_token = %s AND completed_at IS NULL
+                RETURNING *
+                """,
+                (
+                    should_retry,
+                    retry_after_seconds,
+                    error_code,
+                    error_message,
+                    should_retry,
+                    should_retry,
+                    event_id,
+                    agent_id,
+                    worker_id,
+                    claim_token,
+                ),
             )
             row = cursor.fetchone()
             return AssignmentClaim.model_validate(row) if row is not None else None

@@ -47,6 +47,12 @@ class StateService:
             if event.event_type == "WORKFLOW_STARTED":
                 status = WorkflowStatus.RUNNING
                 metadata["goal"] = payload.get("goal", "")
+                metadata["rerun_of_workflow_id"] = payload.get("rerun_of_workflow_id")
+                metadata["rerun_of_task_id"] = payload.get("rerun_of_task_id")
+            elif event.event_type in {"WORKFLOW_RERUN_REQUESTED", "TASK_RERUN_REQUESTED"}:
+                reruns = list(metadata.get("reruns", []))
+                reruns.append(payload)
+                metadata["reruns"] = reruns
             elif event.event_type == "AGENT_SNAPSHOT_CAPTURED":
                 metadata["agent_snapshot"] = payload.get("agents", [])
             elif event.event_type == "PLAN_CREATED":
@@ -85,13 +91,36 @@ class StateService:
             elif event.event_type == "TASK_ASSIGNED":
                 status = WorkflowStatus.WAITING_FOR_AGENT
                 metadata["assignment_event_id"] = str(event.event_id)
+                assigned_task = payload.get("task")
+                if isinstance(assigned_task, dict):
+                    metadata["current_task"] = assigned_task
                 if event.target_agent and event.target_agent not in assigned_agents:
                     assigned_agents.append(event.target_agent)
-                pending = ["TASK_COMPLETED", "TASK_FAILED"]
+                pending = ["TASK_COMPLETED", "TASK_FAILED", "AGENT_APPROVAL_REQUESTED"]
+            elif event.event_type == "AGENT_OUTPUT_PROPOSED":
+                metadata["proposed_agent_output"] = payload.get("result", {})
+            elif event.event_type == "AGENT_APPROVAL_REQUESTED":
+                status = WorkflowStatus.AWAITING_AGENT_APPROVAL
+                metadata["pending_approval"] = payload.get("approval", {})
+                pending = [
+                    "AGENT_OUTPUT_APPROVED",
+                    "AGENT_OUTPUT_REVISION_REQUESTED",
+                    "AGENT_OUTPUT_REJECTED",
+                ]
+            elif event.event_type in {
+                "AGENT_OUTPUT_APPROVED",
+                "AGENT_OUTPUT_REVISION_REQUESTED",
+                "AGENT_OUTPUT_REJECTED",
+            }:
+                status = WorkflowStatus.RUNNING
+                metadata.pop("pending_approval", None)
+                metadata["agent_approval_decision"] = payload.get("decision", {})
+                pending = []
             elif event.event_type == "TASK_COMPLETED":
                 status = WorkflowStatus.RUNNING
                 pending = []
                 metadata.pop("assignment_event_id", None)
+                metadata.pop("proposed_agent_output", None)
                 processed.append(str(payload.get("task_id", event.event_id)))
                 results = list(metadata.get("task_results", []))
                 results.append(payload)

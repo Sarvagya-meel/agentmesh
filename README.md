@@ -1,72 +1,56 @@
 # AgentMesh
 
-AgentMesh is a hybrid multi-agent system that keeps workflow state in an append-only event log and derives current state deterministically from that history. The control plane coordinates orchestration; workers register, poll for assignments, and submit results through the shared event model.
+AgentMesh is a durable multi-agent runtime. FastAPI agent processes register with a
+control plane, PostgreSQL stores assignments and workflow history, and Streamlit stays
+a thin client. The UI never creates agents, runs workers, or writes workflow events.
 
-## Final repository structure
+> Authentication is deferred. Published ports are for local development or trusted
+> networks only; do not expose this stack directly to the public internet.
+
+## Architecture
+
+```text
+Streamlit
+  |-- Direct --> ready API/combined agent --> shared agent executor
+  `-- Queued --> control plane --> PostgreSQL assignment --> worker/combined agent
+                                      |
+                                      `--> result event --> supervisor LangGraph
+
+agentmesh_agents       stable Agent Card identity and compatibility
+agentmesh_resources    one row per runtime instance and other platform resource
+agentmesh_events       append-only workflow and task timeline
+agentmesh_event_claims renewable assignment leases, retries, and dead letters
+LangGraph tables       checkpoints, pending interrupts, replay, and Store memory
+```
+
+Each process creates exactly one concrete agent and one concurrency-limited executor.
+Direct HTTP requests and queued assignments share that executor in `combined` mode.
+Executions with the same `thread_id` are serialized; unrelated threads can overlap.
+
+## Repository Layout
 
 ```text
 agentmesh/
-├── .github/
-├── .kiro/
-├── deployment/
-│   ├── docker/
-│   │   ├── compose.yml
-│   │   ├── Dockerfile.Service   # control-plane and UI images
-│   │   ├── Dockerfile.Agent     # worker agent images
-│   │   └── Dockerfile.Migrate   # one-shot schema migration image
-│   ├── agentcore/
-│   │   └── README.md
-│   └── postgres/
-│       ├── ddls/
-│       ├── scripts/
-│       └── README.md
-├── docs/
-├── scripts/
-├── src/
-│   └── agentmesh/
-│       ├── agents/
-│       ├── database/
-│       │   └── postgres/
-│       └── ...
-├── tests/
-├── .dockerignore
-├── .env.example
-├── .gitignore
-├── pyproject.toml
-└── README.md
+|-- deployment/
+|   |-- docker/             Compose and selective service/agent images
+|   |-- postgres/           Idempotent DDLs and migration runner
+|   `-- agentcore/          Future managed-runtime adapter boundary
+|-- docs/                   Active operating and business documentation
+|-- scripts/                Local launch, smoke, and graph-export helpers
+|-- src/agentmesh/
+|   |-- agents/             Concrete agents and shared runtime primitives
+|   |-- core/               Models, providers, persistence, and observability
+|   |-- mcp_servers/        Reserved MCP adapter packages
+|   `-- services/           Control plane and Streamlit UI
+|-- tests/
+`-- pyproject.toml          Single dependency source of truth
 ```
 
-## Dependency groups
+## Install Locally
 
-The project uses PEP 735 groups in `pyproject.toml` as the source of truth for installable runtimes.
-
-```powershell
-python -m pip install --upgrade "pip>=25.1"
-python -m pip install -e . --group local
-
-# Control-plane image
-python -m pip install --group control-plane
-
-# LangGraph agent image
-python -m pip install --group agent-langgraph
-
-# ADK agent image
-python -m pip install --group agent-adk
-```
-
-The dependency ownership is:
-
-- `shared`: FastAPI, Uvicorn, Pydantic, pydantic-settings, python-dotenv, HTTPX, psycopg
-- `langgraph-framework`: LangGraph
-- `adk-framework`: Google ADK, LiteLLM, Google GenAI
-- `postgres-checkpoint`: langgraph-checkpoint-postgres
-- `ui-framework`: Streamlit
-- `dev-tools`: pytest, pytest-asyncio, Ruff, mypy
-
-## Local setup
+Python 3.11 or newer and pip 25.1 or newer are required for dependency groups.
 
 ```powershell
-cd "C:\Users\sarva\OneDrive\Documents\ProjectSpace\agentmesh"
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade "pip>=25.1"
@@ -75,43 +59,115 @@ $env:PYTHONPATH = "src"
 python scripts/run_local.py
 ```
 
-The launcher starts the API and UI together. Health checks are exposed through the control plane.
+`pyproject.toml` owns the install sets:
 
-## Docker and migration flow
+- `control-plane`: FastAPI supervisor, PostgreSQL, and LangGraph
+- `agent-langgraph`: selective Copilot runtime
+- `agent-adk`: selective Google ADK runtime
+- `ui`: thin Streamlit service
+- `local`: all runtime and development dependencies
 
-Copy `.env.example` to `.env` and set at minimum `GROQ_API_KEY` before starting the stack:
+## Docker Quick Start
 
-```powershell
-docker compose -f deployment/docker/compose.yml up --build
-```
-
-The compose stack (`agentmesh` project name) starts in dependency order:
-
-1. **postgres** — PostgreSQL 15, health-checked
-2. **migrate** (`Dockerfile.Migrate`) — one-shot container that applies all DDLs from `deployment/postgres/ddls/` and exits
-3. **orchestrator-supervisor** (`Dockerfile.Service`, `DEPENDENCY_GROUP=control-plane`) — control plane + API on port 8000
-4. **agent-langgraph-copilot** (`Dockerfile.Agent`, `AGENT_PACKAGE=agent_langgraph_copilot`) — LangGraph worker on port 8101
-5. **agent-googleadk-chatagent** (`Dockerfile.Agent`, `AGENT_PACKAGE=agent_adk_spark`) — Google ADK worker on port 8102
-6. **streamlit** (`Dockerfile.Service`, `DEPENDENCY_GROUP=local`) — UI on port 8501
-
-LLM environment variables (`GROQ_API_KEY`, `GROQ_MODEL`, etc.) are defined once in the `x-llm-env` YAML anchor and merged into all services that need them.
-
-## Agent entrypoints
+The easiest way to manage the stack is using the PowerShell helper scripts:
 
 ```powershell
-python -m agentmesh.agents.agent_langgraph_copilot --worker
-python -m agentmesh.agents.agent_adk_spark --worker
+# Start all services (postgres, migrate, orchestrator, agents, streamlit)
+pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
+
+# Check health
+pwsh -File scripts\docker_component_manager.ps1 -Action health
+
+# View logs
+pwsh -File scripts\docker_component_manager.ps1 -Action logs -Service all
+
+# Stop all services
+pwsh -File scripts\docker_component_manager.ps1 -Action stop -Service all
 ```
 
-The control plane is served from `agentmesh.services.service_agentmesh_server.app`; worker-specific code remains isolated to its concrete agent package.
+The scripts automatically:
+- Detect your `COMPOSE_PROFILES` setting from `.env`
+- Apply the correct service set (combined or split profile)
+- Rebuild the `migrate` service on each start/restart to apply any new/changed DDLs
+- Wait for services to be healthy before returning
+
+See [`docs/docker-operations.md`](docs/docker-operations.md) for the complete runbook.
+
+## Docker Quick Start
+
+Copy `.env.example` to the ignored `.env` file and set `COMPOSE_PROFILES`:
+
+```dotenv
+COMPOSE_PROFILES=combined
+```
+
+The easiest way to manage the stack is using the PowerShell helper scripts:
+
+```powershell
+# Start all services (postgres, migrate, orchestrator, agents, streamlit)
+pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
+
+# The migrate service rebuilds on each start to apply any new/changed DDLs
+# It only applies new or modified DDLs (idempotent - checksum tracked)
+# Orchestrator waits for migrate to complete before starting
+```
+
+See [`docs/docker-operations.md`](docs/docker-operations.md) for:
+- Complete runbook with health checks, logs, and troubleshooting
+- Direct Docker Compose commands for advanced use
+- Split profile configuration and scaling
+
+**Note:** The `migrate` service runs once and exits. When you run `start` or `restart`:
+- It rebuilds to pick up any new/changed DDL files
+- It applies only new or changed DDLs (checksum-tracked and idempotent)
+- It exits with status 0 after completion
+
+## Runtime Roles
+
+- `combined`: `/invoke`, health/readiness, Agent Card, and assignment consumption
+- `api`: `/invoke`, health/readiness, and Agent Card; never polls assignments
+- `worker`: health/readiness and assignment consumption; never exposes `/invoke`
+
+Every instance publishes its agent ID, runtime instance ID, role, lifecycle status,
+endpoint, active count, start time, last model success, and heartbeat. Direct readiness
+requires an `api` or `combined` instance; assignment readiness requires a `worker` or
+`combined` instance.
+
+## Agent Playground Contracts
+
+Direct mode waits on the selected agent API:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:8101/invoke `
+  -ContentType "application/json" `
+  -Body '{"message":"Make Dubai travel plans","approval_required":false}'
+```
+
+Queued mode creates a directed assignment through the control plane and follows its
+PostgreSQL event timeline:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://localhost:8000/workers/langgraph-copilot/assignments `
+  -ContentType "application/json" `
+  -Body '{"message":"Make Dubai travel plans"}'
+```
+
+Normal workflows always use supervisor planning, plan approval, directed assignment,
+worker leasing, and a separate agent-output approval when policy requires it.
 
 ## Validation
 
-The repository validation workflow is:
-
 ```powershell
-python -m pip install -e . --group local
-python -m ruff check .
-python -m mypy src
-python -m pytest -q
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\ruff.exe check src tests
+.\.venv\Scripts\mypy.exe --strict src
+$env:COMPOSE_PROFILES = "combined"
+docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
+$env:COMPOSE_PROFILES = "split"
+docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
+Remove-Item Env:COMPOSE_PROFILES
 ```
+
+The active LangGraph delivery status is in
+[`src/agentmesh/agents/ROADMAP.md`](src/agentmesh/agents/ROADMAP.md).

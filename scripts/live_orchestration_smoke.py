@@ -24,9 +24,7 @@ def build_worker(
     api_url: str,
 ) -> tuple[AssignmentWorker, Callable[[], None]]:
     agent, close_agent = factory(settings)
-    client = ControlPlaneClient(
-        api_url, timeout_seconds=settings.worker_request_timeout_seconds
-    )
+    client = ControlPlaneClient(api_url, timeout_seconds=settings.worker_request_timeout_seconds)
     worker = AssignmentWorker(
         agent,
         client,
@@ -119,9 +117,7 @@ def main() -> None:
             "workflow_status": failed_state.json()["status"],
         }
 
-        langgraph, close_langgraph = build_worker(
-            create_langgraph_worker_agent, settings, api_url
-        )
+        langgraph, close_langgraph = build_worker(create_langgraph_worker_agent, settings, api_url)
         google_adk, close_google_adk = build_worker(
             create_google_adk_worker_agent, settings, api_url
         )

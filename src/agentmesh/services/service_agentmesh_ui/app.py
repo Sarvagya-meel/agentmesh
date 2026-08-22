@@ -45,6 +45,10 @@ def worker_agent_cards(cards: list[JsonObject]) -> list[JsonObject]:
             card.get("status") == "online"
             and capabilities & WORKER_CAPABILITIES
             and agent_is_recent(card.get("last_seen"))
+            and (
+                card.get("metadata", {}).get("direct_ready", True)
+                or card.get("metadata", {}).get("assignment_ready", True)
+            )
         ):
             workers.append(card)
     return workers
@@ -93,6 +97,49 @@ def invoke_agent(card: JsonObject, prompt: str) -> JsonObject:
     return cast(JsonObject, response.json())
 
 
+def submit_queued_agent(card: JsonObject, prompt: str) -> JsonObject:
+    response = httpx.post(
+        f"{API_URL}/workers/{card['agent_id']}/assignments",
+        json={"message": prompt, "conversation_id": f"playground-{uuid4()}"},
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    return cast(JsonObject, response.json())
+
+
+def fetch_agent_events(workflow_id: str) -> list[JsonObject]:
+    response = httpx.get(
+        f"{API_URL}/events",
+        params={"workflow_id": workflow_id},
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    return cast(list[JsonObject], response.json())
+
+
+def wait_for_queued_agent(workflow_id: str) -> tuple[JsonObject, list[JsonObject]]:
+    deadline = time.monotonic() + AGENT_TIMEOUT_SECONDS
+    events: list[JsonObject] = []
+    while time.monotonic() < deadline:
+        events = fetch_agent_events(workflow_id)
+        terminal = next(
+            (
+                event
+                for event in reversed(events)
+                if event.get("event_type") in {"TASK_COMPLETED", "TASK_FAILED"}
+            ),
+            None,
+        )
+        if terminal is not None:
+            payload = terminal.get("payload", {})
+            result = payload.get("result", {}) if isinstance(payload, dict) else {}
+            if not isinstance(result, dict):
+                result = {"answer": str(result)}
+            return result, events
+        time.sleep(0.5)
+    raise TimeoutError(f"Queued agent run {workflow_id} did not finish before timeout.")
+
+
 def resume_agent(card: JsonObject, thread_id: str, decision: str) -> JsonObject:
     response = httpx.post(
         f"{agent_endpoint(card)}/conversations/{thread_id}/resume",
@@ -118,7 +165,10 @@ def normalize_human_options(options: Sequence[Any] | None) -> list[dict[str, str
 
 
 def extract_human_input(result: JsonObject, agent_id: str) -> JsonObject | None:
-    if result.get("status") != "awaiting_human":
+    if str(result.get("status", "")).upper() not in {
+        "AWAITING_HUMAN",
+        "AWAITING_APPROVAL",
+    }:
         return None
     interrupt_payload = result.get("interrupt", {})
     if not isinstance(interrupt_payload, dict):
@@ -158,12 +208,16 @@ def start_master_workflow(goal: str, selected_agents: list[str]) -> JsonObject:
     return cast(JsonObject, response.json())
 
 
-def submit_workflow_approval(workflow_id: str, decision: str) -> JsonObject:
+def submit_workflow_approval(
+    workflow_id: str,
+    decision: str,
+    feedback: str = "",
+) -> JsonObject:
     response = httpx.post(
         f"{API_URL}/workflows/{workflow_id}/approvals",
         json={
             "decision": decision.strip().upper(),
-            "feedback": "",
+            "feedback": feedback.strip(),
             "actor": "streamlit-user",
             "edits": {},
         },
@@ -241,6 +295,15 @@ def clear_agent_chat() -> None:
         {"role": "assistant", "content": f"Ready to talk with {selected}."}
     ]
     st.session_state.pending_human_input = None
+    st.session_state.agent_queue_events = []
+
+
+def mode_is_ready(card: JsonObject, mode: str) -> bool:
+    metadata = card.get("metadata", {})
+    if not isinstance(metadata, dict):
+        return True
+    readiness_key = "direct_ready" if mode == "Direct" else "assignment_ready"
+    return bool(metadata.get(readiness_key, True))
 
 
 def workflow_answer(workflow: JsonObject) -> str | None:
@@ -377,6 +440,18 @@ elif page == "Agent Playground":
         )
     )
     selected_card = worker_cards_by_id[selected_agent_id]
+    execution_mode = str(
+        st.segmented_control(
+            "Execution",
+            options=["Direct", "Queued"],
+            default="Direct",
+            key="agent_execution_mode",
+            on_change=clear_agent_chat,
+        )
+        or "Direct"
+    )
+    if not mode_is_ready(selected_card, execution_mode):
+        st.warning(f"{selected_agent_id} has no ready {execution_mode.lower()} runtime.")
 
     for message in st.session_state.agent_messages:
         with st.chat_message(message["role"]):
@@ -408,14 +483,28 @@ elif page == "Agent Playground":
                     except (ValueError, httpx.HTTPError) as exc:
                         st.error(str(exc))
 
-    prompt = st.chat_input("Message agent", disabled=bool(pending))
+    prompt = st.chat_input(
+        "Message agent",
+        disabled=bool(pending) or not mode_is_ready(selected_card, execution_mode),
+    )
     if prompt:
         st.session_state.agent_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         try:
-            with st.spinner(f"{selected_agent_id} is processing your request..."):
-                result = invoke_agent(selected_card, prompt)
+            if execution_mode == "Direct":
+                with st.spinner(f"{selected_agent_id} is processing your request..."):
+                    result = invoke_agent(selected_card, prompt)
+            else:
+                with st.status(
+                    f"{selected_agent_id} is processing the queued assignment...",
+                    expanded=False,
+                ) as queued_status:
+                    queued = submit_queued_agent(selected_card, prompt)
+                    workflow_id = str(queued["workflow_id"])
+                    result, queue_events = wait_for_queued_agent(workflow_id)
+                    st.session_state.agent_queue_events = queue_events
+                    queued_status.update(label="Queued assignment completed.", state="complete")
             human_input = extract_human_input(result, selected_agent_id)
             if human_input:
                 st.session_state.pending_human_input = human_input
@@ -430,8 +519,26 @@ elif page == "Agent Playground":
                     {"role": "assistant", "content": result_text(result)}
                 )
             st.rerun()
-        except (ValueError, httpx.HTTPError) as exc:
+        except (TimeoutError, ValueError, httpx.HTTPError) as exc:
             st.error(str(exc))
+
+    queue_events = st.session_state.get("agent_queue_events", [])
+    if queue_events:
+        with st.expander("Queued run timeline"):
+            st.dataframe(
+                [
+                    {
+                        "sequence": event.get("sequence_number"),
+                        "event": event.get("event_type"),
+                        "source": event.get("source_agent"),
+                        "target": event.get("target_agent"),
+                        "time": event.get("timestamp"),
+                    }
+                    for event in queue_events
+                ],
+                width="stretch",
+                hide_index=True,
+            )
 
 else:
     st.title("Orchestration Playground")
@@ -482,14 +589,31 @@ else:
 
         pending_input = workflow.get("pending_input") or {}
         if pending_input.get("type") == "human_approval":
+            approval = pending_input.get("approval") or {}
+            approval_type = str(approval.get("approval_type", "PLAN"))
+            approval_id = str(approval.get("approval_id", "approval"))
+            if approval_type == "AGENT_OUTPUT":
+                st.subheader("Agent Output Approval")
+                agent_id = pending_input.get("agent_id", "worker")
+                st.caption(f"Generated by {agent_id}")
+                draft_reply = pending_input.get("draft_reply", "")
+                if draft_reply:
+                    st.markdown(str(draft_reply))
+            else:
+                st.subheader("Workflow Plan Approval")
             st.write(pending_input.get("prompt", "Approval is required."))
+            feedback = st.text_area(
+                "Revision feedback",
+                key=f"workflow-feedback-{approval_id}",
+                placeholder="Describe what should change when choosing Revise.",
+            )
             options = normalize_human_options(pending_input.get("options"))
             approval_columns = st.columns(len(options))
             for index, option in enumerate(options):
                 with approval_columns[index]:
                     if st.button(
                         option["label"],
-                        key=f"workflow-{workflow_id}-{option['value']}",
+                        key=f"workflow-{approval_id}-{option['value']}",
                         width="stretch",
                     ):
                         try:
@@ -497,6 +621,7 @@ else:
                                 st.session_state.workflow_result = submit_workflow_approval(
                                     workflow_id,
                                     option["value"],
+                                    feedback,
                                 )
                             st.rerun()
                         except httpx.HTTPError as exc:

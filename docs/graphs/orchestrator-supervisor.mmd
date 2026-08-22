@@ -1,0 +1,53 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__(<p>__start__</p>)
+	load_context(load_context)
+	discover_agents(discover_agents)
+	create_plan(create_plan)
+	evaluate_plan(evaluate_plan)
+	request_plan_approval(request_plan_approval)
+	review_plan(review_plan)
+	prepare_task(prepare_task)
+	review_task(review_task)
+	dispatch_task(dispatch_task)
+	wait_for_task_result(wait_for_task_result)
+	request_agent_output_approval(request_agent_output_approval)
+	review_agent_output(review_agent_output)
+	prepare_agent_resume(prepare_agent_resume)
+	advance_task(advance_task)
+	complete_workflow(complete_workflow)
+	fail_workflow(fail_workflow)
+	cancel_workflow(cancel_workflow)
+	__end__(<p>__end__</p>)
+	__start__ --> load_context;
+	advance_task -. &nbsp;COMPLETE&nbsp; .-> complete_workflow;
+	advance_task -. &nbsp;NEXT&nbsp; .-> prepare_task;
+	create_plan --> evaluate_plan;
+	discover_agents --> create_plan;
+	dispatch_task --> wait_for_task_result;
+	evaluate_plan -. &nbsp;revise&nbsp; .-> create_plan;
+	evaluate_plan -. &nbsp;complete&nbsp; .-> request_plan_approval;
+	load_context --> discover_agents;
+	prepare_agent_resume --> dispatch_task;
+	prepare_task --> dispatch_task;
+	request_agent_output_approval --> review_agent_output;
+	request_plan_approval --> review_plan;
+	review_agent_output --> prepare_agent_resume;
+	review_plan -. &nbsp;REJECT&nbsp; .-> cancel_workflow;
+	review_plan -. &nbsp;REVISE&nbsp; .-> create_plan;
+	review_plan -. &nbsp;APPROVE&nbsp; .-> prepare_task;
+	wait_for_task_result -. &nbsp;COMPLETED&nbsp; .-> advance_task;
+	wait_for_task_result -. &nbsp;REJECTED&nbsp; .-> cancel_workflow;
+	wait_for_task_result -. &nbsp;FAILED&nbsp; .-> fail_workflow;
+	wait_for_task_result -. &nbsp;AWAITING_APPROVAL&nbsp; .-> request_agent_output_approval;
+	cancel_workflow --> __end__;
+	complete_workflow --> __end__;
+	fail_workflow --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+

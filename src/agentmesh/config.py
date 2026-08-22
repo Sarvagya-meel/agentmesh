@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,9 +15,25 @@ class Settings(BaseSettings):
     agent_stale_seconds: float = Field(default=180.0, gt=0)
     worker_lease_seconds: int = Field(default=300, ge=10)
     worker_request_timeout_seconds: float = Field(default=30.0, gt=0)
+    agent_runtime_role: str = "combined"
+    agent_max_concurrency: int = Field(default=4, ge=1)
+    agent_shutdown_timeout_seconds: float = Field(default=30.0, gt=0)
     registry_backend: str = "memory"
     event_store_backend: str = "memory"
-    orchestrator_checkpoint_backend: str = "memory"
+    langgraph_checkpoint_backend: str = Field(
+        default="memory",
+        validation_alias=AliasChoices(
+            "LANGGRAPH_CHECKPOINT_BACKEND",
+            "ORCHESTRATOR_CHECKPOINT_BACKEND",
+            "AGENT_CHECKPOINT_BACKEND",
+        ),
+    )
+    langgraph_store_backend: str = "memory"
+    langgraph_long_term_memory_enabled: bool = False
+    langgraph_memory_retention_days: int = Field(default=30, ge=1)
+    langsmith_tracing: bool = False
+    langsmith_project: str = "agentmesh-local"
+    google_adk_session_backend: str = "memory"
 
     llm_provider: str = "mock"
     bedrock_model_id: str = ""
@@ -34,7 +50,12 @@ class Settings(BaseSettings):
     aws_agentcore_enabled: bool = False
     aws_region: str = "us-east-1"
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
 
 @lru_cache

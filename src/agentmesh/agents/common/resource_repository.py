@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -165,3 +165,68 @@ class PostgresResourceRepository:
                 ),
             )
         return audit_id
+
+    def runtime_availability(
+        self,
+        agent_id: str,
+        *,
+        stale_seconds: float,
+    ) -> dict[str, Any]:
+        """Return aggregate availability without copying telemetry into Agent Cards."""
+
+        cutoff = datetime.now(UTC) - timedelta(seconds=stale_seconds)
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT status, endpoint, metadata
+                FROM agentmesh_resources
+                WHERE resource_type = 'agent_runtime'
+                  AND parent_resource_id = %s
+                  AND metadata ->> 'agent_id' = %s
+                  AND last_seen >= %s
+                  AND status IN ('ready', 'online')
+                ORDER BY last_seen DESC
+                """,
+                (agent_id, agent_id, cutoff),
+            )
+            rows = cursor.fetchall()
+        ready_roles = {
+            str(row["metadata"].get("runtime_role", ""))
+            for row in rows
+            if isinstance(row.get("metadata"), dict)
+        }
+        direct_ready = bool(ready_roles & {"api", "combined"})
+        assignment_ready = bool(ready_roles & {"worker", "combined"})
+        direct_endpoint = next(
+            (
+                str(row["endpoint"])
+                for row in rows
+                if row.get("endpoint")
+                and isinstance(row.get("metadata"), dict)
+                and row["metadata"].get("runtime_role") in {"api", "combined"}
+            ),
+            None,
+        )
+        return {
+            "direct_ready": direct_ready,
+            "assignment_ready": assignment_ready,
+            "ready_runtime_count": len(rows),
+            "ready_runtime_roles": sorted(ready_roles),
+            "direct_endpoint": direct_endpoint,
+        }
+
+    def mark_stale_runtime_instances(self, *, stale_seconds: float) -> list[str]:
+        cutoff = datetime.now(UTC) - timedelta(seconds=stale_seconds)
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE agentmesh_resources
+                SET status = 'stale', updated_at = CURRENT_TIMESTAMP
+                WHERE resource_type = 'agent_runtime'
+                  AND status NOT IN ('offline', 'stale', 'disabled')
+                  AND last_seen < %s
+                RETURNING resource_id
+                """,
+                (cutoff,),
+            )
+            return [str(row["resource_id"]) for row in cursor.fetchall()]

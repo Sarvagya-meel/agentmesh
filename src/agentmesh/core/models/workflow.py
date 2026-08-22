@@ -3,6 +3,7 @@
 This module has no dependencies outside core/models/. It must never import
 from agents/, services/, database/, or config.
 """
+
 from __future__ import annotations
 
 import json
@@ -43,6 +44,7 @@ class WorkflowStatus(StrEnum):
     RUNNING = "RUNNING"
     AWAITING_PLAN_APPROVAL = "AWAITING_PLAN_APPROVAL"
     AWAITING_TASK_APPROVAL = "AWAITING_TASK_APPROVAL"
+    AWAITING_AGENT_APPROVAL = "AWAITING_AGENT_APPROVAL"
     WAITING_FOR_AGENT = "WAITING_FOR_AGENT"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
@@ -54,6 +56,7 @@ class ApprovalType(StrEnum):
 
     PLAN = "PLAN"
     TASK = "TASK"
+    AGENT_OUTPUT = "AGENT_OUTPUT"
 
 
 class HumanDecisionType(StrEnum):
@@ -70,6 +73,7 @@ class TaskExecutionStatus(StrEnum):
     PROPOSED = "PROPOSED"
     APPROVED = "APPROVED"
     ASSIGNED = "ASSIGNED"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     REJECTED = "REJECTED"
@@ -102,9 +106,7 @@ def validate_agent_name(agent_name: str | None, *, field_name: str = "agent_name
     return _normalise_string(agent_name, field_name=field_name)
 
 
-def validate_agent_registry(
-    agent_name: str | None, *, known_agents: set[str] | None = None
-) -> str:
+def validate_agent_registry(agent_name: str | None, *, known_agents: set[str] | None = None) -> str:
     """Validate source/target agents against the built-in registry or supplied allowlist."""
     cleaned = validate_agent_name(agent_name, field_name="source_agent")
     registry = {
@@ -230,9 +232,7 @@ class Event(BaseModel):
                 routing_mode.value if isinstance(routing_mode, RoutingMode) else str(routing_mode)
             )
             raise InvalidRoutingError(f"{mode_name} events must not include target_agent.")
-        if self.routing_weights is not None and any(
-            v < 0 for v in self.routing_weights.values()
-        ):
+        if self.routing_weights is not None and any(v < 0 for v in self.routing_weights.values()):
             raise InvalidRoutingError("routing_weights cannot contain negative values.")
         if self.causation_id is not None and self.causation_id == self.event_id:
             raise CausationLoopError("An event cannot be its own cause.")
@@ -528,6 +528,14 @@ class AssignmentClaim(BaseModel):
     claimed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     lease_expires_at: datetime
     completed_at: datetime | None = None
+    attempt_number: int = Field(default=1, ge=1)
+    max_attempts: int = Field(default=3, ge=1)
+    next_attempt_at: datetime | None = None
+    last_error_code: str | None = None
+    last_error_message: str | None = None
+    retryable: bool = False
+    dead_lettered_at: datetime | None = None
+    idempotency_key: str = Field(default_factory=lambda: str(uuid4()))
 
     @field_validator("agent_id", "worker_id")
     @classmethod
@@ -540,6 +548,8 @@ class AssignmentClaim(BaseModel):
             raise ValidationError("Claim lease must expire after it is created.")
         if self.completed_at is not None and self.completed_at < self.claimed_at:
             raise ValidationError("Claim completion cannot precede claim creation.")
+        if self.attempt_number > self.max_attempts:
+            raise ValidationError("Claim attempt_number cannot exceed max_attempts.")
         return self
 
 

@@ -5,6 +5,7 @@ re-exports everything so callers can use either:
     from agentmesh.core.models import Event
     from agentmesh.core.models.event import Event
 """
+
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.core.models.event_types import (
     REGISTERED_EVENT_TYPES,

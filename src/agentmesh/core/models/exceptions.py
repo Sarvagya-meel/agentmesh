@@ -4,6 +4,7 @@ All exceptions raised by service, storage, and agent code should derive
 from AgentMeshError so callers can catch the entire domain surface with
 a single base class.
 """
+
 from __future__ import annotations
 
 
@@ -53,3 +54,16 @@ class AgentRegistryError(ValidationError):
 
 class ModelProviderError(AgentMeshError):
     """Raised when an external model provider cannot produce a usable response."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool = False,
+        status_code: int | None = None,
+        retry_after_seconds: float | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+        self.status_code = status_code
+        self.retry_after_seconds = retry_after_seconds

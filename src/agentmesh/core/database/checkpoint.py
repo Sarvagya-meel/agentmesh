@@ -1,39 +1,27 @@
-"""LangGraph checkpoint factory — memory or PostgreSQL backend."""
+"""Compatibility aliases for the framework-owned LangGraph persistence factory."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.memory import MemorySaver
 
 from agentmesh.config import Settings
-from agentmesh.core.models.exceptions import ValidationError
+from agentmesh.core.frameworks.langgraph import create_langgraph_checkpointer
 
 
 def create_orchestration_checkpointer(
     settings: Settings,
 ) -> tuple[BaseCheckpointSaver[Any], Callable[[], None]]:
-    """Create the configured graph checkpointer and its cleanup callback."""
-    backend = settings.orchestrator_checkpoint_backend.strip().lower()
-    if backend == "memory":
-        return MemorySaver(), lambda: None
-    if backend != "postgres":
-        raise ValidationError("ORCHESTRATOR_CHECKPOINT_BACKEND must be memory or postgres.")
+    """Compatibility wrapper; use create_langgraph_checkpointer instead."""
 
-    try:
-        import psycopg
-        from langgraph.checkpoint.postgres import PostgresSaver
-        from psycopg.rows import dict_row
-    except ImportError as exc:
-        raise ValidationError(
-            "Postgres checkpoints require the langgraph-checkpoint-postgres package."
-        ) from exc
+    return create_langgraph_checkpointer(settings)
 
-    url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-    connection = psycopg.connect(
-        url, autocommit=True, prepare_threshold=0, row_factory=dict_row
-    )
-    checkpointer = PostgresSaver(connection)
-    checkpointer.setup()
-    return checkpointer, connection.close
+
+def create_agent_checkpointer(
+    settings: Settings,
+) -> tuple[BaseCheckpointSaver[Any], Callable[[], None]]:
+    """Compatibility wrapper; use create_langgraph_checkpointer instead."""
+
+    return create_langgraph_checkpointer(settings)

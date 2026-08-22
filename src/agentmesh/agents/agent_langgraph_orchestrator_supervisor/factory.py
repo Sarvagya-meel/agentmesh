@@ -29,7 +29,7 @@ def create_workflow_planner(
         else ""
     )
     if not api_key:
-        return CapabilityWorkflowPlanner(), lambda: None
+        raise ValidationError("GROQ_API_KEY is required when LLM_PROVIDER=groq.")
 
     client = GroqStructuredOutputClient(
         api_key=api_key,

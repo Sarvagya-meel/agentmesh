@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS agentmesh_agents (
     last_seen TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT ck_agentmesh_agents_status
-        CHECK (status IN ('online', 'offline', 'stale', 'starting'))
+        CHECK (status IN ('online', 'offline', 'stale', 'starting', 'degraded', 'draining'))
 );
 
 ALTER TABLE agentmesh_agents ADD COLUMN IF NOT EXISTS name TEXT;
@@ -54,12 +54,17 @@ ALTER TABLE agentmesh_agents ALTER COLUMN updated_at SET NOT NULL;
 
 DO $$
 BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ck_agentmesh_agents_status'
+    ) THEN
+        ALTER TABLE agentmesh_agents DROP CONSTRAINT ck_agentmesh_agents_status;
+    END IF;
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'ck_agentmesh_agents_status'
     ) THEN
         ALTER TABLE agentmesh_agents
             ADD CONSTRAINT ck_agentmesh_agents_status
-            CHECK (status IN ('online', 'offline', 'stale', 'starting'));
+            CHECK (status IN ('online', 'offline', 'stale', 'starting', 'degraded', 'draining'));
     END IF;
 END $$;
 

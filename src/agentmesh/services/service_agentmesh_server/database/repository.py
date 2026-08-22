@@ -1,4 +1,5 @@
 """Backward-compatibility shim — real implementation is in core.database.repository."""
+
 from agentmesh.core.database.repository import (
     ClaimRepository,
     EventRepository,

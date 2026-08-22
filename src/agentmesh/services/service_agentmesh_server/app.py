@@ -14,7 +14,10 @@ from agentmesh.config import get_settings
 from agentmesh.core.database import (
     create_claim_repository,
     create_event_repository,
-    create_orchestration_checkpointer,
+)
+from agentmesh.core.frameworks.langgraph import (
+    create_async_langgraph_checkpointer,
+    create_langgraph_store,
 )
 from agentmesh.core.models.exceptions import (
     AgentMeshError,
@@ -23,6 +26,7 @@ from agentmesh.core.models.exceptions import (
     WorkflowConflictError,
     WorkflowNotFoundError,
 )
+from agentmesh.core.observability import configure_langsmith
 from agentmesh.services.service_agentmesh_server.api.routes import (
     events,
     registry,
@@ -42,31 +46,38 @@ from agentmesh.services.service_agentmesh_server.workers.service import WorkerSe
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    configure_langsmith(settings)
     event_repository, close_event_repository = create_event_repository(settings)
     claim_repository, close_claim_repository = create_claim_repository(settings)
     registry_repository, close_registry_repository = create_registry_repository(settings)
     event_service = EventService(event_repository)
     state_service = StateService(event_service)
-    registry_service = RegistryService(registry_repository)
-    checkpointer, close_checkpointer = create_orchestration_checkpointer(settings)
-    planner, close_planner = create_workflow_planner(settings)
     resource_repository = (
         PostgresResourceRepository.from_connection_url(settings.database_url)
         if settings.registry_backend.strip().lower() == "postgres"
         else None
     )
+    registry_service = RegistryService(
+        registry_repository,
+        stale_seconds=settings.agent_stale_seconds,
+        resource_repository=resource_repository,
+    )
+    checkpointer, close_checkpointer = await create_async_langgraph_checkpointer(settings)
+    store, close_store = create_langgraph_store(settings)
+    planner, close_planner = create_workflow_planner(settings)
     master_orchestrator = MasterOrchestratorAgent(
         registry_service=registry_service,
         event_service=event_service,
         state_service=state_service,
         planner=planner,
         checkpointer=checkpointer,
+        store=store,
         agent_stale_seconds=settings.agent_stale_seconds,
+        long_term_memory_enabled=settings.langgraph_long_term_memory_enabled,
+        memory_retention_days=settings.langgraph_memory_retention_days,
         endpoint=settings.agentmesh_api_url,
     )
-    register_control_plane_resources(
-        master_orchestrator, registry_service, resource_repository
-    )
+    register_control_plane_resources(master_orchestrator, registry_service, resource_repository)
     app.state.settings = settings
     app.state.event_service = event_service
     app.state.state_service = state_service
@@ -83,7 +94,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         close_planner()
-        close_checkpointer()
+        close_store()
+        await close_checkpointer()
         if resource_repository is not None:
             resource_repository.close()
         close_registry_repository()

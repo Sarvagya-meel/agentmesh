@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from abc import ABC, abstractmethod
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
 from agentmesh.core.models.agent_card import AgentCard
+
+if TYPE_CHECKING:
+    from agentmesh.agents.common.execution import ExecutionContext
 
 
 class BaseAgent(ABC):
@@ -30,9 +34,7 @@ class BaseAgent(ABC):
         self.capabilities = capabilities or []
         self.skills = skills or []
         self.description = description or f"{self.agent_name} agent"
-        self.endpoint: str = endpoint or os.getenv(
-            "AGENT_ENDPOINT"
-        ) or "http://localhost:8001"
+        self.endpoint: str = endpoint or os.getenv("AGENT_ENDPOINT") or "http://localhost:8001"
         self.owner = owner
         self.metadata = dict(metadata or {})
         self.auto_register = auto_register and os.getenv(
@@ -100,6 +102,16 @@ class BaseAgent(ABC):
     @abstractmethod
     def run_task(self, task_payload: dict[str, Any]) -> dict[str, Any]:
         """Execute the agent's assigned unit of work and return a result payload."""
+
+    async def arun_task(
+        self,
+        task_payload: dict[str, Any],
+        context: ExecutionContext | None = None,
+    ) -> dict[str, Any]:
+        """Execute asynchronously while synchronous agents migrate incrementally."""
+
+        del context
+        return await asyncio.to_thread(self.run_task, task_payload)
 
     def handle_event(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Compatibility hook for the polling loop used by concrete agent implementations."""

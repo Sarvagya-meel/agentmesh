@@ -104,22 +104,34 @@ class GroqStructuredOutputClient:
                 detail = f"Groq returned HTTP {status_code}."
                 if retry_after:
                     detail = f"{detail} Retry after {retry_after} seconds."
-                raise ModelProviderError(detail) from exc
+                raise ModelProviderError(
+                    detail,
+                    retryable=retryable,
+                    status_code=status_code,
+                    retry_after_seconds=self._parse_retry_after(retry_after),
+                ) from exc
             except httpx.HTTPError as exc:
                 if attempt + 1 < self.retry_attempts:
                     time.sleep(0.5 * (2**attempt))
                     continue
-                raise ModelProviderError("Groq is currently unreachable.") from exc
-        raise ModelProviderError("Groq retry loop exited unexpectedly.")
+                raise ModelProviderError("Groq is currently unreachable.", retryable=True) from exc
+        raise ModelProviderError("Groq retry loop exited unexpectedly.", retryable=True)
 
     @staticmethod
     def _retry_delay(retry_after: str | None, attempt: int) -> float:
+        parsed = GroqStructuredOutputClient._parse_retry_after(retry_after)
+        if parsed is not None:
+            return min(parsed, 30.0)
+        return float(0.5 * (2**attempt))
+
+    @staticmethod
+    def _parse_retry_after(retry_after: str | None) -> float | None:
         if retry_after:
             try:
-                return min(max(float(retry_after), 0.0), 30.0)
+                return max(float(retry_after), 0.0)
             except ValueError:
                 pass
-        return float(0.5 * (2**attempt))
+        return None
 
     @staticmethod
     def _extract_content(response: httpx.Response) -> str:
