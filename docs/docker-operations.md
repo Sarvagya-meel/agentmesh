@@ -15,6 +15,9 @@ The easiest way to manage the stack is using the PowerShell helper scripts in `s
 # Start all services (postgres, migrate, orchestrator, agents, streamlit)
 pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
 
+# Start all services except postgres and migrate (for development)
+pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all -Except postgres,migrate
+
 # Check health of all endpoints
 pwsh -File scripts\docker_component_manager.ps1 -Action health
 
@@ -26,6 +29,12 @@ pwsh -File scripts\docker_component_manager.ps1 -Action stop -Service all
 
 # Restart a specific service (e.g., migrate rebuilds schema with any DDL changes)
 pwsh -File scripts\docker_component_manager.ps1 -Action restart -Service migrate
+
+# Rebuild all services (always with --no-cache)
+pwsh -File scripts\docker_component_manager.ps1 -Action rebuild -Service all
+
+# Rebuild all services except infrastructure (postgres, migrate)
+pwsh -File scripts\docker_component_manager.ps1 -Action rebuild -Service all -Except postgres,migrate
 ```
 
 The scripts automatically:
@@ -40,6 +49,27 @@ For step-by-step startup, use the sequential helper:
 # Start in order: registry -> streamlit -> agent(s)
 pwsh -File scripts\start_registry_streamlit_agent.ps1
 ```
+
+### `-Except` Parameter
+
+Exclude services from operations. Useful for development workflows:
+
+```powershell
+# Skip infrastructure services when rebuilding agents
+pwsh -File scripts\docker_component_manager.ps1 -Action rebuild -Service all -Except postgres,migrate
+
+# Start all services except orchestrator (useful for testing agents independently)
+pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all -Except orchestrator-supervisor-agent
+```
+
+Available services:
+- `postgres` - Database
+- `migrate` - Schema migrations (runs once and exits)
+- `orchestrator-supervisor-agent` - Control plane API
+- `agent-langgraph-copilot` / `agent-googleadk-chatagent` - Combined mode agents
+- `agent-langgraph-copilot-api` / `agent-langgraph-copilot-worker` - Split mode agents
+- `agent-googleadk-chatagent-api` / `agent-googleadk-chatagent-worker` - Split mode agents
+- `streamlit` - UI dashboard
 
 ## Docker Compose (Base Commands)
 
@@ -125,6 +155,8 @@ pwsh -File .\scripts\docker_component_manager.ps1 `
   -Action rebuild -Service agent-langgraph-copilot
 pwsh -File .\scripts\docker_component_manager.ps1 `
   -Action logs -Service orchestrator-supervisor-agent
+pwsh -File .\scripts\docker_component_manager.ps1 `
+  -Action start -Service all -Except postgres,migrate
 ```
 
 ## Migrations
