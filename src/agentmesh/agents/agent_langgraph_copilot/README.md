@@ -43,6 +43,8 @@ requests and consumes assignments through that executor. `api` serves direct req
 only, while `worker` consumes assignments and deliberately has no `/invoke` route.
 The executor bounds process concurrency and serializes calls sharing a `thread_id`.
 
+The important point is that role selection happens before runtime startup, but agent creation happens inside the FastAPI lifespan.
+
 ## Graph
 
 ```text
