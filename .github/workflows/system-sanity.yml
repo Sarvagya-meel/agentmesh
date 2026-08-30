@@ -1,0 +1,61 @@
+name: system-sanity
+
+on:
+  workflow_dispatch:
+    inputs:
+      require_langsmith:
+        description: "Fail if LangSmith credentials or trace checks are unavailable"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  sanity:
+    runs-on: ubuntu-latest
+    env:
+      AGENTMESH_SANITY_MODE: ci
+      AGENTMESH_REQUIRE_LANGSMITH: ${{ inputs.require_langsmith == 'true' && '1' || '0' }}
+      LANGSMITH_TRACING: ${{ secrets.LANGSMITH_TRACING }}
+      LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
+      LANGSMITH_ENDPOINT: ${{ secrets.LANGSMITH_ENDPOINT }}
+      LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade "pip>=25.1"
+          python -m pip install -e . --group local
+      - name: Write CI env file
+        run: |
+          {
+            echo "APP_ENV=ci"
+            echo "LLM_PROVIDER=groq"
+            echo "GROQ_API_KEY=${GROQ_API_KEY}"
+            echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+            echo "LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}"
+            echo "LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-AgentMesh}"
+            echo "LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}"
+            echo "LANGSMITH_API_KEY=${LANGSMITH_API_KEY}"
+          } > .env
+      - name: Run system sanity
+        run: |
+          args=(--mode ci)
+          if [ "${AGENTMESH_REQUIRE_LANGSMITH}" = "1" ]; then
+            args+=(--require-langsmith)
+          fi
+          python scripts/system_sanity.py "${args[@]}"
+      - name: Upload sanity artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-sanity
+          path: outputs/system_sanity

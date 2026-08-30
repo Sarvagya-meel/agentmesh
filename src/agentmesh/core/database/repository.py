@@ -89,9 +89,21 @@ class InMemoryEventRepository(EventRepository):
                 payload = event.payload if isinstance(event.payload, dict) else {}
                 task = payload.get("task", {})
                 task_id = str(task.get("task_id", "")) if isinstance(task, dict) else ""
-                if task_id and (event.workflow_id, task_id) not in terminal_tasks:
+                if (
+                    task_id
+                    and (event.workflow_id, task_id) not in terminal_tasks
+                    and not self._has_proposed_agent_output(event)
+                ):
                     pending.append(event.model_copy(deep=True))
             return pending[:limit]
+
+    def _has_proposed_agent_output(self, assignment: Event) -> bool:
+        events = self._workflow_events.get(assignment.workflow_id, [])
+        return any(
+            event.event_type == "AGENT_OUTPUT_PROPOSED"
+            and event.causation_id == assignment.event_id
+            for event in events
+        )
 
     @staticmethod
     def _matches(event: Event, filters: EventFilters) -> bool:
@@ -223,6 +235,12 @@ class PostgresEventRepository(EventRepository):
                         claim.lease_expires_at > CURRENT_TIMESTAMP
                         OR claim.next_attempt_at > CURRENT_TIMESTAMP
                       )
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM agentmesh_events AS proposed
+                    WHERE proposed.workflow_id = assignment.workflow_id
+                      AND proposed.event_type = 'AGENT_OUTPUT_PROPOSED'
+                      AND proposed.causation_id = assignment.event_id
                   )
                 ORDER BY assignment.timestamp ASC, assignment.sequence_number ASC
                 LIMIT %s

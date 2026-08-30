@@ -178,7 +178,7 @@ class PostgresResourceRepository:
         with self._connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT status, endpoint, metadata
+                SELECT status, endpoint, metadata, last_seen
                 FROM agentmesh_resources
                 WHERE resource_type = 'agent_runtime'
                   AND parent_resource_id = %s
@@ -213,6 +213,7 @@ class PostgresResourceRepository:
             "ready_runtime_count": len(rows),
             "ready_runtime_roles": sorted(ready_roles),
             "direct_endpoint": direct_endpoint,
+            "last_seen": rows[0]["last_seen"] if rows else None,
         }
 
     def mark_stale_runtime_instances(self, *, stale_seconds: float) -> list[str]:

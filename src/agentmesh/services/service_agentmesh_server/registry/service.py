@@ -112,10 +112,12 @@ class RegistryService:
         )
         is_available = bool(availability["direct_ready"] or availability["assignment_ready"])
         endpoint = availability["direct_endpoint"] or card.endpoint
+        last_seen = availability.pop("last_seen", None) or card.last_seen
         return card.model_copy(
             update={
                 "status": "online" if is_available else "stale",
                 "endpoint": endpoint,
+                "last_seen": last_seen,
                 "metadata": {**card.metadata, **availability},
             }
         )

@@ -257,13 +257,60 @@ def test_mermaid_export_contains_every_copilot_node() -> None:
 
 
 def test_langsmith_is_disabled_by_default() -> None:
-    previous = os.environ.get("LANGSMITH_TRACING")
+    previous_langsmith = os.environ.get("LANGSMITH_TRACING")
+    previous_langchain = os.environ.get("LANGCHAIN_TRACING_V2")
     try:
         os.environ["LANGSMITH_TRACING"] = "true"
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
         configure_langsmith(Settings(langsmith_tracing=False))
         assert os.environ["LANGSMITH_TRACING"] == "false"
+        assert os.environ["LANGCHAIN_TRACING_V2"] == "false"
     finally:
-        if previous is None:
+        if previous_langsmith is None:
             os.environ.pop("LANGSMITH_TRACING", None)
         else:
-            os.environ["LANGSMITH_TRACING"] = previous
+            os.environ["LANGSMITH_TRACING"] = previous_langsmith
+        if previous_langchain is None:
+            os.environ.pop("LANGCHAIN_TRACING_V2", None)
+        else:
+            os.environ["LANGCHAIN_TRACING_V2"] = previous_langchain
+
+
+def test_langsmith_env_file_values_are_exported_for_sdk() -> None:
+    previous = {
+        key: os.environ.get(key)
+        for key in (
+            "LANGSMITH_TRACING",
+            "LANGCHAIN_TRACING_V2",
+            "LANGSMITH_PROJECT",
+            "LANGCHAIN_PROJECT",
+            "LANGSMITH_ENDPOINT",
+            "LANGCHAIN_ENDPOINT",
+            "LANGSMITH_API_KEY",
+            "LANGCHAIN_API_KEY",
+        )
+    }
+    try:
+        configure_langsmith(
+            Settings(
+                langsmith_tracing=True,
+                langsmith_project="test-project",
+                langsmith_endpoint="https://example.test",
+                langsmith_api_key="test-key",
+            )
+        )
+
+        assert os.environ["LANGSMITH_TRACING"] == "true"
+        assert os.environ["LANGCHAIN_TRACING_V2"] == "true"
+        assert os.environ["LANGSMITH_PROJECT"] == "test-project"
+        assert os.environ["LANGCHAIN_PROJECT"] == "test-project"
+        assert os.environ["LANGSMITH_ENDPOINT"] == "https://example.test"
+        assert os.environ["LANGCHAIN_ENDPOINT"] == "https://example.test"
+        assert os.environ["LANGSMITH_API_KEY"] == "test-key"
+        assert os.environ["LANGCHAIN_API_KEY"] == "test-key"
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value

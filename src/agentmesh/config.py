@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     langgraph_memory_retention_days: int = Field(default=30, ge=1)
     langsmith_tracing: bool = False
     langsmith_project: str = "agentmesh-local"
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    langsmith_api_key: SecretStr | None = None
+    langsmith_workspace_id: str = ""
     google_adk_session_backend: str = "memory"
 
     llm_provider: str = "mock"
