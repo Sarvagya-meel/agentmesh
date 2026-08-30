@@ -25,6 +25,8 @@ from agentmesh.core.observability import (
     agentmesh_metadata,
     agentmesh_run_name,
     agentmesh_span,
+    resolve_trace_author,
+    trace_author_metadata,
 )
 from agentmesh.core.providers import TextCompletionClient
 
@@ -560,19 +562,22 @@ class ConversationAgent(BaseAgent):
         return reply
 
     async def checkpoint_history(self, thread_id: str) -> list[dict[str, Any]]:
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         with agentmesh_span(
             agentmesh_run_name(
                 "Direct",
                 thread_id,
                 "checkpoint history",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={"thread_id": thread_id},
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 thread_id=thread_id,
                 checkpoint_thread_id=thread_id,
                 checkpoint_operation="history",
+                **trace_author_metadata(author),
             ),
             tags=["checkpoint", "langgraph-agent", self.agent_name],
         ) as run:
@@ -596,20 +601,23 @@ class ConversationAgent(BaseAgent):
         thread_id: str,
         checkpoint_id: str,
     ) -> dict[str, Any]:
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         with agentmesh_span(
             agentmesh_run_name(
                 "Direct",
                 thread_id,
                 f"checkpoint replay {checkpoint_id}",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={"thread_id": thread_id, "checkpoint_id": checkpoint_id},
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 thread_id=thread_id,
                 checkpoint_thread_id=thread_id,
                 checkpoint_id=checkpoint_id,
                 checkpoint_operation="replay",
+                **trace_author_metadata(author),
             ),
             tags=["checkpoint", "replay", "langgraph-agent", self.agent_name],
         ) as run:
@@ -628,12 +636,13 @@ class ConversationAgent(BaseAgent):
         new_thread_id: str,
         state_updates: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         with agentmesh_span(
             agentmesh_run_name(
                 "Direct",
                 thread_id,
                 f"checkpoint fork {checkpoint_id}",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={
                 "thread_id": thread_id,
@@ -643,11 +652,13 @@ class ConversationAgent(BaseAgent):
             },
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 thread_id=thread_id,
                 checkpoint_thread_id=thread_id,
                 checkpoint_id=checkpoint_id,
                 checkpoint_operation="fork",
                 new_thread_id=new_thread_id,
+                **trace_author_metadata(author),
             ),
             tags=["checkpoint", "fork", "langgraph-agent", self.agent_name],
         ) as run:
@@ -726,11 +737,14 @@ class ConversationAgent(BaseAgent):
         thread_id: str,
         metadata: dict[str, Any] | None = None,
     ) -> RunnableConfig:
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         trace_metadata = {
             "agent_id": self.agent_name,
+            "agent_name": author.author_name,
             "thread_id": thread_id,
             "execution_mode": (metadata or {}).get("execution_mode", "direct"),
             "checkpoint_thread_id": thread_id,
+            **trace_author_metadata(author),
             **(metadata or {}),
         }
         mode = "WorkFlow" if trace_metadata["execution_mode"] == "workflow" else "Direct"
@@ -741,7 +755,7 @@ class ConversationAgent(BaseAgent):
                 mode,
                 thread_id,
                 "langgraph agent",
-                self.agent_name,
+                author.author_name,
             ),
             "tags": ["agentmesh", "langgraph-agent", self.agent_name],
         }
@@ -755,10 +769,12 @@ class ConversationAgent(BaseAgent):
             },
             "metadata": {
                 "agent_id": "langgraph-copilot",
+                "agent_name": "langgraph-copilot",
                 "thread_id": thread_id,
                 "checkpoint_thread_id": thread_id,
                 "checkpoint_id": checkpoint_id,
                 "execution_mode": "checkpoint_api",
+                **trace_author_metadata(resolve_trace_author("langgraph-copilot")),
             },
             "run_name": agentmesh_run_name(
                 "Direct",

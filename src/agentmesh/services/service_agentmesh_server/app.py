@@ -62,6 +62,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         stale_seconds=settings.agent_stale_seconds,
         resource_repository=resource_repository,
     )
+    event_service.set_agent_resolver(registry_service.get_agent)
     checkpointer, close_checkpointer = await create_async_langgraph_checkpointer(settings)
     store, close_store = create_langgraph_store(settings)
     planner, close_planner = create_workflow_planner(settings)

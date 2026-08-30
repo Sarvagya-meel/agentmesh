@@ -15,7 +15,13 @@ from google.adk.sessions import BaseSessionService, DatabaseSessionService
 from google.genai import types
 
 from agentmesh.agents.common.base_agent import BaseAgent
-from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
+from agentmesh.core.observability import (
+    agentmesh_metadata,
+    agentmesh_run_name,
+    agentmesh_span,
+    resolve_trace_author,
+    trace_author_metadata,
+)
 
 
 class GoogleADKAgent(BaseAgent):
@@ -66,11 +72,13 @@ class GoogleADKAgent(BaseAgent):
         task_id = str(task_payload.get("task_id") or nested.get("task_id") or "")
         mode = "WorkFlow" if workflow_id or task_id else "Direct"
         unique_id = workflow_id or session_id
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         with agentmesh_span(
-            agentmesh_run_name(mode, unique_id, prompt, user_id),
+            agentmesh_run_name(mode, unique_id, prompt, author.author_name),
             inputs={"prompt": prompt},
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 execution_mode="workflow" if mode == "WorkFlow" else "direct",
                 workflow_id=workflow_id,
                 task_id=task_id,
@@ -78,6 +86,7 @@ class GoogleADKAgent(BaseAgent):
                 user_id=user_id,
                 model=self.model_name,
                 framework="google_adk",
+                **trace_author_metadata(author),
             ),
             tags=["google-adk", self.agent_name],
         ) as run:

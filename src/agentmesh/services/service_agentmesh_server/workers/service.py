@@ -11,7 +11,13 @@ from agentmesh.core.models.exceptions import (
     ClaimConflictError,
     ValidationError,
 )
-from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
+from agentmesh.core.observability import (
+    agentmesh_metadata,
+    agentmesh_run_name,
+    agentmesh_span,
+    resolve_trace_author,
+    trace_author_metadata,
+)
 from agentmesh.services.service_agentmesh_server.database.repository import ClaimRepository
 from agentmesh.services.service_agentmesh_server.events.service import EventService
 from agentmesh.services.service_agentmesh_server.registry.service import RegistryService
@@ -48,18 +54,21 @@ class WorkerService:
         assignments = self.event_service.list_pending_assignments(agent_id, limit=limit)
         if not assignments:
             return assignments
+        author = resolve_trace_author(agent_id, agent_card=card)
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 assignments[0].workflow_id,
                 "worker list assignments",
-                agent_id,
+                author.author_name,
             ),
             inputs={"agent_id": agent_id, "limit": limit},
             metadata=agentmesh_metadata(
                 agent_id=agent_id,
+                agent_name=author.author_name,
                 workflow_id=assignments[0].workflow_id,
                 limit=limit,
+                **trace_author_metadata(author),
             ),
             tags=["worker", "assignments", agent_id],
         ) as run:
@@ -83,6 +92,11 @@ class WorkerService:
         workflow_id = uuid4()
         task_id = uuid4()
         resolved_conversation_id = conversation_id or f"playground-{uuid4()}"
+        author = resolve_trace_author("agentmesh-control-plane")
+        target_author = resolve_trace_author(
+            agent_id,
+            agent_card=self.registry_service.get_agent(agent_id),
+        )
         task: dict[str, Any] = {
             "task_id": str(task_id),
             "description": message,
@@ -103,7 +117,11 @@ class WorkerService:
                 routing_mode=RoutingMode.DIRECTED,
                 target_agent=agent_id,
                 payload={"task": task, "standalone": True},
-                metadata={"execution_mode": "queued_direct"},
+                metadata={
+                    "execution_mode": "queued_direct",
+                    **trace_author_metadata(author),
+                    "target_agent_name": target_author.author_name,
+                },
             )
         )
         return self._directed_snapshot(assignment, "WAITING_FOR_AGENT")
@@ -117,15 +135,21 @@ class WorkerService:
     ) -> AssignmentClaim:
         """Validate and atomically lease an assignment to one worker instance."""
 
+        author = resolve_trace_author(
+            agent_id,
+            agent_card=self.registry_service.get_agent(agent_id),
+        )
         with agentmesh_span(
-            agentmesh_run_name("WorkFlow", event_id, "assignment claim", agent_id),
+            agentmesh_run_name("WorkFlow", event_id, "assignment claim", author.author_name),
             inputs={"event_id": str(event_id), "agent_id": agent_id, "worker_id": worker_id},
             metadata=agentmesh_metadata(
                 event_id=event_id,
                 assignment_event_id=event_id,
                 agent_id=agent_id,
+                agent_name=author.author_name,
                 worker_id=worker_id,
                 lease_seconds=self.lease_seconds,
+                **trace_author_metadata(author),
             ),
             tags=["worker", "claim", agent_id],
         ) as run:
@@ -162,12 +186,16 @@ class WorkerService:
 
         assignment = self._get_assignment(event_id, agent_id=agent_id)
         task = self._task_payload(assignment)
+        author = resolve_trace_author(
+            agent_id,
+            agent_card=self.registry_service.get_agent(agent_id),
+        )
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 assignment.workflow_id,
                 f"assignment result {status}",
-                agent_id,
+                author.author_name,
             ),
             inputs={"status": status, "result_keys": sorted(result)},
             metadata=agentmesh_metadata(
@@ -176,9 +204,11 @@ class WorkerService:
                 event_id=event_id,
                 assignment_event_id=event_id,
                 agent_id=agent_id,
+                agent_name=author.author_name,
                 worker_id=worker_id,
                 task_id=task.get("task_id"),
                 claim_token=claim_token,
+                **trace_author_metadata(author),
             ),
             tags=["worker", "result", agent_id],
         ) as run:
@@ -353,15 +383,26 @@ class WorkerService:
         worker_id: str,
         claim_token: UUID,
     ) -> AssignmentClaim:
+        author = resolve_trace_author(
+            agent_id,
+            agent_card=self.registry_service.get_agent(agent_id),
+        )
         with agentmesh_span(
-            agentmesh_run_name("WorkFlow", event_id, "assignment lease renew", agent_id),
+            agentmesh_run_name(
+                "WorkFlow",
+                event_id,
+                "assignment lease renew",
+                author.author_name,
+            ),
             inputs={"event_id": str(event_id), "agent_id": agent_id, "worker_id": worker_id},
             metadata=agentmesh_metadata(
                 event_id=event_id,
                 assignment_event_id=event_id,
                 agent_id=agent_id,
+                agent_name=author.author_name,
                 worker_id=worker_id,
                 claim_token=claim_token,
+                **trace_author_metadata(author),
             ),
             tags=["worker", "lease", agent_id],
         ) as run:

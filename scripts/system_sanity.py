@@ -422,6 +422,8 @@ class SanityRun:
                 break
             time.sleep(2)
         run_names = {run.name for run in runs}
+        has_agentmesh_shape = self._has_agentmesh_trace_shape(run_names)
+        has_no_noise = self._has_no_routine_registry_noise(run_names)
         evidence = self.output_dir / "langsmith_check.json"
         evidence.write_text(
             json.dumps(
@@ -432,7 +434,8 @@ class SanityRun:
                     "project_matches": len(projects),
                     "recent_run_count_sample": len(runs),
                     "trace_marker_thread_id": trace_marker_thread_id,
-                    "agentmesh_trace_shape": self._has_agentmesh_trace_shape(run_names),
+                    "agentmesh_trace_shape": has_agentmesh_shape,
+                    "no_routine_registry_noise": has_no_noise,
                     "recent_runs": [
                         {
                             "name": run.name,
@@ -448,10 +451,10 @@ class SanityRun:
         )
         self.add(
             "langsmith.project_and_traces",
-            "pass" if projects and runs and self._has_agentmesh_trace_shape(run_names) else "fail",
+            "pass" if projects and runs and has_agentmesh_shape and has_no_noise else "fail",
             (
                 f"Project matches={len(projects)}, recent runs={len(runs)}, "
-                f"agentmesh_shape={self._has_agentmesh_trace_shape(run_names)}."
+                f"agentmesh_shape={has_agentmesh_shape}, no_noise={has_no_noise}."
             ),
             evidence=str(evidence),
         )
@@ -469,6 +472,11 @@ class SanityRun:
         )
         has_registry = any(run_name.startswith("Registry ||") for run_name in run_names)
         return has_direct and has_workflow and has_event and has_assignment_result and has_registry
+
+    @staticmethod
+    def _has_no_routine_registry_noise(run_names: set[str]) -> bool:
+        noisy_subjects = ("|| agent heartbeat ||", "|| get agent ||")
+        return not any(subject in run_name for run_name in run_names for subject in noisy_subjects)
 
     def write_summary(self) -> None:
         summary = {

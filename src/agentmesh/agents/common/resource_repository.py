@@ -11,7 +11,13 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from agentmesh.core.models.agent_card import AgentCard
-from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
+from agentmesh.core.observability import (
+    agentmesh_metadata,
+    agentmesh_run_name,
+    agentmesh_span,
+    resolve_trace_author,
+    trace_author_metadata,
+)
 
 
 def normalise_postgres_url(connection_url: str) -> str:
@@ -49,15 +55,23 @@ class PostgresResourceRepository:
         merged_metadata = dict(card.metadata)
         if metadata:
             merged_metadata.update(metadata)
+        author = resolve_trace_author("agentmesh-registry")
         span = agentmesh_span(
-            agentmesh_run_name("Registry", card.agent_id, "resource upsert agent", card.agent_id),
+            agentmesh_run_name(
+                "Registry",
+                card.agent_id,
+                "resource upsert agent",
+                author.author_name,
+            ),
             inputs={"capabilities": card.capabilities, "status": status},
             metadata=agentmesh_metadata(
                 agent_id=card.agent_id,
+                agent_name=card.name,
                 resource_id=card.agent_id,
                 resource_type="agent",
                 resource_status=status,
                 runtime_instance_id=merged_metadata.get("runtime_instance_id"),
+                **trace_author_metadata(author),
             ),
             tags=["resource", "agent", card.agent_id],
         )
@@ -112,22 +126,25 @@ class PostgresResourceRepository:
     ) -> None:
         now = datetime.now(UTC)
         safe_metadata = metadata or {}
+        author = resolve_trace_author("agentmesh-registry")
         span = agentmesh_span(
             agentmesh_run_name(
                 "Registry",
                 resource_id,
                 f"resource upsert {resource_type} {name}",
-                str(safe_metadata.get("agent_id") or parent_resource_id or "system"),
+                author.author_name,
             ),
             inputs={"capabilities": capabilities or [], "status": status},
             metadata=agentmesh_metadata(
                 agent_id=safe_metadata.get("agent_id") or parent_resource_id,
+                resource_name=name,
                 resource_id=resource_id,
                 resource_type=resource_type,
                 resource_status=status,
                 parent_resource_id=parent_resource_id,
                 runtime_instance_id=safe_metadata.get("runtime_instance_id"),
                 worker_id=safe_metadata.get("worker_id"),
+                **trace_author_metadata(author),
             ),
             tags=["resource", resource_type],
         )
@@ -185,12 +202,17 @@ class PostgresResourceRepository:
     ) -> UUID:
         audit_id = uuid4()
         safe_payload = payload or {}
+        author = resolve_trace_author(
+            actor,
+            fallback_name=str(safe_payload.get("agent_id") or actor),
+            author_type="worker",
+        )
         with agentmesh_span(
             agentmesh_run_name(
                 "Audit",
                 audit_id,
                 f"audit {event_type}",
-                actor,
+                author.author_name,
             ),
             inputs={"event_type": event_type, "severity": severity},
             metadata=agentmesh_metadata(
@@ -204,6 +226,7 @@ class PostgresResourceRepository:
                 agent_id=safe_payload.get("agent_id"),
                 runtime_instance_id=safe_payload.get("runtime_instance_id"),
                 worker_id=safe_payload.get("worker_id"),
+                **trace_author_metadata(author),
             ),
             tags=["audit", event_type],
         ):
@@ -279,7 +302,9 @@ class PostgresResourceRepository:
             "last_seen": rows[0]["last_seen"] if rows else None,
         }
 
-    def mark_stale_runtime_instances(self, *, stale_seconds: float) -> list[str]:
+    def mark_stale_runtime_instances(
+        self, *, stale_seconds: float, trace: bool = True
+    ) -> list[str]:
         cutoff = datetime.now(UTC) - timedelta(seconds=stale_seconds)
         with self._connection.cursor() as cursor:
             cursor.execute(
@@ -293,4 +318,24 @@ class PostgresResourceRepository:
                 """,
                 (cutoff,),
             )
-            return [str(row["resource_id"]) for row in cursor.fetchall()]
+            stale_ids = [str(row["resource_id"]) for row in cursor.fetchall()]
+        if trace and stale_ids:
+            author = resolve_trace_author("agentmesh-registry")
+            with agentmesh_span(
+                agentmesh_run_name(
+                    "Registry",
+                    "agent-runtimes",
+                    "status transition stale",
+                    author.author_name,
+                ),
+                inputs={"resource_ids": stale_ids},
+                metadata=agentmesh_metadata(
+                    registry_operation="mark_stale_runtime_instances",
+                    resource_type="agent_runtime",
+                    stale_resource_count=len(stale_ids),
+                    **trace_author_metadata(author),
+                ),
+                tags=["resource", "status-transition"],
+            ):
+                pass
+        return stale_ids

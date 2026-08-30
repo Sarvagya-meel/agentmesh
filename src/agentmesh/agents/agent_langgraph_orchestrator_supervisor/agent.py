@@ -44,6 +44,8 @@ from agentmesh.core.observability import (
     agentmesh_metadata,
     agentmesh_run_name,
     agentmesh_span,
+    resolve_trace_author,
+    trace_author_metadata,
 )
 from agentmesh.services.service_agentmesh_server.events.service import EventService
 from agentmesh.services.service_agentmesh_server.events.state import StateService
@@ -391,13 +393,17 @@ class MasterOrchestratorAgent(BaseAgent):
             "memory_opt_in": memory_opt_in,
         }
         raw_metadata.update(trace_metadata or {})
-        metadata = agentmesh_metadata(**raw_metadata)
+        author = resolve_trace_author(
+            raw_metadata.get("trigger_source") or self.agent_name,
+            agent_card=None if raw_metadata.get("trigger_source") else self.agent_card(),
+        )
+        metadata = agentmesh_metadata(**raw_metadata, **trace_author_metadata(author))
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 resolved_workflow_id,
                 goal,
-                str(raw_metadata.get("trigger_source") or self.agent_name),
+                author.author_name,
             ),
             inputs={"goal": goal, "preferred_agent_ids": preferred_agent_ids or []},
             metadata=metadata,
@@ -571,6 +577,7 @@ class MasterOrchestratorAgent(BaseAgent):
         }:
             raise ValidationError(f"Workflow {workflow_id} is not waiting for human approval.")
         pending = ApprovalRequest.model_validate(current.metadata["pending_approval"])
+        author = resolve_trace_author(actor, author_type="human")
         metadata = agentmesh_metadata(
             agent_id=self.agent_name,
             execution_mode="workflow",
@@ -582,13 +589,14 @@ class MasterOrchestratorAgent(BaseAgent):
             subject_id=pending.subject_id,
             decision=decision,
             actor=actor,
+            **trace_author_metadata(author),
         )
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 workflow_id,
                 f"approval resume {pending.approval_type}",
-                actor,
+                author.author_name,
             ),
             inputs={"decision": str(decision), "feedback_present": bool(feedback)},
             metadata=metadata,
@@ -674,8 +682,10 @@ class MasterOrchestratorAgent(BaseAgent):
         resolved_assignment_id = assignment_event_id or current.metadata.get(
             "assignment_event_id", ""
         )
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         metadata = agentmesh_metadata(
             agent_id=self.agent_name,
+            agent_name=author.author_name,
             execution_mode="workflow",
             operation="submit_task_result",
             workflow_id=workflow_id,
@@ -684,13 +694,14 @@ class MasterOrchestratorAgent(BaseAgent):
             assignment_event_id=resolved_assignment_id,
             assignment_id=resolved_assignment_id,
             task_result_status=normalized_status,
+            **trace_author_metadata(author),
         )
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 workflow_id,
                 f"task result {normalized_status}",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={"status": normalized_status, "result_keys": sorted(result or {})},
             metadata=metadata,
@@ -903,16 +914,18 @@ class MasterOrchestratorAgent(BaseAgent):
             context={"plan": plan.model_dump(mode="json")},
         )
         payload = approval.model_dump(mode="json")
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 state["workflow_id"],
                 "plan approval requested",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={"approval": payload},
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 workflow_id=state["workflow_id"],
                 conversation_id=state["conversation_id"],
                 plan_id=plan.plan_id,
@@ -921,6 +934,7 @@ class MasterOrchestratorAgent(BaseAgent):
                 approval_type=approval.approval_type,
                 execution_mode="workflow",
                 interrupt_type="human_approval",
+                **trace_author_metadata(author),
             ),
             tags=["workflow", "approval", "interrupt", self.agent_name],
         ):
@@ -1001,23 +1015,31 @@ class MasterOrchestratorAgent(BaseAgent):
 
     def _dispatch_task(self, state: MasterWorkflowState) -> dict[str, Any]:
         task = PlanTask.model_validate(state["current_task"])
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        target_author = resolve_trace_author(
+            task.agent_id,
+            agent_card=self.registry_service.get_agent(task.agent_id),
+        )
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 state["workflow_id"],
                 f"assignment {task.name}",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={"task": task.model_dump(mode="json")},
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 target_agent=task.agent_id,
+                target_agent_name=target_author.author_name,
                 workflow_id=state["workflow_id"],
                 conversation_id=state["conversation_id"],
                 task_id=task.task_id,
                 task_name=task.name,
                 required_capability=task.required_capability,
                 execution_mode="workflow",
+                **trace_author_metadata(author),
             ),
             tags=["workflow", "dispatch", task.agent_id],
         ) as run:
@@ -1110,17 +1132,24 @@ class MasterOrchestratorAgent(BaseAgent):
             },
         )
         payload = approval.model_dump(mode="json")
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        target_author = resolve_trace_author(
+            task.agent_id,
+            agent_card=self.registry_service.get_agent(task.agent_id),
+        )
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 state["workflow_id"],
                 "agent-output approval requested",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={"approval": payload},
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 target_agent=task.agent_id,
+                target_agent_name=target_author.author_name,
                 workflow_id=state["workflow_id"],
                 conversation_id=state["conversation_id"],
                 task_id=task.task_id,
@@ -1129,6 +1158,7 @@ class MasterOrchestratorAgent(BaseAgent):
                 thread_id=agent_result.get("thread_id"),
                 execution_mode="workflow",
                 interrupt_type="human_approval",
+                **trace_author_metadata(author),
             ),
             tags=["workflow", "approval", "interrupt", task.agent_id],
         ):
@@ -1191,6 +1221,7 @@ class MasterOrchestratorAgent(BaseAgent):
 
     def _interrupt_for_decision(self, state: MasterWorkflowState) -> HumanDecision:
         approval = ApprovalRequest.model_validate(state["pending_approval"])
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         interrupt_payload = {
             "type": "human_approval",
             "approval": approval.model_dump(mode="json"),
@@ -1205,7 +1236,7 @@ class MasterOrchestratorAgent(BaseAgent):
                 "WorkFlow",
                 state["workflow_id"],
                 f"human approval interrupt {approval.approval_type}",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={
                 "approval_id": str(approval.approval_id),
@@ -1214,6 +1245,7 @@ class MasterOrchestratorAgent(BaseAgent):
             },
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 workflow_id=state["workflow_id"],
                 conversation_id=state["conversation_id"],
                 approval_id=approval.approval_id,
@@ -1221,6 +1253,7 @@ class MasterOrchestratorAgent(BaseAgent):
                 subject_id=approval.subject_id,
                 execution_mode="workflow",
                 interrupt_type="human_approval",
+                **trace_author_metadata(author),
             ),
             tags=["workflow", "approval", "interrupt", self.agent_name],
         ):
@@ -1336,20 +1369,23 @@ class MasterOrchestratorAgent(BaseAgent):
         workflow_id: UUID,
         metadata: dict[str, Any] | None = None,
     ) -> RunnableConfig:
+        author = resolve_trace_author(ORCHESTRATOR_AGENT_ID)
         return {
             "configurable": {"thread_id": str(workflow_id)},
             "run_name": agentmesh_run_name(
                 "WorkFlow",
                 workflow_id,
                 str(metadata.get("operation", "graph") if metadata else "graph"),
-                ORCHESTRATOR_AGENT_ID,
+                author.author_name,
             ),
             "tags": ["agentmesh", "workflow", ORCHESTRATOR_AGENT_ID],
             "metadata": {
                 "agent_id": ORCHESTRATOR_AGENT_ID,
+                "agent_name": author.author_name,
                 "execution_mode": "workflow",
                 "workflow_id": str(workflow_id),
                 "checkpoint_thread_id": str(workflow_id),
+                **trace_author_metadata(author),
                 **(metadata or {}),
             },
         }
@@ -1436,19 +1472,22 @@ class MasterOrchestratorAgent(BaseAgent):
         }
 
     async def checkpoint_history(self, workflow_id: UUID) -> list[dict[str, Any]]:
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 workflow_id,
                 "checkpoint history",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={"workflow_id": str(workflow_id)},
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 workflow_id=workflow_id,
                 checkpoint_thread_id=workflow_id,
                 checkpoint_operation="history",
+                **trace_author_metadata(author),
             ),
             tags=["workflow", "checkpoint", self.agent_name],
         ) as run:
@@ -1475,20 +1514,23 @@ class MasterOrchestratorAgent(BaseAgent):
     ) -> dict[str, Any]:
         """Inspect a historical state without re-emitting event side effects."""
 
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 workflow_id,
                 f"checkpoint replay {checkpoint_id}",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={"workflow_id": str(workflow_id), "checkpoint_id": checkpoint_id},
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 workflow_id=workflow_id,
                 checkpoint_thread_id=workflow_id,
                 checkpoint_id=checkpoint_id,
                 checkpoint_operation="replay",
+                **trace_author_metadata(author),
             ),
             tags=["workflow", "checkpoint", "replay", self.agent_name],
         ) as run:
@@ -1523,12 +1565,13 @@ class MasterOrchestratorAgent(BaseAgent):
     ) -> dict[str, Any]:
         """Copy a checkpoint into an isolated diagnostic namespace."""
 
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         with agentmesh_span(
             agentmesh_run_name(
                 "WorkFlow",
                 workflow_id,
                 f"checkpoint fork {checkpoint_id}",
-                self.agent_name,
+                author.author_name,
             ),
             inputs={
                 "workflow_id": str(workflow_id),
@@ -1538,11 +1581,13 @@ class MasterOrchestratorAgent(BaseAgent):
             },
             metadata=agentmesh_metadata(
                 agent_id=self.agent_name,
+                agent_name=author.author_name,
                 workflow_id=workflow_id,
                 checkpoint_thread_id=workflow_id,
                 checkpoint_id=checkpoint_id,
                 checkpoint_operation="fork",
                 new_workflow_id=new_workflow_id,
+                **trace_author_metadata(author),
             ),
             tags=["workflow", "checkpoint", "fork", self.agent_name],
         ) as run:

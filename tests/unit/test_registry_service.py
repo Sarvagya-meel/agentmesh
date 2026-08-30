@@ -1,5 +1,8 @@
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
+
+import pytest
 
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.services.service_agentmesh_server.registry.repository import (
@@ -64,6 +67,28 @@ def test_agent_heartbeat_records_runtime_telemetry() -> None:
     assert refreshed.last_seen is not None
 
 
+def test_heartbeat_and_get_agent_do_not_trace(monkeypatch: pytest.MonkeyPatch) -> None:
+    traced: list[str] = []
+
+    @contextmanager
+    def fake_span(name: str, **_kwargs: Any) -> Any:
+        traced.append(name)
+        yield None
+
+    monkeypatch.setattr(
+        "agentmesh.services.service_agentmesh_server.registry.service.agentmesh_span",
+        fake_span,
+    )
+    service = RegistryService(InMemoryRegistryRepository())
+    service.register_agent(AgentCard(agent_id="quiet-agent", name="Quiet Agent"))
+    traced.clear()
+
+    service.heartbeat("quiet-agent")
+    service.get_agent("quiet-agent")
+
+    assert traced == []
+
+
 def test_listing_agents_marks_expired_presence_stale() -> None:
     repository = InMemoryRegistryRepository()
     service = RegistryService(repository, stale_seconds=180)
@@ -84,7 +109,9 @@ def test_listing_agents_marks_expired_presence_stale() -> None:
 
 def test_multi_instance_agent_uses_ready_runtime_last_seen() -> None:
     class FakeResourceRepository:
-        def mark_stale_runtime_instances(self, *, stale_seconds: float) -> list[str]:
+        def mark_stale_runtime_instances(
+            self, *, stale_seconds: float, trace: bool = True
+        ) -> list[str]:
             return []
 
         def runtime_availability(self, agent_id: str, *, stale_seconds: float) -> dict[str, Any]:

@@ -24,6 +24,8 @@ from agentmesh.core.observability import (
     agentmesh_run_name,
     agentmesh_span,
     configure_langsmith,
+    resolve_trace_author,
+    trace_author_metadata,
 )
 
 Cleanup = Callable[[], None | Awaitable[None]]
@@ -226,20 +228,28 @@ def create_agent_runtime_app(
                 payload["user_id"] = body.user_id
             try:
                 agent = _agent_from(request)
+                agent_card = agent.agent_card()
+                author = resolve_trace_author(
+                    body.user_id or agent.agent_name,
+                    agent_card=None if body.user_id else agent_card,
+                    author_type="user" if body.user_id else None,
+                )
                 with agentmesh_span(
                     agentmesh_run_name(
                         "Direct",
                         thread_id,
                         body.message,
-                        body.user_id or agent.agent_name,
+                        author.author_name,
                     ),
                     inputs={"message_present": True, "approval_required": body.approval_required},
                     metadata=agentmesh_metadata(
                         agent_id=agent.agent_name,
+                        agent_name=agent_card.name,
                         execution_mode="direct",
                         source="direct",
                         thread_id=thread_id,
                         user_id=body.user_id,
+                        **trace_author_metadata(author),
                     ),
                     tags=["direct", agent.agent_name],
                 ) as run:
@@ -262,19 +272,22 @@ def create_agent_runtime_app(
         ) -> dict[str, Any]:
             try:
                 agent = _agent_from(request)
+                author = resolve_trace_author(agent.agent_name, agent_card=agent.agent_card())
                 with agentmesh_span(
                     agentmesh_run_name(
                         "Direct",
                         thread_id,
                         f"resume approval {body.decision}",
-                        agent.agent_name,
+                        author.author_name,
                     ),
                     inputs={"decision": body.decision, "feedback_present": bool(body.feedback)},
                     metadata=agentmesh_metadata(
                         agent_id=agent.agent_name,
+                        agent_name=author.author_name,
                         execution_mode="direct_resume",
                         source="direct_resume",
                         thread_id=thread_id,
+                        **trace_author_metadata(author),
                     ),
                     tags=["direct", "resume", agent.agent_name],
                 ) as run:
@@ -300,19 +313,22 @@ def create_agent_runtime_app(
             method = getattr(agent, "checkpoint_history", None)
             if method is None:
                 raise HTTPException(status_code=404, detail="Checkpoint history is unavailable.")
+            author = resolve_trace_author(agent.agent_name, agent_card=agent.agent_card())
             with agentmesh_span(
                 agentmesh_run_name(
                     "Direct",
                     thread_id,
                     "checkpoint history",
-                    agent.agent_name,
+                    author.author_name,
                 ),
                 inputs={"thread_id": thread_id},
                 metadata=agentmesh_metadata(
                     agent_id=agent.agent_name,
+                    agent_name=author.author_name,
                     execution_mode="checkpoint_api",
                     thread_id=thread_id,
                     checkpoint_operation="history",
+                    **trace_author_metadata(author),
                 ),
                 tags=["checkpoint", agent.agent_name],
             ) as run:
@@ -331,20 +347,23 @@ def create_agent_runtime_app(
             method = getattr(agent, "replay_checkpoint", None)
             if method is None:
                 raise HTTPException(status_code=404, detail="Checkpoint replay is unavailable.")
+            author = resolve_trace_author(agent.agent_name, agent_card=agent.agent_card())
             with agentmesh_span(
                 agentmesh_run_name(
                     "Direct",
                     thread_id,
                     f"checkpoint replay {body.checkpoint_id}",
-                    agent.agent_name,
+                    author.author_name,
                 ),
                 inputs={"thread_id": thread_id, "checkpoint_id": body.checkpoint_id},
                 metadata=agentmesh_metadata(
                     agent_id=agent.agent_name,
+                    agent_name=author.author_name,
                     execution_mode="checkpoint_api",
                     thread_id=thread_id,
                     checkpoint_id=body.checkpoint_id,
                     checkpoint_operation="replay",
+                    **trace_author_metadata(author),
                 ),
                 tags=["checkpoint", "replay", agent.agent_name],
             ) as run:
@@ -363,12 +382,13 @@ def create_agent_runtime_app(
             method = getattr(agent, "fork_checkpoint", None)
             if method is None:
                 raise HTTPException(status_code=404, detail="Checkpoint fork is unavailable.")
+            author = resolve_trace_author(agent.agent_name, agent_card=agent.agent_card())
             with agentmesh_span(
                 agentmesh_run_name(
                     "Direct",
                     thread_id,
                     f"checkpoint fork {body.checkpoint_id}",
-                    agent.agent_name,
+                    author.author_name,
                 ),
                 inputs={
                     "thread_id": thread_id,
@@ -378,11 +398,13 @@ def create_agent_runtime_app(
                 },
                 metadata=agentmesh_metadata(
                     agent_id=agent.agent_name,
+                    agent_name=author.author_name,
                     execution_mode="checkpoint_api",
                     thread_id=thread_id,
                     checkpoint_id=body.checkpoint_id,
                     checkpoint_operation="fork",
                     new_thread_id=body.new_thread_id,
+                    **trace_author_metadata(author),
                 ),
                 tags=["checkpoint", "fork", agent.agent_name],
             ) as run:

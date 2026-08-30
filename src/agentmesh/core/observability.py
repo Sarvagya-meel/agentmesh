@@ -3,12 +3,35 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from agentmesh.config import Settings
 
 SECRET_METADATA_KEYS = {"api_key", "claim_token", "token", "secret", "password"}
 MAX_RUN_NAME_FIELD_LENGTH = 80
+SYSTEM_TRACE_IDENTITIES = {
+    "agentmesh-registry": ("AgentMesh Registry", "registry"),
+    "registry": ("AgentMesh Registry", "registry"),
+    "agentmesh-control-plane": ("AgentMesh Control Plane", "control_plane"),
+    "control-plane": ("AgentMesh Control Plane", "control_plane"),
+    "orchestrator-supervisor-agent": ("orchestrator-supervisor-agent", "agent"),
+    "system": ("system", "system"),
+    "api": ("AgentMesh API", "api"),
+    "request": ("request", "request"),
+}
+
+
+@dataclass(frozen=True)
+class TraceIdentity:
+    """Resolved author/resource identity for AgentMesh LangSmith metadata."""
+
+    author_id: str
+    author_name: str
+    author_type: str
+    author_owner: str | None = None
+    resource_id: str | None = None
+    runtime_instance_id: str | None = None
 
 
 def configure_langsmith(settings: Settings) -> None:
@@ -54,6 +77,76 @@ def agentmesh_metadata(**values: Any) -> dict[str, Any]:
     return metadata
 
 
+def resolve_trace_author(
+    identity: Any = None,
+    *,
+    agent_card: Any = None,
+    resource: Mapping[str, Any] | None = None,
+    fallback_name: str | None = None,
+    author_type: str | None = None,
+) -> TraceIdentity:
+    """Resolve an AgentMesh author from AgentCards/resources before raw IDs."""
+
+    if agent_card is not None:
+        metadata = getattr(agent_card, "metadata", {}) or {}
+        author_id = str(getattr(agent_card, "agent_id", identity or fallback_name or "unknown"))
+        return TraceIdentity(
+            author_id=author_id,
+            author_name=str(getattr(agent_card, "name", None) or fallback_name or author_id),
+            author_type=author_type or "agent",
+            author_owner=getattr(agent_card, "owner", None),
+            resource_id=str(metadata.get("resource_id") or author_id),
+            runtime_instance_id=_optional_str(metadata.get("runtime_instance_id")),
+        )
+
+    if resource is not None:
+        metadata = resource.get("metadata", {})
+        metadata = metadata if isinstance(metadata, Mapping) else {}
+        resource_id = str(resource.get("resource_id") or identity or fallback_name or "unknown")
+        return TraceIdentity(
+            author_id=str(resource.get("agent_id") or metadata.get("agent_id") or resource_id),
+            author_name=str(resource.get("name") or fallback_name or resource_id),
+            author_type=author_type or str(resource.get("resource_type") or "resource"),
+            author_owner=_optional_str(resource.get("owner")),
+            resource_id=resource_id,
+            runtime_instance_id=_optional_str(metadata.get("runtime_instance_id")),
+        )
+
+    author_id = str(identity or fallback_name or "unknown")
+    system_identity = SYSTEM_TRACE_IDENTITIES.get(author_id.lower())
+    if system_identity is not None:
+        return TraceIdentity(
+            author_id=author_id,
+            author_name=system_identity[0],
+            author_type=author_type or system_identity[1],
+            resource_id=author_id,
+        )
+    return TraceIdentity(
+        author_id=author_id,
+        author_name=fallback_name or author_id,
+        author_type=author_type or "entity",
+        resource_id=author_id,
+    )
+
+
+def trace_author_metadata(
+    author: TraceIdentity,
+    *,
+    prefix: str = "author",
+) -> dict[str, Any]:
+    """Return metadata fields for a resolved trace author."""
+
+    values: dict[str, Any] = {
+        f"{prefix}_id": author.author_id,
+        f"{prefix}_name": author.author_name,
+        f"{prefix}_type": author.author_type,
+        f"{prefix}_owner": author.author_owner,
+        f"{prefix}_resource_id": author.resource_id,
+        f"{prefix}_runtime_instance_id": author.runtime_instance_id,
+    }
+    return agentmesh_metadata(**values)
+
+
 def agentmesh_run_name(
     mode: str,
     unique_id: Any,
@@ -84,6 +177,10 @@ def _timestamp() -> str:
     from datetime import UTC, datetime
 
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _optional_str(value: Any) -> str | None:
+    return None if value is None else str(value)
 
 
 @contextmanager
