@@ -11,6 +11,7 @@ from agentmesh.core.models.exceptions import (
     ClaimConflictError,
     ValidationError,
 )
+from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
 from agentmesh.services.service_agentmesh_server.database.repository import ClaimRepository
 from agentmesh.services.service_agentmesh_server.events.service import EventService
 from agentmesh.services.service_agentmesh_server.registry.service import RegistryService
@@ -41,8 +42,30 @@ class WorkerService:
         if card is None:
             raise AgentRegistryError(f"Agent {agent_id!r} is not registered.")
         if not self.registry_service.is_assignment_ready(agent_id):
-            raise AgentRegistryError(f"Agent {agent_id!r} has no ready worker or combined runtime.")
-        return self.event_service.list_pending_assignments(agent_id, limit=limit)
+            raise AgentRegistryError(
+                f"Agent {agent_id!r} has no ready worker or combined runtime."
+            )
+        assignments = self.event_service.list_pending_assignments(agent_id, limit=limit)
+        if not assignments:
+            return assignments
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                assignments[0].workflow_id,
+                "worker list assignments",
+                agent_id,
+            ),
+            inputs={"agent_id": agent_id, "limit": limit},
+            metadata=agentmesh_metadata(
+                agent_id=agent_id,
+                workflow_id=assignments[0].workflow_id,
+                limit=limit,
+            ),
+            tags=["worker", "assignments", agent_id],
+        ) as run:
+            if run is not None:
+                run.end(outputs={"assignment_count": len(assignments)})
+        return assignments
 
     def submit_directed_assignment(
         self,
@@ -94,16 +117,36 @@ class WorkerService:
     ) -> AssignmentClaim:
         """Validate and atomically lease an assignment to one worker instance."""
 
-        self._get_assignment(event_id, agent_id=agent_id)
-        claim = self.claim_repository.try_claim(
-            event_id,
-            agent_id=agent_id,
-            worker_id=worker_id,
-            lease_seconds=self.lease_seconds,
-        )
-        if claim is None:
-            raise ClaimConflictError(f"Assignment {event_id} is already claimed.")
-        return claim
+        with agentmesh_span(
+            agentmesh_run_name("WorkFlow", event_id, "assignment claim", agent_id),
+            inputs={"event_id": str(event_id), "agent_id": agent_id, "worker_id": worker_id},
+            metadata=agentmesh_metadata(
+                event_id=event_id,
+                assignment_event_id=event_id,
+                agent_id=agent_id,
+                worker_id=worker_id,
+                lease_seconds=self.lease_seconds,
+            ),
+            tags=["worker", "claim", agent_id],
+        ) as run:
+            self._get_assignment(event_id, agent_id=agent_id)
+            claim = self.claim_repository.try_claim(
+                event_id,
+                agent_id=agent_id,
+                worker_id=worker_id,
+                lease_seconds=self.lease_seconds,
+            )
+            if claim is None:
+                raise ClaimConflictError(f"Assignment {event_id} is already claimed.")
+            if run is not None:
+                run.end(
+                    outputs={
+                        "attempt_number": claim.attempt_number,
+                        "lease_expires_at": claim.lease_expires_at.isoformat(),
+                        "claim_token_present": True,
+                    }
+                )
+            return claim
 
     async def submit_result(
         self,
@@ -118,8 +161,53 @@ class WorkerService:
         """Verify claim ownership, resume orchestration, and close the lease."""
 
         assignment = self._get_assignment(event_id, agent_id=agent_id)
+        task = self._task_payload(assignment)
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                assignment.workflow_id,
+                f"assignment result {status}",
+                agent_id,
+            ),
+            inputs={"status": status, "result_keys": sorted(result)},
+            metadata=agentmesh_metadata(
+                workflow_id=assignment.workflow_id,
+                conversation_id=assignment.conversation_id,
+                event_id=event_id,
+                assignment_event_id=event_id,
+                agent_id=agent_id,
+                worker_id=worker_id,
+                task_id=task.get("task_id"),
+                claim_token=claim_token,
+            ),
+            tags=["worker", "result", agent_id],
+        ) as run:
+            response = await self._submit_result_inner(
+                assignment,
+                task,
+                agent_id=agent_id,
+                worker_id=worker_id,
+                claim_token=claim_token,
+                status=status,
+                result=result,
+            )
+            if run is not None:
+                run.end(outputs={"workflow_status": response.get("status")})
+            return response
+
+    async def _submit_result_inner(
+        self,
+        assignment: Event,
+        task: dict[str, Any],
+        *,
+        agent_id: str,
+        worker_id: str,
+        claim_token: UUID,
+        status: str,
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
         active_claim = self.claim_repository.validate_claim(
-            event_id,
+            assignment.event_id,
             agent_id=agent_id,
             worker_id=worker_id,
             claim_token=claim_token,
@@ -129,7 +217,6 @@ class WorkerService:
                 "The assignment claim is missing, expired, or owned elsewhere."
             )
 
-        task = self._task_payload(assignment)
         task_id = UUID(str(task["task_id"]))
         normalized_status = status.strip().upper()
         if normalized_status == "RETRY":
@@ -143,7 +230,7 @@ class WorkerService:
                 provider_delay = 0.0
             retry_after_seconds = min(max(base_backoff + jitter, provider_delay), 60)
             failed_claim = self.claim_repository.record_failure(
-                event_id,
+                assignment.event_id,
                 agent_id=agent_id,
                 worker_id=worker_id,
                 claim_token=claim_token,
@@ -208,7 +295,7 @@ class WorkerService:
             result=result,
         )
         completed = self.claim_repository.complete(
-            event_id,
+            assignment.event_id,
             agent_id=agent_id,
             worker_id=worker_id,
             claim_token=claim_token,
@@ -266,17 +353,31 @@ class WorkerService:
         worker_id: str,
         claim_token: UUID,
     ) -> AssignmentClaim:
-        self._get_assignment(event_id, agent_id=agent_id)
-        renewed = self.claim_repository.renew(
-            event_id,
-            agent_id=agent_id,
-            worker_id=worker_id,
-            claim_token=claim_token,
-            lease_seconds=self.lease_seconds,
-        )
-        if renewed is None:
-            raise ClaimConflictError("The assignment lease cannot be renewed.")
-        return renewed
+        with agentmesh_span(
+            agentmesh_run_name("WorkFlow", event_id, "assignment lease renew", agent_id),
+            inputs={"event_id": str(event_id), "agent_id": agent_id, "worker_id": worker_id},
+            metadata=agentmesh_metadata(
+                event_id=event_id,
+                assignment_event_id=event_id,
+                agent_id=agent_id,
+                worker_id=worker_id,
+                claim_token=claim_token,
+            ),
+            tags=["worker", "lease", agent_id],
+        ) as run:
+            self._get_assignment(event_id, agent_id=agent_id)
+            renewed = self.claim_repository.renew(
+                event_id,
+                agent_id=agent_id,
+                worker_id=worker_id,
+                claim_token=claim_token,
+                lease_seconds=self.lease_seconds,
+            )
+            if renewed is None:
+                raise ClaimConflictError("The assignment lease cannot be renewed.")
+            if run is not None:
+                run.end(outputs={"lease_expires_at": renewed.lease_expires_at.isoformat()})
+            return renewed
 
     def _get_assignment(self, event_id: UUID, *, agent_id: str) -> Event:
         event = self.event_service.get_by_id(event_id)

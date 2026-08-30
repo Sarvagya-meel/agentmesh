@@ -12,6 +12,7 @@ from langgraph.store.memory import InMemoryStore
 
 from agentmesh.config import Settings
 from agentmesh.core.models.exceptions import ValidationError
+from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
 
 
 def create_langgraph_checkpointer(
@@ -21,7 +22,15 @@ def create_langgraph_checkpointer(
 
     backend = settings.langgraph_checkpoint_backend.strip().lower()
     if backend == "memory":
-        return MemorySaver(), lambda: None
+        with agentmesh_span(
+            agentmesh_run_name("CheckPointer", "memory", "setup", "system"),
+            metadata=agentmesh_metadata(
+                checkpoint_backend="memory",
+                checkpoint_operation="setup",
+            ),
+            tags=["checkpoint", "setup"],
+        ):
+            return MemorySaver(), lambda: None
     if backend != "postgres":
         raise ValidationError("LANGGRAPH_CHECKPOINT_BACKEND must be memory or postgres.")
 
@@ -41,9 +50,17 @@ def create_langgraph_checkpointer(
         prepare_threshold=0,
         row_factory=dict_row,
     )
-    checkpointer = PostgresSaver(connection)
-    checkpointer.setup()
-    return checkpointer, connection.close
+    with agentmesh_span(
+        agentmesh_run_name("CheckPointer", "postgres", "setup", "system"),
+        metadata=agentmesh_metadata(
+            checkpoint_backend="postgres",
+            checkpoint_operation="setup",
+        ),
+        tags=["checkpoint", "postgres", "setup"],
+    ):
+        checkpointer = PostgresSaver(connection)
+        checkpointer.setup()
+        return checkpointer, connection.close
 
 
 async def create_async_langgraph_checkpointer(
@@ -57,7 +74,15 @@ async def create_async_langgraph_checkpointer(
         async def close_memory() -> None:
             return None
 
-        return MemorySaver(), close_memory
+        with agentmesh_span(
+            agentmesh_run_name("CheckPointer", "memory", "async setup", "system"),
+            metadata=agentmesh_metadata(
+                checkpoint_backend="memory",
+                checkpoint_operation="setup",
+            ),
+            tags=["checkpoint", "setup"],
+        ):
+            return MemorySaver(), close_memory
     if backend != "postgres":
         raise ValidationError("LANGGRAPH_CHECKPOINT_BACKEND must be memory or postgres.")
 
@@ -70,8 +95,16 @@ async def create_async_langgraph_checkpointer(
 
     url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
     context_manager = AsyncPostgresSaver.from_conn_string(url)
-    checkpointer = await context_manager.__aenter__()
-    await checkpointer.setup()
+    with agentmesh_span(
+        agentmesh_run_name("CheckPointer", "postgres", "async setup", "system"),
+        metadata=agentmesh_metadata(
+            checkpoint_backend="postgres",
+            checkpoint_operation="setup",
+        ),
+        tags=["checkpoint", "postgres", "setup"],
+    ):
+        checkpointer = await context_manager.__aenter__()
+        await checkpointer.setup()
 
     async def close() -> None:
         await context_manager.__aexit__(None, None, None)

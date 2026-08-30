@@ -15,6 +15,7 @@ from google.adk.sessions import BaseSessionService, DatabaseSessionService
 from google.genai import types
 
 from agentmesh.agents.common.base_agent import BaseAgent
+from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
 
 
 class GoogleADKAgent(BaseAgent):
@@ -59,28 +60,53 @@ class GoogleADKAgent(BaseAgent):
     def run_task(self, task_payload: dict[str, Any]) -> dict[str, Any]:
         prompt = self._task_prompt(task_payload)
         user_id, session_id = self._session_identity(task_payload)
-        if self._executor is not None:
-            reply = self._executor(prompt)
-        elif self._adk_runner is not None and self._event_loop is not None:
-            with self._runner_lock:
-                reply = asyncio.run_coroutine_threadsafe(
-                    self._execute_adk(prompt, user_id=user_id, session_id=session_id),
-                    self._event_loop,
-                ).result()
-        else:
-            reply = f"Local ADK fallback response for: {prompt}"
-        return {
-            "status": "success",
-            "agent": self.agent_name,
-            "model": self.model_name,
-            "final_reply": reply,
-            "source": (
+        nested_payload = task_payload.get("payload")
+        nested = nested_payload if isinstance(nested_payload, dict) else {}
+        workflow_id = str(task_payload.get("workflow_id") or nested.get("workflow_id") or "")
+        task_id = str(task_payload.get("task_id") or nested.get("task_id") or "")
+        mode = "WorkFlow" if workflow_id or task_id else "Direct"
+        unique_id = workflow_id or session_id
+        with agentmesh_span(
+            agentmesh_run_name(mode, unique_id, prompt, user_id),
+            inputs={"prompt": prompt},
+            metadata=agentmesh_metadata(
+                agent_id=self.agent_name,
+                execution_mode="workflow" if mode == "WorkFlow" else "direct",
+                workflow_id=workflow_id,
+                task_id=task_id,
+                session_id=session_id,
+                user_id=user_id,
+                model=self.model_name,
+                framework="google_adk",
+            ),
+            tags=["google-adk", self.agent_name],
+        ) as run:
+            if self._executor is not None:
+                reply = self._executor(prompt)
+            elif self._adk_runner is not None and self._event_loop is not None:
+                with self._runner_lock:
+                    reply = asyncio.run_coroutine_threadsafe(
+                        self._execute_adk(prompt, user_id=user_id, session_id=session_id),
+                        self._event_loop,
+                    ).result()
+            else:
+                reply = f"Local ADK fallback response for: {prompt}"
+            source = (
                 "google_adk_llm"
                 if self._executor is not None or self._adk_runner is not None
                 else "local_fallback"
-            ),
-            "session_id": session_id,
-        }
+            )
+            response = {
+                "status": "success",
+                "agent": self.agent_name,
+                "model": self.model_name,
+                "final_reply": reply,
+                "source": source,
+                "session_id": session_id,
+            }
+            if run is not None:
+                run.end(outputs={"status": response["status"], "source": source})
+            return response
 
     def run_conversation(self, user_message: str) -> dict[str, Any]:
         return self.run_task({"messages": [user_message]})

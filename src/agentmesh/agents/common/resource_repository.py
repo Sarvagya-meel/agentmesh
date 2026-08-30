@@ -10,6 +10,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from agentmesh.core.models.agent_card import AgentCard
+from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
 
 
 def normalise_postgres_url(connection_url: str) -> str:
@@ -46,38 +47,50 @@ class PostgresResourceRepository:
         merged_metadata = dict(card.metadata)
         if metadata:
             merged_metadata.update(metadata)
-        with self._connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO agentmesh_resources (
-                    resource_id, resource_type, name, status, endpoint, owner,
-                    capabilities, metadata, registered_at, last_seen, updated_at
-                ) VALUES (
-                    %s, 'agent', %s, %s, %s, %s, %s, %s, %s, %s, %s
+        with agentmesh_span(
+            agentmesh_run_name("Registry", card.agent_id, "resource upsert agent", card.agent_id),
+            inputs={"capabilities": card.capabilities, "status": status},
+            metadata=agentmesh_metadata(
+                agent_id=card.agent_id,
+                resource_id=card.agent_id,
+                resource_type="agent",
+                resource_status=status,
+                runtime_instance_id=merged_metadata.get("runtime_instance_id"),
+            ),
+            tags=["resource", "agent", card.agent_id],
+        ):
+            with self._connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO agentmesh_resources (
+                        resource_id, resource_type, name, status, endpoint, owner,
+                        capabilities, metadata, registered_at, last_seen, updated_at
+                    ) VALUES (
+                        %s, 'agent', %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    )
+                    ON CONFLICT (resource_id) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        status = EXCLUDED.status,
+                        endpoint = EXCLUDED.endpoint,
+                        owner = EXCLUDED.owner,
+                        capabilities = EXCLUDED.capabilities,
+                        metadata = agentmesh_resources.metadata || EXCLUDED.metadata,
+                        last_seen = EXCLUDED.last_seen,
+                        updated_at = EXCLUDED.updated_at
+                    """,
+                    (
+                        card.agent_id,
+                        card.name,
+                        status,
+                        card.endpoint,
+                        card.owner,
+                        Jsonb(card.capabilities),
+                        Jsonb(merged_metadata),
+                        card.registered_at,
+                        now,
+                        now,
+                    ),
                 )
-                ON CONFLICT (resource_id) DO UPDATE SET
-                    name = EXCLUDED.name,
-                    status = EXCLUDED.status,
-                    endpoint = EXCLUDED.endpoint,
-                    owner = EXCLUDED.owner,
-                    capabilities = EXCLUDED.capabilities,
-                    metadata = agentmesh_resources.metadata || EXCLUDED.metadata,
-                    last_seen = EXCLUDED.last_seen,
-                    updated_at = EXCLUDED.updated_at
-                """,
-                (
-                    card.agent_id,
-                    card.name,
-                    status,
-                    card.endpoint,
-                    card.owner,
-                    Jsonb(card.capabilities),
-                    Jsonb(merged_metadata),
-                    card.registered_at,
-                    now,
-                    now,
-                ),
-            )
 
     def upsert_resource(
         self,
@@ -93,43 +106,63 @@ class PostgresResourceRepository:
         parent_resource_id: str | None = None,
     ) -> None:
         now = datetime.now(UTC)
-        with self._connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO agentmesh_resources (
-                    resource_id, resource_type, name, status, endpoint, owner,
-                    capabilities, metadata, parent_resource_id,
-                    registered_at, last_seen, updated_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        safe_metadata = metadata or {}
+        with agentmesh_span(
+            agentmesh_run_name(
+                "Registry",
+                resource_id,
+                f"resource upsert {resource_type} {name}",
+                str(safe_metadata.get("agent_id") or parent_resource_id or "system"),
+            ),
+            inputs={"capabilities": capabilities or [], "status": status},
+            metadata=agentmesh_metadata(
+                agent_id=safe_metadata.get("agent_id") or parent_resource_id,
+                resource_id=resource_id,
+                resource_type=resource_type,
+                resource_status=status,
+                parent_resource_id=parent_resource_id,
+                runtime_instance_id=safe_metadata.get("runtime_instance_id"),
+                worker_id=safe_metadata.get("worker_id"),
+            ),
+            tags=["resource", resource_type],
+        ):
+            with self._connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO agentmesh_resources (
+                        resource_id, resource_type, name, status, endpoint, owner,
+                        capabilities, metadata, parent_resource_id,
+                        registered_at, last_seen, updated_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    )
+                    ON CONFLICT (resource_id) DO UPDATE SET
+                        resource_type = EXCLUDED.resource_type,
+                        name = EXCLUDED.name,
+                        status = EXCLUDED.status,
+                        endpoint = EXCLUDED.endpoint,
+                        owner = EXCLUDED.owner,
+                        capabilities = EXCLUDED.capabilities,
+                        metadata = agentmesh_resources.metadata || EXCLUDED.metadata,
+                        parent_resource_id = EXCLUDED.parent_resource_id,
+                        last_seen = EXCLUDED.last_seen,
+                        updated_at = EXCLUDED.updated_at
+                    """,
+                    (
+                        resource_id,
+                        resource_type,
+                        name,
+                        status,
+                        endpoint,
+                        owner,
+                        Jsonb(capabilities or []),
+                        Jsonb(metadata or {}),
+                        parent_resource_id,
+                        now,
+                        now,
+                        now,
+                    ),
                 )
-                ON CONFLICT (resource_id) DO UPDATE SET
-                    resource_type = EXCLUDED.resource_type,
-                    name = EXCLUDED.name,
-                    status = EXCLUDED.status,
-                    endpoint = EXCLUDED.endpoint,
-                    owner = EXCLUDED.owner,
-                    capabilities = EXCLUDED.capabilities,
-                    metadata = agentmesh_resources.metadata || EXCLUDED.metadata,
-                    parent_resource_id = EXCLUDED.parent_resource_id,
-                    last_seen = EXCLUDED.last_seen,
-                    updated_at = EXCLUDED.updated_at
-                """,
-                (
-                    resource_id,
-                    resource_type,
-                    name,
-                    status,
-                    endpoint,
-                    owner,
-                    Jsonb(capabilities or []),
-                    Jsonb(metadata or {}),
-                    parent_resource_id,
-                    now,
-                    now,
-                    now,
-                ),
-            )
 
     def record_audit_event(
         self,
@@ -144,26 +177,49 @@ class PostgresResourceRepository:
         event_id: UUID | None = None,
     ) -> UUID:
         audit_id = uuid4()
-        with self._connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO agentmesh_resource_audit_events (
-                    audit_id, resource_id, event_type, severity, actor, message,
-                    payload, workflow_id, event_id
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    audit_id,
-                    resource_id,
-                    event_type,
-                    severity,
-                    actor,
-                    message,
-                    Jsonb(payload or {}),
-                    workflow_id,
-                    event_id,
-                ),
-            )
+        safe_payload = payload or {}
+        with agentmesh_span(
+            agentmesh_run_name(
+                "Audit",
+                audit_id,
+                f"audit {event_type}",
+                actor,
+            ),
+            inputs={"event_type": event_type, "severity": severity},
+            metadata=agentmesh_metadata(
+                audit_id=audit_id,
+                resource_id=resource_id,
+                event_type=event_type,
+                severity=severity,
+                actor=actor,
+                workflow_id=workflow_id,
+                event_id=event_id,
+                agent_id=safe_payload.get("agent_id"),
+                runtime_instance_id=safe_payload.get("runtime_instance_id"),
+                worker_id=safe_payload.get("worker_id"),
+            ),
+            tags=["audit", event_type],
+        ):
+            with self._connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO agentmesh_resource_audit_events (
+                        audit_id, resource_id, event_type, severity, actor, message,
+                        payload, workflow_id, event_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        audit_id,
+                        resource_id,
+                        event_type,
+                        severity,
+                        actor,
+                        message,
+                        Jsonb(payload or {}),
+                        workflow_id,
+                        event_id,
+                    ),
+                )
         return audit_id
 
     def runtime_availability(

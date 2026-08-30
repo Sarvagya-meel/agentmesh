@@ -6,6 +6,7 @@ from typing import Any
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.core.models.exceptions import AgentRegistryError
+from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
 from agentmesh.services.service_agentmesh_server.registry.repository import RegistryRepository
 
 
@@ -24,36 +25,93 @@ class RegistryService:
         self.resource_repository = resource_repository
 
     def register_agent(self, card: AgentCard) -> AgentCard:
-        existing = self.repository.get(card.agent_id)
-        if existing is not None and existing.status == "online":
-            raise AgentRegistryError(f"Agent {card.agent_id!r} is already registered.")
-        card.last_seen = datetime.now(UTC)
-        return self.repository.register(card)
+        with agentmesh_span(
+            agentmesh_run_name("Registry", card.agent_id, "register agent", card.agent_id),
+            inputs={"agent_id": card.agent_id, "capabilities": card.capabilities},
+            metadata=agentmesh_metadata(
+                agent_id=card.agent_id,
+                registry_operation="register",
+                execution_mode="registry",
+            ),
+            tags=["registry", card.agent_id],
+        ) as run:
+            existing = self.repository.get(card.agent_id)
+            if existing is not None and existing.status == "online":
+                raise AgentRegistryError(f"Agent {card.agent_id!r} is already registered.")
+            card.last_seen = datetime.now(UTC)
+            registered = self.repository.register(card)
+            if run is not None:
+                run.end(outputs={"status": registered.status})
+            return registered
 
     def upsert_agent(self, card: AgentCard) -> AgentCard:
-        card.last_seen = datetime.now(UTC)
-        return self.repository.register(card)
+        with agentmesh_span(
+            agentmesh_run_name("Registry", card.agent_id, "upsert agent", card.agent_id),
+            inputs={"agent_id": card.agent_id, "capabilities": card.capabilities},
+            metadata=agentmesh_metadata(
+                agent_id=card.agent_id,
+                registry_operation="upsert",
+                execution_mode="registry",
+            ),
+            tags=["registry", card.agent_id],
+        ) as run:
+            card.last_seen = datetime.now(UTC)
+            registered = self.repository.register(card)
+            if run is not None:
+                run.end(outputs={"status": registered.status})
+            return registered
 
     def heartbeat(self, agent_id: str, telemetry: dict[str, Any] | None = None) -> AgentCard:
-        card = self.repository.get(agent_id)
-        if card is None:
-            raise AgentRegistryError(f"Agent {agent_id!r} not found in the registry.")
-        card.last_seen = datetime.now(UTC)
-        if self.resource_repository is None:
-            runtime_status = str((telemetry or {}).get("runtime_status", "READY")).upper()
-            card.status = {
-                "STARTING": "starting",
-                "READY": "online",
-                "DEGRADED": "degraded",
-                "DRAINING": "draining",
-                "OFFLINE": "offline",
-            }.get(runtime_status, "degraded")
-            card.metadata = {**card.metadata, **(telemetry or {})}
-        return self.repository.register(card)
+        safe_telemetry = telemetry or {}
+        with agentmesh_span(
+            agentmesh_run_name("Registry", agent_id, "agent heartbeat", agent_id),
+            inputs={
+                "agent_id": agent_id,
+                "runtime_status": safe_telemetry.get("runtime_status"),
+            },
+            metadata=agentmesh_metadata(
+                agent_id=agent_id,
+                registry_operation="heartbeat",
+                execution_mode="registry",
+                runtime_instance_id=safe_telemetry.get("runtime_instance_id"),
+                runtime_status=safe_telemetry.get("runtime_status"),
+                runtime_role=safe_telemetry.get("runtime_role"),
+            ),
+            tags=["registry", "heartbeat", agent_id],
+        ) as run:
+            card = self.repository.get(agent_id)
+            if card is None:
+                raise AgentRegistryError(f"Agent {agent_id!r} not found in the registry.")
+            card.last_seen = datetime.now(UTC)
+            if self.resource_repository is None:
+                runtime_status = str(safe_telemetry.get("runtime_status", "READY")).upper()
+                card.status = {
+                    "STARTING": "starting",
+                    "READY": "online",
+                    "DEGRADED": "degraded",
+                    "DRAINING": "draining",
+                    "OFFLINE": "offline",
+                }.get(runtime_status, "degraded")
+                card.metadata = {**card.metadata, **safe_telemetry}
+            registered = self.repository.register(card)
+            if run is not None:
+                run.end(outputs={"status": registered.status})
+            return registered
 
     def list_agents(self) -> list[AgentCard]:
-        self.mark_stale_agents()
-        return [self._aggregate_card(card) for card in self.repository.list_agents()]
+        with agentmesh_span(
+            agentmesh_run_name("Registry", "registry", "list agents", "request"),
+            metadata=agentmesh_metadata(
+                registry_operation="list_agents",
+                execution_mode="registry",
+            ),
+            tags=["registry", "list"],
+        ) as run:
+            self.mark_stale_agents()
+            cards = [self._aggregate_card(card) for card in self.repository.list_agents()]
+            if run is not None:
+                run.end(outputs={"agent_count": len(cards)})
+            return cards
 
     def get_agent(self, agent_id: str) -> AgentCard | None:
         self.mark_stale_agents()

@@ -71,6 +71,11 @@ async def start_workflow(
         memory_opt_in=body.memory_opt_in,
         memory_updates=body.memory_updates,
         memory_delete_keys=body.memory_delete_keys,
+        trace_metadata={
+            "trigger_source": "api",
+            "trigger_route": "POST /workflows/start",
+            "execution_mode": "workflow",
+        },
     )
 
 

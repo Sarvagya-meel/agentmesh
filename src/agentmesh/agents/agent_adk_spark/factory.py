@@ -23,6 +23,8 @@ def create_google_adk_worker_agent(
         api_key = groq_api_key(settings)
     except ValidationError:
         return GoogleADKAgent(auto_register=False), lambda: None
+    if _uses_adk_incompatible_groq_model(settings.groq_model):
+        return GoogleADKAgent(auto_register=False, model_name=settings.groq_model), lambda: None
 
     session_service = create_google_adk_session_service(settings)
     agent = GoogleADKAgent(
@@ -32,3 +34,10 @@ def create_google_adk_worker_agent(
         session_service=session_service,
     )
     return agent, agent.close
+
+
+def _uses_adk_incompatible_groq_model(model_name: str) -> bool:
+    """Return true for Groq models that currently emit unsupported ADK tool calls."""
+
+    normalized = model_name.strip().lower()
+    return normalized.startswith("openai/gpt-oss")
