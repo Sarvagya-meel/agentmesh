@@ -63,40 +63,21 @@ class RegistryService:
 
     def heartbeat(self, agent_id: str, telemetry: dict[str, Any] | None = None) -> AgentCard:
         safe_telemetry = telemetry or {}
-        with agentmesh_span(
-            agentmesh_run_name("Registry", agent_id, "agent heartbeat", agent_id),
-            inputs={
-                "agent_id": agent_id,
-                "runtime_status": safe_telemetry.get("runtime_status"),
-            },
-            metadata=agentmesh_metadata(
-                agent_id=agent_id,
-                registry_operation="heartbeat",
-                execution_mode="registry",
-                runtime_instance_id=safe_telemetry.get("runtime_instance_id"),
-                runtime_status=safe_telemetry.get("runtime_status"),
-                runtime_role=safe_telemetry.get("runtime_role"),
-            ),
-            tags=["registry", "heartbeat", agent_id],
-        ) as run:
-            card = self.repository.get(agent_id)
-            if card is None:
-                raise AgentRegistryError(f"Agent {agent_id!r} not found in the registry.")
-            card.last_seen = datetime.now(UTC)
-            if self.resource_repository is None:
-                runtime_status = str(safe_telemetry.get("runtime_status", "READY")).upper()
-                card.status = {
-                    "STARTING": "starting",
-                    "READY": "online",
-                    "DEGRADED": "degraded",
-                    "DRAINING": "draining",
-                    "OFFLINE": "offline",
-                }.get(runtime_status, "degraded")
-                card.metadata = {**card.metadata, **safe_telemetry}
-            registered = self.repository.register(card)
-            if run is not None:
-                run.end(outputs={"status": registered.status})
-            return registered
+        card = self.repository.get(agent_id)
+        if card is None:
+            raise AgentRegistryError(f"Agent {agent_id!r} not found in the registry.")
+        card.last_seen = datetime.now(UTC)
+        if self.resource_repository is None:
+            runtime_status = str(safe_telemetry.get("runtime_status", "READY")).upper()
+            card.status = {
+                "STARTING": "starting",
+                "READY": "online",
+                "DEGRADED": "degraded",
+                "DRAINING": "draining",
+                "OFFLINE": "offline",
+            }.get(runtime_status, "degraded")
+            card.metadata = {**card.metadata, **safe_telemetry}
+        return self.repository.register(card)
 
     def list_agents(self) -> list[AgentCard]:
         with agentmesh_span(

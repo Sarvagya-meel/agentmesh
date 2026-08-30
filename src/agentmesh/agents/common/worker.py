@@ -265,7 +265,7 @@ class AssignmentWorker:
                 "READY", "Agent runtime re-registered after registry state was lost."
             )
             await self._send_heartbeat()
-        await self._upsert_resource(self.runtime_status.lower())
+        await self._upsert_resource(self.runtime_status.lower(), trace=False)
         self._next_heartbeat = now + timedelta(seconds=self.heartbeat_seconds)
 
     async def _register(self) -> None:
@@ -328,7 +328,7 @@ class AssignmentWorker:
         )
         await self._upsert_resource(status.lower())
 
-    async def _upsert_resource(self, status: str) -> None:
+    async def _upsert_resource(self, status: str, *, trace: bool = True) -> None:
         if self.resource_repository is None:
             return
         card = self.agent.agent_card()
@@ -338,6 +338,7 @@ class AssignmentWorker:
             card,
             status="online" if status in {"ready", "online"} else status,
             metadata={"runtime_model": "multi-instance"},
+            trace=trace,
         )
         await asyncio.to_thread(
             self.resource_repository.upsert_resource,
@@ -350,6 +351,7 @@ class AssignmentWorker:
             capabilities=card.capabilities,
             metadata={"worker_id": self.worker_id, **self._telemetry()},
             parent_resource_id=self.agent.agent_name,
+            trace=trace,
         )
 
     async def _record_audit(

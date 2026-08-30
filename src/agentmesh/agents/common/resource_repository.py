@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
@@ -42,12 +43,13 @@ class PostgresResourceRepository:
         *,
         status: str = "online",
         metadata: dict[str, Any] | None = None,
+        trace: bool = True,
     ) -> None:
         now = datetime.now(UTC)
         merged_metadata = dict(card.metadata)
         if metadata:
             merged_metadata.update(metadata)
-        with agentmesh_span(
+        span = agentmesh_span(
             agentmesh_run_name("Registry", card.agent_id, "resource upsert agent", card.agent_id),
             inputs={"capabilities": card.capabilities, "status": status},
             metadata=agentmesh_metadata(
@@ -58,7 +60,9 @@ class PostgresResourceRepository:
                 runtime_instance_id=merged_metadata.get("runtime_instance_id"),
             ),
             tags=["resource", "agent", card.agent_id],
-        ):
+        )
+        context = span if trace else nullcontext()
+        with context:
             with self._connection.cursor() as cursor:
                 cursor.execute(
                     """
@@ -104,10 +108,11 @@ class PostgresResourceRepository:
         capabilities: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
         parent_resource_id: str | None = None,
+        trace: bool = True,
     ) -> None:
         now = datetime.now(UTC)
         safe_metadata = metadata or {}
-        with agentmesh_span(
+        span = agentmesh_span(
             agentmesh_run_name(
                 "Registry",
                 resource_id,
@@ -125,7 +130,9 @@ class PostgresResourceRepository:
                 worker_id=safe_metadata.get("worker_id"),
             ),
             tags=["resource", resource_type],
-        ):
+        )
+        context = span if trace else nullcontext()
+        with context:
             with self._connection.cursor() as cursor:
                 cursor.execute(
                     """
