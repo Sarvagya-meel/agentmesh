@@ -8,7 +8,8 @@ No feature is complete unless its tests pass. Tests are not optional and are not
 
 ### Service Layer — Unit Tests
 
-Every service class must have unit tests covering:
+Every service class, control-plane queue component, and supervisor action handler
+must have tests covering:
 - Happy path for each public method
 - Error and edge-case behavior
 - Dependency injection with in-memory fakes or mocks

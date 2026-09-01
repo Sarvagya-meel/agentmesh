@@ -56,10 +56,11 @@ start time, last heartbeat, and last successful model call.
 Audit and progress trail for any row in `agentmesh_resources`.
 
 `agentmesh_events`
-Workflow timeline and orchestration event log.
+Workflow timeline, planning actions, dispatch events, checkpoint mapping facts, and
+final `workflow.result` delivery records.
 
 `agentmesh_event_claims`
-Worker lease table for safely claiming directed assignments.
+Lease table for safely claiming worker assignments and supervisor actions.
 
 `agentmesh_schema_migrations`
 Tracks applied DDL files by checksum.
@@ -131,6 +132,20 @@ agentmesh_events
 ```
 
 This keeps the dashboard generic instead of hardcoding only agents. Agents, orchestrators, MCP servers, and tools can all appear as resources and emit audit events.
+
+## Control-Plane Runtime State
+
+The local runtime treats PostgreSQL as the durable control-plane store. The
+application repositories own queueing, leased dispatch, retry scheduling,
+dead-lettering, workflow DAG state, deterministic validation records, event
+append/query, and LangGraph checkpoint mappings.
+
+All durable direct and workflow requests should enter through the control plane
+asynchronous path. Workers expose synchronous `/invoke` behind leased dispatch and
+receive immutable manifests keyed by `workflow_id`, `plan_version`, stable
+`step_id`, and named input bindings. The supervisor service claims planning,
+validation, replan, and summary work; transient worker failures such as 429,
+timeouts, and 502-504 responses are retried here without disturbing the supervisor.
 
 ## Future: Postgres MCP Server
 

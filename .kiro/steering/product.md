@@ -9,7 +9,9 @@ The system is designed to run fully locally during development (via Docker Compo
 ## Core Product Values
 
 ### 1. Traceability
-Every action taken by any agent or orchestrator is recorded as an immutable event. Nothing happens outside the event log. This means the full history of any workflow is always available for inspection, debugging, and auditing.
+Every durable action taken by the control plane, supervisor, or workers is recorded
+as an immutable event. This means the full history of any workflow is available
+for inspection, debugging, and auditing.
 
 ### 2. Replayability
 Because state is a deterministic projection from the event log, any workflow can be replayed from scratch by re-processing its events. This enables:
@@ -18,7 +20,10 @@ Because state is a deterministic projection from the event log, any workflow can
 - Disaster recovery by rebuilding state from the event store
 
 ### 3. Controlled Orchestration
-The Orchestrator is the only component that makes structured workflow decisions. It decides what happens next in a workflow and emits task events accordingly. Agents do not coordinate with each other directly — they only respond to events assigned to them.
+The independent supervisor makes structured planning and summary decisions, while
+the durable control plane validates, queues, dispatches, retries, and records
+workflow progress. Agents do not coordinate with each other directly; they receive
+control-plane assignments.
 
 ### 4. Decentralized Event-Driven Collaboration
 Agents collaborate through the Memory Control Plane (MCP) event bus, not through direct calls. This decoupling means:
@@ -42,7 +47,7 @@ AgentMesh is designed to be a general-purpose agentic framework. Future workflow
 
 ## Design Philosophy
 
-- **Events are the source of truth** — not in-memory state, not database rows
-- **Agents are stateless workers** — they read events, do work, emit events
-- **The Orchestrator is a coordinator, not a controller** — it guides workflows but does not execute tasks
+- **Events are the source of truth** — not in-memory state
+- **Agents are stateless workers** — they execute authorized manifests and return structured results
+- **The supervisor plans, the control plane dispatches** — planning is separate from queue ownership and worker execution
 - **Observability is built-in** — not bolted on after the fact

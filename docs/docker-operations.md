@@ -12,7 +12,7 @@ only in the ignored `.env`, and choose exactly one Compose profile through
 The easiest way to manage the stack is using the PowerShell helper scripts in `scripts/`:
 
 ```powershell
-# Start all services (postgres, migrate, orchestrator, agents, streamlit)
+# Start all services (postgres, migrate, control plane, supervisor, agents, streamlit)
 pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
 
 # Check health of all endpoints
@@ -34,10 +34,10 @@ The scripts automatically:
 - Rebuild the `migrate` service on each start/restart to apply any new/changed DDLs
 - Wait for services to be healthy before returning
 
-For step-by-step startup, use the sequential helper:
+For the older combined local sequence, use the sequential helper:
 
 ```powershell
-# Start in order: registry -> streamlit -> agent(s)
+# Start in order: registry/control plane -> streamlit -> agent(s)
 pwsh -File scripts\start_registry_streamlit_agent.ps1
 ```
 
@@ -58,7 +58,7 @@ docker compose --env-file .env -f deployment/docker/compose.yml config
 - It rebuilds to pick up any new/changed DDL files
 - It applies only new or changed DDLs (idempotent)
 - It exits with status 0 after completion
-- The orchestrator waits for `service_completed_successfully` before starting
+- Runtime services wait for `service_completed_successfully` before starting
 
 ## Combined Profile
 
@@ -74,11 +74,16 @@ docker compose --env-file .env `
 
 Host endpoints:
 
-- control plane: `http://localhost:8000`
+- registry/control plane: `http://localhost:8000`
 - LangGraph Copilot: `http://localhost:8101`
 - Google ADK agent: `http://localhost:8102`
 - Streamlit: `http://localhost:8501`
 - PostgreSQL: `localhost:5432`
+
+Durable direct and workflow requests should be submitted to the control plane. The
+supervisor runs as its own service and claims planning, validation, replan, and
+summary actions; workers expose synchronous `/invoke` behind the control-plane
+dispatch path.
 
 ## Split Profile
 
@@ -158,6 +163,7 @@ DDL in place; add the next numbered migration instead.
   and role readiness.
 - `LLM_PROVIDER=groq` requires a valid `GROQ_API_KEY`; use `mock` for credential-free
   local startup.
-- A worker role returning `404` from `/invoke` is expected.
+- A worker role returning `404` from a public Agent Playground `/invoke` request is
+  expected; durable worker invocation goes through control-plane dispatch.
 - Normal heartbeats update runtime presence without writing audit events. Registration,
   degradation, recovery, stale, draining, and shutdown transitions are audited.

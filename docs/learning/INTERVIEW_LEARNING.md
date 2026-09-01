@@ -118,23 +118,46 @@ Built a dynamic Agent Card registry with capability-based discovery and a LangGr
 
 ## 1. Simple Explanation
 
-A minimal multi-agent orchestration is a simple loop where one orchestrator decides the next task, assigns it to the correct specialist, and records every step as an event. The system stays small enough to understand quickly, but it still follows the same production pattern as a larger workflow engine.
+A minimal multi-agent runtime separates planning from durable execution. The
+supervisor decides the plan, the control plane validates and dispatches work, and
+every durable step is recorded as an event. The system stays small enough to
+understand quickly, but it still follows the same production pattern as a larger
+workflow engine.
 
 ## 2. Technical Explanation
 
-The smallest useful orchestration has three moving parts: a planner/orchestrator, a list of agent tasks, and a durable event log. In AgentMesh, the orchestrator emits `WORKFLOW_STARTED` and `TASK_ASSIGNED` events. Each agent receives a directed task, does its work, and emits `TASK_COMPLETED` or `TASK_FAILED`. The orchestrator advances the plan by assigning the next task. This creates a graph-like flow without requiring direct agent-to-agent calls.
+The smallest useful orchestration has four moving parts: a supervisor, a durable
+control plane, a list of agent steps, and an append-only event log. In AgentMesh,
+durable requests enter the control plane asynchronously. The supervisor claims
+planning, validation, replan, and summary actions. The control plane records
+workflow events, dispatches immutable worker manifests, retries transient
+failures, and advances DAG-ready work. This creates a graph-like flow without
+requiring direct agent-to-agent calls.
 
 ## 3. Why It Matters
 
-Most agent failures happen not because the model is bad, but because orchestration is brittle and hard to debug. A minimal orchestrator makes task sequencing, retries, and observability explicit from day one. It also gives teams a clear migration path to a more complex graph engine without rewriting the whole system.
+Most agent failures happen not because the model is bad, but because coordination
+is brittle and hard to debug. A durable control plane makes task sequencing,
+retries, leases, and observability explicit from day one. It also gives teams a
+clear migration path to a more complex graph engine without rewriting the whole
+system.
 
 ## 4. Interview Short Answer
 
-I start multi-agent systems with a tiny orchestrator that emits tasks and records them in a shared event log. That gives me explicit sequencing, observability, and retryability without introducing a large runtime dependency. Once the pattern is proven, the same architecture can expand into a more complex graph or state machine.
+I start multi-agent systems by separating planning from dispatch. The supervisor
+plans and summarizes; the control plane records events, validates the DAG,
+dispatches immutable worker manifests, and handles retries. That gives me explicit
+sequencing, observability, and retryability without letting a model directly
+control execution.
 
 ## 5. Interview Deep-Dive Answer
 
-The minimal orchestrator is intentionally boring but powerful. It does one job: decide which specialist should act next and write the decision into a durable event stream. Each step is a task assignment, and every task completion is another event. If the workflow fails or a task is retried, the same event history still tells the full story. That is the core advantage of event-driven orchestration. It keeps the control plane explicit and the reasoning about failures straightforward.
+The runtime is intentionally boring but powerful. The supervisor does the
+judgment-heavy work: planning, validation review, replanning, and summarization.
+The control plane does the authority-heavy work: queueing, leasing, deterministic
+validation, DAG advancement, retry policy, and event recording. If the workflow
+fails or a task is retried, the event history still tells the full story. That is
+the core advantage of event-driven orchestration.
 
 ## 6. Business Explanation
 
@@ -142,7 +165,11 @@ The business value is operational clarity. Teams can see exactly what happened, 
 
 ## 7. Real Example From AgentMesh
 
-The `MasterOrchestratorAgent` in `src/agentmesh/agents/agent_langgraph_orchestrator_supervisor/agent.py` demonstrates this pattern. It discovers workers by capability, creates a validated plan, pauses at human approval gates, and emits directed `TASK_ASSIGNED` events. The planner and checkpoint implementations remain separate orchestration infrastructure.
+The supervisor pattern in `src/agentmesh/agents/agent_langgraph_orchestrator_supervisor/agent.py`
+demonstrates the planning side of this architecture. The supervisor discovers
+workers by capability, creates a validated plan, and pauses when human input is
+needed. The control plane remains responsible for durable request entry,
+assignment dispatch, retries, event recording, and checkpoint mappings.
 
 ## 8. Trade-offs
 
@@ -170,7 +197,12 @@ AgentMesh is a system where multiple AI agents work together to complete complex
 
 ## 2. Technical Explanation
 
-AgentMesh is a FastAPI-based multi-agent system built on an append-only event log called the Memory Control Plane (MCP). The Orchestrator reads workflow state and emits task events. Agents poll MCP for events addressed to them, execute tasks, and emit result events back. State is a deterministic projection of the event log — it can always be reconstructed by replaying events. Agents never call each other directly; all coordination happens through MCP events.
+AgentMesh is a FastAPI-based multi-agent system built around a durable control
+plane and append-only event log. Durable requests enter the control plane
+asynchronously. The supervisor claims planning and summary actions, while workers
+execute immutable per-step manifests and return structured results. State is a
+deterministic projection of the event log, so it can be reconstructed by replaying
+events. Agents never call each other directly.
 
 ## 3. Why It Matters
 
@@ -325,7 +357,11 @@ The master agent turns a user's goal into a plan, shows that plan to a human, an
 
 ## 2. Technical Explanation
 
-`MasterOrchestratorAgent` is a LangGraph state machine with explicit nodes for registry discovery, plan creation, plan review, task preparation, task review, dispatch, result waiting, and completion. LangGraph interrupts suspend execution at human and worker boundaries. The planner consumes a runtime `AgentCard` snapshot and returns validated `WorkflowPlan` and `PlanTask` models, so worker IDs are discovered dynamically instead of hardcoded. The graph writes domain events through `EventService`; `StateService` rebuilds the workflow projection from those events. Memory backends support local development, while PostgreSQL implementations provide durable events and checkpoints.
+`MasterOrchestratorAgent` is the supervisor-side planning component. It handles
+registry-aware plan creation, validation review, replan, summary, and input
+request points. Durable dispatch does not live inside the supervisor. The control
+plane records workflow events, validates DAG state, maps LangGraph checkpoints,
+and dispatches immutable worker manifests through leased queues.
 
 ## 3. Why It Matters
 
@@ -333,11 +369,24 @@ An LLM should not be allowed to silently invent a plan and trigger many downstre
 
 ## 4. Interview Short Answer
 
-I used LangGraph for the master agent because the workflow has real pause-and-resume boundaries. It discovers workers from a dynamic registry, creates a typed plan, interrupts for plan approval, interrupts again before every task, and dispatches only through directed events. AgentMesh remains the system of record, so workflow state is replayable even though LangGraph manages execution checkpoints.
+I use a LangGraph-backed supervisor because planning has real pause-and-resume
+boundaries. It discovers workers from a dynamic registry, creates a typed plan,
+and can pause for human input. AgentMesh remains the system of record: the control
+plane validates and dispatches work, records events, and maps checkpoints, so
+workflow state is replayable even though LangGraph helps with planning state.
 
 ## 5. Interview Deep-Dive Answer
 
-I separated execution state from business history. LangGraph is responsible for control flow and resumable interrupts, while the append-only AgentMesh event log records durable facts such as plan creation, approval decisions, task proposals, assignments, and results. At workflow start, the coordinator snapshots online Agent Cards. The planner can be replaced by an LLM-backed implementation, but its output must conform to Pydantic models and pass deterministic validation before a human sees it. Plan revision creates a new version rather than mutating history. After plan approval, every task gets its own approval request. An approved task emits `TASK_ASSIGNED`; the coordinator never imports or invokes the worker. It suspends until the API receives the matching worker result, then continues to the next task. This preserves service boundaries and makes tests deterministic. PostgreSQL advisory locks provide per-workflow event ordering, and a PostgreSQL LangGraph saver can restore suspended runs after restart.
+I separated planning judgment from execution authority. LangGraph helps the
+supervisor manage planning state, input requests, checkpoint review, replan, and
+summary. The append-only AgentMesh event log records durable facts such as plan
+creation, approval decisions, assignments, retries, and results. At workflow
+start, the control plane snapshots online Agent Cards. The planner can be
+LLM-backed, but its output must conform to typed models and pass deterministic
+validation. Plan revision creates a new `plan_version` rather than mutating
+history. After approval, the control plane dispatches immutable manifests to
+workers through leases and records the matching results. This preserves service
+boundaries and makes tests deterministic.
 
 ## 6. Business Explanation
 
@@ -345,7 +394,11 @@ The company gets automation without surrendering control. A reviewer can correct
 
 ## 7. Real Example From AgentMesh
 
-A user asks AgentMesh to find a role and apply. The master agent discovers the currently registered job-search agents, proposes the ordered tasks, and pauses. After the plan is approved, it proposes the job-search task. Only after a second approval does it emit a directed assignment to the selected live agent. The next task remains blocked until that worker reports completion.
+A user asks AgentMesh to find a role and apply. The supervisor discovers the
+currently registered job-search agents, proposes the ordered tasks, and pauses if
+input or approval is needed. After the plan is approved, the control plane
+dispatches the first immutable worker manifest. The next task remains blocked
+until dependencies are satisfied and the control plane records the prior result.
 
 ## 8. Trade-offs
 

@@ -1,13 +1,16 @@
 # Agent Runtime, API, Worker, and Registry Guide
 
-This document explains the current AgentMesh V1 runtime. It focuses on how the
-LangGraph agent is started, how API and worker profiles deliver work to the same
-execution contract, how the registry tracks logical agents and running instances,
-and how PostgreSQL coordinates durable workflows and assignment claims.
+This document explains the current AgentMesh local runtime direction. It focuses
+on how agent API and worker profiles share the same execution contract, how the
+durable registry/control plane tracks logical agents and running instances, and
+how PostgreSQL coordinates durable requests, workflow DAG state, leases, retries,
+events, and checkpoint mappings.
 
 ## Core Principle
 
-API and worker modes are inbound interfaces around the same agent execution path:
+API and worker modes are inbound interfaces around the same agent execution path.
+Direct `/invoke` can be used synchronously by the Agent Playground, while durable
+direct and workflow work enters the control plane asynchronously:
 
 ```text
 FastAPI /invoke ---------+
@@ -21,6 +24,23 @@ Communication types used in the diagrams:
 - **Internal HTTP:** communication between containers on the Docker network.
 - **SQL:** durable state and coordination through PostgreSQL.
 - **External HTTPS:** communication with an LLM provider.
+
+## Control Plane And Supervisor
+
+The registry is part of the durable control-plane service. It stores Agent Cards,
+runtime presence, queue state, event timelines, retry state, deterministic
+validation results, workflow DAG state, and LangGraph checkpoint mappings in
+PostgreSQL-backed repositories.
+
+The orchestrator is an independent supervisor service. It does not own the queue
+or directly invoke workers. Instead, it polls and claims planning, validation,
+replan, and summary actions from the control plane. LiteLLM Gateway is required
+for supervisor model calls only. Worker model calls remain a worker concern.
+
+Long planning actions can pause by recording `planning.input_requested`; they
+resume when the control plane records `planning.input_provided`. The terminal
+user-visible workflow output is `workflow.result` with `source=supervisor` and
+`destination=user`.
 
 ## API Profile
 
@@ -97,8 +117,8 @@ sequenceDiagram
     API-->>UI: HTTP response
 ```
 
-The registry is used to discover the direct endpoint and verify readiness. It is
-not called for every graph node or model request.
+The registry/control plane is used to discover the direct endpoint and verify
+readiness. It is not called for every worker graph node or model request.
 
 ## API Profile Registration
 
@@ -142,17 +162,24 @@ API mode provides:
 
 ## Worker Profile
 
-Worker mode registers itself, polls the control plane for directed assignments,
-claims work through PostgreSQL leases, executes the same agent contract, and
-submits a claim-authenticated result. It deliberately has no `/invoke` route.
+Worker mode registers itself, polls the control plane for leased dispatch,
+executes immutable per-step input manifests through the same agent contract, and
+submits a claim-authenticated result. It deliberately has no public direct
+playground route, but the internal worker execution surface is synchronous
+`/invoke`.
 
 ```mermaid
 flowchart LR
     subgraph CONTROL["Control-Plane Process"]
-        ORCHESTRATOR["Orchestrator Supervisor"]
+        QUEUE["Queue, DAG, Validation, Events"]
         WORKER_API["Worker FastAPI Routes"]
         WORKER_SERVICE["WorkerService"]
         REGISTRY["RegistryService"]
+    end
+
+    subgraph SUPERVISOR["Supervisor Service"]
+        SUP_LOOP["Planning Action Poller"]
+        LITELLM["LiteLLM Gateway"]
     end
 
     subgraph WORKER["LangGraph Worker Process<br/>AGENT_RUNTIME_ROLE=worker"]
@@ -170,14 +197,16 @@ flowchart LR
     CHECKPOINTS[("LangGraph checkpoints")]
     MODEL["External LLM Provider"]
 
-    ORCHESTRATOR -->|"SQL append TASK_ASSIGNED"| EVENTS
+    SUP_LOOP -->|"claim planning, validation, replan, summary"| QUEUE
+    SUP_LOOP --> LITELLM
+    QUEUE -->|"SQL append TASK_ASSIGNED"| EVENTS
     LOOP --> CLIENT
     CLIENT -->|"HTTP GET assignments"| WORKER_API
     WORKER_API --> WORKER_SERVICE
     WORKER_SERVICE -->|"SQL find pending tasks"| EVENTS
     CLIENT -->|"HTTP POST claim"| WORKER_API
     WORKER_SERVICE -->|"SQL transaction and row lock"| CLAIMS
-    LOOP -->|"Claimed task"| EXECUTOR
+    LOOP -->|"Claimed immutable step manifest"| EXECUTOR
     EXECUTOR -->|"arun_task()"| AGENT
     AGENT -->|"graph.ainvoke()"| GRAPH
     GRAPH --> CHECKPOINTS
@@ -186,7 +215,7 @@ flowchart LR
     WORKER_SERVICE -->|"SQL extend lease"| CLAIMS
     LOOP -->|"HTTP submit result"| WORKER_API
     WORKER_SERVICE -->|"SQL validate claim"| CLAIMS
-    WORKER_SERVICE -->|"Resume workflow"| ORCHESTRATOR
+    WORKER_SERVICE -->|"record result and update DAG"| QUEUE
     LOOP -->|"SQL presence telemetry"| RESOURCES
 ```
 
@@ -256,54 +285,67 @@ The stored claim includes:
 If two worker replicas race for the same assignment, PostgreSQL grants one claim.
 The other receives HTTP `409 Conflict` and continues polling.
 
+Transient worker errors such as 429, timeouts, and 502-504 responses remain
+control-plane retry concerns. They should be rescheduled or dead-lettered without
+requiring a supervisor wakeup. Semantic failures are promoted to checkpoint review
+or replan actions for the supervisor.
+
 ## Workflow Execution
 
 ```mermaid
 sequenceDiagram
     participant U as User / Streamlit
-    participant O as Orchestrator
+    participant CP as Control Plane
+    participant S as Supervisor Service
     participant E as agentmesh_events
     participant W as Worker
     participant C as agentmesh_event_claims
     participant A as LangGraph Agent
     participant DB as Checkpoint DB
 
-    U->>O: Start workflow with goal
-    O->>E: WORKFLOW_STARTED and PLAN_CREATED
-    O-->>U: AWAITING_PLAN_APPROVAL
-    U->>O: Approve plan
-    O->>E: PLAN_APPROVED and TASK_ASSIGNED
-    O->>DB: Interrupt waiting for agent result
+    U->>CP: Start durable workflow with goal
+    CP->>E: workflow.started and planning action queued
+    S->>CP: Poll and claim planning action
+    S->>CP: Submit validated plan version
+    CP-->>U: AWAITING_PLAN_APPROVAL
+    U->>CP: Approve plan
+    CP->>E: plan.approved and step assignment queued
 
     loop Worker polling
-        W->>E: Request pending assignments
+        W->>CP: Request pending assignments
     end
 
-    E-->>W: Directed TASK_ASSIGNED
-    W->>C: Atomically claim assignment
-    C-->>W: claim_token and lease
+    CP-->>W: Immutable per-step input manifest
+    W->>CP: Atomically claim assignment
+    CP->>C: Store claim_token and lease
 
     par Agent execution
-        W->>A: arun_task()
+        W->>A: /invoke manifest through executor
         A->>DB: Load and save checkpoints
     and Lease protection
-        W->>C: Periodically renew lease
+        W->>CP: Periodically renew lease
     end
 
     A-->>W: COMPLETED or AWAITING_APPROVAL
-    W->>O: Submit result with claim token
-    O->>C: Validate ownership and active lease
-    O->>DB: Command(resume=result)
+    W->>CP: Submit result with claim token
+    CP->>C: Validate ownership and active lease
 
     alt Agent completed
-        O->>E: TASK_COMPLETED
-        O->>E: Next TASK_ASSIGNED or WORKFLOW_COMPLETED
+        CP->>E: step.completed
+        CP->>E: Next assignment or summary action
+        S->>CP: Submit summary
+        CP->>E: workflow.result source=supervisor destination=user
     else Agent requests approval
-        O->>E: AGENT_OUTPUT_PROPOSED
-        O->>E: AGENT_APPROVAL_REQUESTED
-        O-->>U: AWAITING_AGENT_APPROVAL
+        CP->>E: agent.output_proposed
+        CP->>E: agent.approval_requested
+        CP-->>U: AWAITING_AGENT_APPROVAL
     end
 ```
+
+Step dependencies are resolved by the control plane using `workflow_id`,
+`plan_version`, stable `step_id`, and named input bindings. The supervisor can
+inspect authorized workflow outputs, but it must choose the exact fields exposed
+to each downstream worker manifest.
 
 ## Registry Model
 
@@ -383,7 +425,15 @@ flowchart TB
 - grants and renews claim leases
 - validates claim-authenticated results
 - schedules retries and dead-letters exhausted assignments
-- resumes the orchestrator with completed worker results
+- records completed worker results and advances DAG-ready work
+
+### Supervisor Service
+
+- claims planning, validation, replan, and summary actions
+- calls LiteLLM Gateway for supervisor model work
+- selects downstream worker input fields from authorized workflow outputs
+- requests additional input with `planning.input_requested`
+- produces the final `workflow.result` for the user
 
 ### Agent Executor
 

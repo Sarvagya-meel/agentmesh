@@ -97,8 +97,8 @@ Explicit CI eval:
 ## Implementation Phases
 
 1. Keep Compose and local settings exporting both `LANGSMITH_*` and `LANGCHAIN_*` compatibility variables.
-2. Wrap orchestrator workflow entry points in trace spans with workflow-level metadata.
-3. Add spans around event append/query, worker claim/renew/result, registry aggregation, and checkpoint persistence.
+2. Wrap control-plane workflow entry points and supervisor planning actions in trace spans with workflow-level metadata.
+3. Add spans around event append/query, supervisor claim/result, worker claim/renew/result, registry aggregation, and checkpoint mapping persistence.
 4. Generate LangSmith dataset examples from `agentmesh.testing.sanity_catalog`.
 5. Promote the sanity runner to CI with explicit secret-gated LangSmith failure behavior.
 6. Add dashboard/report views that join LangSmith run IDs with PostgreSQL `agentmesh_events`, claims, resources, and audit rows.

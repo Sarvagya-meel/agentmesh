@@ -20,7 +20,7 @@ LangGraph-based AgentMesh component unless a row names a narrower owner.
 | 2 | Real multi-turn message memory | All LangGraph agents | Reuse a stable thread ID and submit only the new turn while checkpoint state retains history. | A second turn can use the first turn without resending it; restart with PostgreSQL retains the conversation. | Done |
 | 3 | `ainvoke()` | All LangGraph agents | Add async task and workflow entry points while preserving synchronous worker compatibility. | Async and sync results have the same contract; concurrent thread IDs do not block one another. | Done |
 | 4 | Evaluator-optimizer loop | All LangGraph agents | Route low-scoring output back to generation with feedback and strict iteration, token, and deadline budgets. | Low-quality output revises; good output exits; every loop terminates and exposes attempts. | Done |
-| 5 | Parallel-result reducers | Orchestrator supervisor | Add deterministic, associative reducers keyed by task/attempt ID. | Duplicate writes are idempotent and completion order cannot change the projected result. | Done |
+| 5 | Parallel-result reducers | Control plane and supervisor | Add deterministic, associative reducers keyed by task/attempt ID. | Duplicate writes are idempotent and completion order cannot change the projected result. | Done |
 | 6 | Long-term Store memory | All LangGraph agents | Add an injected LangGraph Store with explicit user namespace, consent, retention, and delete controls. | Memory is isolated per user, opt-in, durable in PostgreSQL, and never stores credentials. | Done |
 | 7 | Checkpoint replay/time travel | All LangGraph agents | Expose checkpoint history, replay, and fork operations with audit lineage. | Operators can inspect and fork a checkpoint without mutating the original run. | Done |
 | 8 | LangSmith tracing/evaluation | All LangGraph agents | Add disabled-by-default tracing metadata and deterministic evaluation suites. | Local runs send no traces by default; enabled traces include workflow/task/run IDs; evaluation gates run in CI. | Done |
@@ -31,7 +31,7 @@ LangGraph-based AgentMesh component unless a row names a narrower owner.
 | Order | Capability | Owner | Action | Acceptance criteria | Status |
 |---:|---|---|---|---|---|
 | 1 | Subgraphs | All LangGraph agents | Extract bounded planning, evaluation, and approval flows into reusable subgraphs. | Parent/subgraph checkpoint namespaces and interrupts resume correctly. | Planned |
-| 2 | `Send` parallel fan-out | Orchestrator supervisor | Dispatch dependency-ready independent tasks concurrently and gather them through P1 reducers. | Independent tasks overlap, dependencies block correctly, and final order is deterministic. | Planned |
+| 2 | Parallel fan-out | Control plane and supervisor | Dispatch dependency-ready independent tasks concurrently and gather them through P1 reducers. | Independent tasks overlap, dependencies block correctly, and final order is deterministic. | Planned |
 | 3 | Runtime context and per-run dependencies | All LangGraph agents | Define typed runtime context for identity, scopes, deadline, model, allowed tools, and policy. | Nodes receive dependencies without storing secrets in graph state or checkpoints. | Planned |
 
 ## P3: Future Capability

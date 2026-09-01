@@ -10,6 +10,7 @@
 | Validation | Pydantic | v2 |
 | Database Driver | psycopg | latest stable |
 | Orchestration | LangGraph | latest stable |
+| Supervisor Gateway | LiteLLM Gateway | supervisor model calls only |
 | Database | PostgreSQL | 15+ |
 | UI | Streamlit | latest stable |
 
@@ -25,7 +26,7 @@
 
 ## Local Infrastructure
 
-- Docker Compose is used to run PostgreSQL locally during development
+- Docker Compose is used to run PostgreSQL and local runtime services during development
 - The deployment runtime is defined under `deployment/docker/` and `deployment/postgres/`
 - The local setup must be reproducible with a single `docker compose -f deployment/docker/compose.yml up --build` command
 
@@ -33,13 +34,17 @@
 
 ### What belongs in runtime dependencies
 - FastAPI, Pydantic, HTTPX, and database clients for the shared runtime
-- LangGraph for orchestration agents
+- LangGraph for supervisor and worker graph execution where needed
 - Google ADK and related model dependencies for the ADK worker
 - Streamlit for the local UI
 
 ### What must be behind interfaces
 
-External LLM integrations are accessed through abstract interfaces and injected into agents at construction time. This keeps runtime behavior testable without network calls and allows provider swaps without changing agent logic.
+External LLM integrations are accessed through abstract interfaces and injected
+into consumers at construction time. Supervisor model calls go through LiteLLM
+Gateway; worker model calls remain owned by worker runtime configuration. This
+keeps runtime behavior testable and allows provider swaps without changing agent
+logic.
 
 ## Version Pinning
 

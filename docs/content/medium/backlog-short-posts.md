@@ -130,7 +130,10 @@ Plans can become stale, individual tasks can carry different risk, and a single 
 
 ## AgentMesh Example
 
-The LangGraph master agent discovers live workers, validates a typed plan, and uses interrupts for approval. It emits `TASK_ASSIGNED` only after both gates pass, then waits for the external worker result through the AgentMesh event boundary.
+The LangGraph-backed supervisor discovers live workers, proposes a typed plan,
+and uses interrupts when input or review is needed. The control plane validates
+and dispatches assignments only after the required gates pass, then records
+external worker results through the AgentMesh event boundary.
 
 ## LinkedIn-Ready Version
 
@@ -150,7 +153,10 @@ I gave my orchestrator an LLM brain without giving the LLM permission to act.
 
 ## Core Idea
 
-Groq GPT-OSS proposes a strict JSON workflow plan from the user's goal and live Agent Cards. AgentMesh creates the IDs, validates capabilities and dependencies, and keeps approval and dispatch inside deterministic LangGraph nodes.
+Groq GPT-OSS proposes a strict JSON workflow plan from the user's goal and live
+Agent Cards. AgentMesh creates the IDs, validates capabilities and dependencies,
+and keeps durable approval, dispatch, retries, and event recording inside the
+control plane.
 
 ## Why It Matters
 
@@ -162,7 +168,11 @@ The model proposed a research task followed by review and linked their dependenc
 
 ## LinkedIn-Ready Version
 
-I made the AgentMesh orchestrator agentic at exactly one boundary: planning. Groq GPT-OSS 120B returns a strict JSON plan, but it cannot create events or call workers. AgentMesh validates every agent, capability, and dependency before asking for human approval. The AI proposes; the control plane remains authoritative.
+I made the AgentMesh supervisor agentic at exactly one boundary: planning. Groq
+GPT-OSS 120B returns a strict JSON plan, but it cannot create events or call
+workers. AgentMesh validates every agent, capability, and dependency before
+asking for human approval. The AI proposes; the control plane remains
+authoritative.
 
 ## Hashtags
 

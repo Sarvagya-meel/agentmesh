@@ -89,7 +89,10 @@ The new registry stores Agent Cards with capabilities, health, ownership, and en
 
 ## Example Scenario
 
-A customer support agent starts up and registers itself with the capability `CHAT`. The orchestrator queries the registry and routes a request to the most suitable live agent. Before the response is sent, the conversation flow pauses for a human review if the action is sensitive.
+A customer support agent starts up and registers itself with the capability
+`CHAT`. The control plane uses registry readiness to dispatch work to an eligible
+live agent. Before the response is sent, the conversation flow pauses for a human
+review if the action is sensitive.
 
 ## Metrics to Track
 
@@ -124,7 +127,10 @@ Teams often use ad-hoc Python scripts, notebooks, or chat wrappers where each ag
 
 ## AgentMesh Solution
 
-The minimal orchestrator pattern adds a single coordinator that emits `TASK_ASSIGNED` events and records task completion in a shared event stream. Each agent remains independent, but the sequence is explicit and traceable.
+The control-plane pattern records planning, assignment, retry, and completion events
+in a shared durable timeline. The supervisor plans and summarizes, the control plane
+dispatches, and each agent remains independent while the sequence stays explicit and
+traceable.
 
 ## Business Impact
 
@@ -134,7 +140,10 @@ The minimal orchestrator pattern adds a single coordinator that emits `TASK_ASSI
 
 ## Example Scenario
 
-A hiring workflow starts by searching jobs, then finds the recruiter email, then submits the application. The orchestrator assigns each step to the relevant agent and records the outcome. If the email finder fails, the team can immediately see which step failed and why.
+A hiring workflow starts by searching jobs, then finds the recruiter email, then
+submits the application. The supervisor plans the steps, the control plane dispatches
+each immutable worker manifest, and the timeline records the outcome. If the email
+finder fails, the team can immediately see which step failed and why.
 
 ## Metrics to Track
 
@@ -145,7 +154,10 @@ A hiring workflow starts by searching jobs, then finds the recruiter email, then
 
 ## Interview / Client Pitch
 
-The real bottleneck in multi-agent systems is not the model — it is the coordination layer. A small orchestrator with explicit task events makes the system observable, debuggable, and scalable from prototype to production.
+The real bottleneck in multi-agent systems is not the model; it is the
+coordination layer. Separating supervisor planning from durable control-plane
+dispatch makes the system observable, debuggable, and scalable from prototype to
+production.
 
 ---
 
