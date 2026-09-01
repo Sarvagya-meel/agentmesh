@@ -75,6 +75,7 @@ class SupervisorActionType(StrEnum):
     TASK_RESULT = "TASK_RESULT"
     RERUN_WORKFLOW = "RERUN_WORKFLOW"
     RERUN_TASK = "RERUN_TASK"
+    RECOVER_CHECKPOINT = "RECOVER_CHECKPOINT"
 
 
 class TaskExecutionStatus(StrEnum):

@@ -5,53 +5,38 @@ import time
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, TypeAlias, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
-import psycopg
 import streamlit as st
-from psycopg.rows import dict_row
+
+from agentmesh.services.service_agentmesh_ui.client import ControlPlaneClient
 
 API_URL = os.getenv("AGENTMESH_API_URL", "http://127.0.0.1:8000")
-REGISTRY_URL = os.getenv(
-    "AGENT_REGISTRY_URL",
-    "http://127.0.0.1:8000/registry/agents",
-)
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://agentmesh:agentmesh@localhost:5432/agentmesh",
-)
 AGENT_TIMEOUT_SECONDS = float(os.getenv("AGENT_REQUEST_TIMEOUT_SECONDS", "90"))
 AGENT_STALE_SECONDS = float(os.getenv("AGENT_STALE_SECONDS", "180"))
 WORKER_CAPABILITIES = {"ADK", "CHAT", "REVIEW"}
 TERMINAL_WORKFLOW_STATUSES = {"COMPLETED", "FAILED", "CANCELLED"}
 JsonObject: TypeAlias = dict[str, Any]
 
-
-def fetch_registered_agents() -> list[JsonObject]:
-    try:
-        response = httpx.get(REGISTRY_URL, timeout=5.0)
-        response.raise_for_status()
-        return cast(list[JsonObject], response.json())
-    except httpx.HTTPError:
-        return []
+client = ControlPlaneClient(API_URL, timeout_seconds=AGENT_TIMEOUT_SECONDS)
 
 
-def worker_agent_cards(cards: list[JsonObject]) -> list[JsonObject]:
-    workers = []
-    for card in cards:
-        capabilities = {str(value).upper() for value in card.get("capabilities", [])}
-        if (
-            card.get("status") == "online"
-            and capabilities & WORKER_CAPABILITIES
-            and agent_is_recent(card.get("last_seen"))
-            and (
-                card.get("metadata", {}).get("direct_ready", True)
-                or card.get("metadata", {}).get("assignment_ready", True)
-            )
-        ):
-            workers.append(card)
-    return workers
+def initialize_state() -> None:
+    defaults: dict[str, Any] = {
+        "agent_messages": [],
+        "pending_direct_input": None,
+        "active_queue_id": None,
+        "active_orchestration_workflow_id": None,
+        "opened_workflow_id": None,
+        "activity_runs": {},
+        "checkpoint_history": {},
+        "checkpoint_replay": {},
+        "trace_links": {},
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
 
 def agent_is_recent(last_seen: Any) -> bool:
@@ -66,91 +51,31 @@ def agent_is_recent(last_seen: Any) -> bool:
     return datetime.now(UTC) - seen_at <= timedelta(seconds=AGENT_STALE_SECONDS)
 
 
-def agent_endpoint(card: JsonObject) -> str:
-    endpoint = str(card.get("endpoint", "")).rstrip("/")
-    if not endpoint:
-        raise ValueError(f"Agent {card.get('agent_id', 'unknown')!r} has no endpoint.")
-
-    local_api = "127.0.0.1" in API_URL or "localhost" in API_URL
-    if local_api:
-        local_ports = {
-            "langgraph-copilot": 8101,
-            "googleADK-Chatagent": 8102,
-        }
-        port = local_ports.get(str(card.get("agent_id")))
-        if port is not None:
-            return f"http://127.0.0.1:{port}"
-    return endpoint
-
-
-def invoke_agent(card: JsonObject, prompt: str) -> JsonObject:
-    response = httpx.post(
-        f"{agent_endpoint(card)}/invoke",
-        json={
-            "message": prompt,
-            "approval_required": card.get("agent_id") == "langgraph-copilot",
-            "thread_id": str(uuid4()),
-        },
-        timeout=AGENT_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    return cast(JsonObject, response.json())
+def worker_agent_cards(cards: list[JsonObject]) -> list[JsonObject]:
+    workers = []
+    for card in cards:
+        capabilities = {str(value).upper() for value in card.get("capabilities", [])}
+        metadata = card.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        if (
+            card.get("status") == "online"
+            and capabilities & WORKER_CAPABILITIES
+            and agent_is_recent(card.get("last_seen"))
+            and (metadata.get("direct_ready", True) or metadata.get("assignment_ready", True))
+        ):
+            workers.append(card)
+    return workers
 
 
-def submit_queued_agent(card: JsonObject, prompt: str) -> JsonObject:
-    response = httpx.post(
-        f"{API_URL}/workers/{card['agent_id']}/assignments",
-        json={"message": prompt, "conversation_id": f"playground-{uuid4()}"},
-        timeout=10.0,
-    )
-    response.raise_for_status()
-    return cast(JsonObject, response.json())
+def mode_is_ready(card: JsonObject, *, direct: bool) -> bool:
+    metadata = card.get("metadata", {})
+    if not isinstance(metadata, dict):
+        return True
+    return bool(metadata.get("direct_ready" if direct else "assignment_ready", True))
 
 
-def fetch_agent_events(workflow_id: str) -> list[JsonObject]:
-    response = httpx.get(
-        f"{API_URL}/events",
-        params={"workflow_id": workflow_id},
-        timeout=10.0,
-    )
-    response.raise_for_status()
-    return cast(list[JsonObject], response.json())
-
-
-def wait_for_queued_agent(workflow_id: str) -> tuple[JsonObject, list[JsonObject]]:
-    deadline = time.monotonic() + AGENT_TIMEOUT_SECONDS
-    events: list[JsonObject] = []
-    while time.monotonic() < deadline:
-        events = fetch_agent_events(workflow_id)
-        terminal = next(
-            (
-                event
-                for event in reversed(events)
-                if event.get("event_type") in {"TASK_COMPLETED", "TASK_FAILED"}
-            ),
-            None,
-        )
-        if terminal is not None:
-            payload = terminal.get("payload", {})
-            result = payload.get("result", {}) if isinstance(payload, dict) else {}
-            if not isinstance(result, dict):
-                result = {"answer": str(result)}
-            return result, events
-        time.sleep(0.5)
-    raise TimeoutError(f"Queued agent run {workflow_id} did not finish before timeout.")
-
-
-def resume_agent(card: JsonObject, thread_id: str, decision: str) -> JsonObject:
-    response = httpx.post(
-        f"{agent_endpoint(card)}/conversations/{thread_id}/resume",
-        json={"decision": decision},
-        timeout=AGENT_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    return cast(JsonObject, response.json())
-
-
-def normalize_human_options(options: Sequence[Any] | None) -> list[dict[str, str]]:
+def normalize_options(options: Sequence[Any] | None) -> list[dict[str, str]]:
     normalized = []
     for option in options or ["approve", "reject"]:
         if isinstance(option, dict):
@@ -164,25 +89,6 @@ def normalize_human_options(options: Sequence[Any] | None) -> list[dict[str, str
     return normalized
 
 
-def extract_human_input(result: JsonObject, agent_id: str) -> JsonObject | None:
-    if str(result.get("status", "")).upper() not in {
-        "AWAITING_HUMAN",
-        "AWAITING_APPROVAL",
-    }:
-        return None
-    interrupt_payload = result.get("interrupt", {})
-    if not isinstance(interrupt_payload, dict):
-        interrupt_payload = {"prompt": str(interrupt_payload)}
-    return {
-        "agent_id": agent_id,
-        "thread_id": result["thread_id"],
-        "prompt": interrupt_payload.get("prompt", "Human input is required."),
-        "draft_reply": result.get("draft_reply") or interrupt_payload.get("draft_reply", ""),
-        "options": normalize_human_options(interrupt_payload.get("options")),
-        "llm_model": result.get("llm_model", "unknown"),
-    }
-
-
 def result_text(result: JsonObject) -> str:
     return str(
         result.get("final_reply")
@@ -190,120 +96,6 @@ def result_text(result: JsonObject) -> str:
         or result.get("answer")
         or "The agent returned no text response."
     )
-
-
-def start_master_workflow(goal: str, selected_agents: list[str]) -> JsonObject:
-    if not goal.strip():
-        raise ValueError("Workflow goal cannot be empty.")
-    response = httpx.post(
-        f"{API_URL}/workflows/start",
-        json={
-            "conversation_id": f"streamlit-{uuid4()}",
-            "goal": goal.strip(),
-            "preferred_agent_ids": selected_agents,
-        },
-        timeout=AGENT_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    return cast(JsonObject, response.json())
-
-
-def submit_workflow_approval(
-    workflow_id: str,
-    decision: str,
-    feedback: str = "",
-) -> JsonObject:
-    response = httpx.post(
-        f"{API_URL}/workflows/{workflow_id}/approvals",
-        json={
-            "decision": decision.strip().upper(),
-            "feedback": feedback.strip(),
-            "actor": "streamlit-user",
-            "edits": {},
-        },
-        timeout=AGENT_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    return cast(JsonObject, response.json())
-
-
-def refresh_workflow(workflow_id: str) -> JsonObject:
-    response = httpx.get(
-        f"{API_URL}/workflows/{workflow_id}",
-        timeout=10.0,
-    )
-    response.raise_for_status()
-    return cast(JsonObject, response.json())
-
-
-def postgres_url() -> str:
-    return DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://", 1)
-
-
-def fetch_postgres_rows(query: str, params: tuple[Any, ...]) -> list[JsonObject]:
-    try:
-        with psycopg.connect(postgres_url(), row_factory=dict_row, connect_timeout=3) as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(query, params)
-                return [dict(row) for row in cursor.fetchall()]
-    except psycopg.Error:
-        return []
-
-
-def fetch_resource_rows(limit: int = 100) -> list[JsonObject]:
-    return fetch_postgres_rows(
-        """
-        SELECT resource_id, resource_type, name, status, endpoint, owner,
-               capabilities, parent_resource_id, last_seen, updated_at
-        FROM agentmesh_resources
-        ORDER BY resource_type ASC, name ASC
-        LIMIT %s
-        """,
-        (limit,),
-    )
-
-
-def fetch_audit_rows(limit: int = 100) -> list[JsonObject]:
-    return fetch_postgres_rows(
-        """
-        SELECT audit_id::text AS audit_id, resource_id, event_type, severity, actor, message,
-               workflow_id::text AS workflow_id, event_id::text AS event_id, created_at
-        FROM agentmesh_resource_audit_events
-        ORDER BY created_at DESC
-        LIMIT %s
-        """,
-        (limit,),
-    )
-
-
-def fetch_workflow_events(workflow_id: str) -> list[JsonObject]:
-    return fetch_postgres_rows(
-        """
-        SELECT sequence_number, timestamp, event_type, source_agent,
-               routing_mode, target_agent
-        FROM agentmesh_events
-        WHERE workflow_id = %s
-        ORDER BY sequence_number ASC
-        """,
-        (workflow_id,),
-    )
-
-
-def clear_agent_chat() -> None:
-    selected = st.session_state.get("selected_agent_id", "agent")
-    st.session_state.agent_messages = [
-        {"role": "assistant", "content": f"Ready to talk with {selected}."}
-    ]
-    st.session_state.pending_human_input = None
-    st.session_state.agent_queue_events = []
-
-
-def mode_is_ready(card: JsonObject, mode: str) -> bool:
-    metadata = card.get("metadata", {})
-    if not isinstance(metadata, dict):
-        return True
-    readiness_key = "direct_ready" if mode == "Direct" else "assignment_ready"
-    return bool(metadata.get(readiness_key, True))
 
 
 def workflow_answer(workflow: JsonObject) -> str | None:
@@ -319,333 +111,527 @@ def workflow_answer(workflow: JsonObject) -> str | None:
     return None
 
 
-def render_workflow_plan(
-    workflow_id: str,
-    tasks: list[JsonObject],
-    task_results: list[JsonObject],
-) -> None:
-    """Render plan rows with controls for inspecting agent input and output."""
-
-    results_by_task_id = {
-        str(item.get("task_id")): item.get("result", {})
-        for item in task_results
-        if isinstance(item, dict) and item.get("task_id")
-    }
-    headers = st.columns([0.6, 2.4, 2, 1.4, 1, 1])
-    for column, label in zip(
-        headers,
-        ["Step", "Task", "Agent", "Capability", "Input", "Output"],
-        strict=True,
-    ):
-        column.caption(label)
-
-    for task in tasks:
-        task_id = str(task.get("task_id", ""))
-        agent_id = str(task.get("agent_id", "worker"))
-        task_name = str(task.get("name", "Task"))
-        columns = st.columns([0.6, 2.4, 2, 1.4, 1, 1])
-        columns[0].write(str(int(task.get("position", 0)) + 1))
-        columns[1].write(task_name)
-        columns[2].write(agent_id)
-        columns[3].write(str(task.get("required_capability", "")))
-        input_column = columns[4]
-        output_column = columns[5]
-        if input_column.button(
-            "Input",
-            key=f"workflow-input-{workflow_id}-{task_id}",
-            width="stretch",
-        ):
-            st.session_state.workflow_task_io = {
-                "workflow_id": workflow_id,
-                "task_id": task_id,
-                "agent_id": agent_id,
-                "kind": "Input",
-                "value": task,
-            }
-        if output_column.button(
-            "Output",
-            key=f"workflow-output-{workflow_id}-{task_id}",
-            width="stretch",
-            disabled=task_id not in results_by_task_id,
-        ):
-            st.session_state.workflow_task_io = {
-                "workflow_id": workflow_id,
-                "task_id": task_id,
-                "agent_id": agent_id,
-                "kind": "Output",
-                "value": results_by_task_id[task_id],
-            }
-
-    selected = st.session_state.get("workflow_task_io")
-    if isinstance(selected, dict) and selected.get("workflow_id") == workflow_id:
-        st.caption(f"{selected['agent_id']} - {selected['kind']}")
-        st.json(selected.get("value", {}), expanded=True)
+def reset_activity(workflow_id: str) -> None:
+    st.session_state.activity_runs.pop(workflow_id, None)
+    st.session_state.trace_links.pop(workflow_id, None)
+    st.session_state.checkpoint_history.pop(workflow_id, None)
+    st.session_state.checkpoint_replay.pop(workflow_id, None)
 
 
-st.set_page_config(page_title="AgentMesh", layout="wide")
-st.sidebar.title("AgentMesh")
-page = st.sidebar.radio(
-    "Navigation",
-    ["Resource Dashboard", "Agent Playground", "Orchestration Playground"],
-)
-
-registered_agents = fetch_registered_agents()
-worker_cards = worker_agent_cards(registered_agents)
-worker_cards_by_id = {str(card["agent_id"]): card for card in worker_cards}
-worker_ids = list(worker_cards_by_id)
-
-if page == "Resource Dashboard":
-    st.title("Resource Dashboard")
-    resource_rows = fetch_resource_rows()
-    total_resources = len(resource_rows)
-    active_resources = sum(row.get("status") == "online" for row in resource_rows)
-    stale_resources = sum(row.get("status") == "stale" for row in resource_rows)
-
-    metric_columns = st.columns(3)
-    metric_columns[0].metric("Resources", total_resources)
-    metric_columns[1].metric("Active", active_resources)
-    metric_columns[2].metric("Stale", stale_resources)
-
-    if st.button("Refresh data"):
-        st.rerun()
-
-    st.subheader("Resources")
-    if resource_rows:
-        st.dataframe(resource_rows, width="stretch", hide_index=True)
-    else:
-        st.info("No resources found in PostgreSQL.")
-
-    st.subheader("Resource Audit Trail")
-    audit_rows = fetch_audit_rows()
-    if audit_rows:
-        st.dataframe(audit_rows, width="stretch", hide_index=True)
-    else:
-        st.info("No resource audit events found in PostgreSQL.")
-
-elif page == "Agent Playground":
-    st.title("Agent Playground")
-    if not worker_ids:
-        st.warning("No online worker agents are registered.")
-        st.stop()
-
-    if st.session_state.get("selected_agent_id") not in worker_ids:
-        st.session_state.selected_agent_id = worker_ids[0]
-        clear_agent_chat()
-    selected_agent_id = str(
-        st.selectbox(
-            "Agent",
-            options=worker_ids,
-            key="selected_agent_id",
-            on_change=clear_agent_chat,
-        )
+def merge_activity(workflow_id: str, response: JsonObject) -> JsonObject:
+    state = st.session_state.activity_runs.setdefault(
+        workflow_id,
+        {"cursor": 0, "events": [], "snapshot": None, "last_error": None},
     )
-    selected_card = worker_cards_by_id[selected_agent_id]
-    execution_mode = str(
+    events_by_id = {
+        str(event.get("event_id")): event
+        for event in state["events"]
+        if isinstance(event, dict)
+    }
+    for event in response.get("events", []):
+        if isinstance(event, dict):
+            events_by_id[str(event.get("event_id"))] = event
+    state["events"] = sorted(
+        events_by_id.values(), key=lambda item: int(item.get("sequence_number") or 0)
+    )
+    state["cursor"] = int(response.get("next_sequence") or state["cursor"])
+    state["snapshot"] = {**response, "events": state["events"]}
+    state["last_error"] = None
+    return cast(JsonObject, state["snapshot"])
+
+
+def load_activity(workflow_id: str) -> JsonObject | None:
+    state = st.session_state.activity_runs.setdefault(
+        workflow_id,
+        {"cursor": 0, "events": [], "snapshot": None, "last_error": None},
+    )
+    snapshot = state.get("snapshot")
+    if isinstance(snapshot, dict) and snapshot.get("terminal"):
+        return cast(JsonObject, snapshot)
+    try:
+        response = client.workflow_activity(
+            workflow_id, after_sequence=int(state["cursor"]), limit=100
+        )
+        return merge_activity(workflow_id, response)
+    except (ValueError, httpx.HTTPError) as exc:
+        state["last_error"] = str(exc)
+        return cast(JsonObject | None, snapshot)
+
+
+def render_trace_link(workflow_id: str) -> None:
+    trace_state = st.session_state.trace_links.get(workflow_id)
+    now = time.monotonic()
+    should_refresh = not isinstance(trace_state, dict) or (
+        not trace_state.get("available")
+        and now - float(trace_state.get("checked_at", 0)) >= 8
+    )
+    if should_refresh:
+        try:
+            trace_state = {**client.trace_link(workflow_id), "checked_at": now}
+            st.session_state.trace_links[workflow_id] = trace_state
+        except httpx.HTTPError:
+            trace_state = {"available": False, "checked_at": now}
+    if isinstance(trace_state, dict) and trace_state.get("available") and trace_state.get("url"):
+        st.link_button(
+            "Open LangSmith trace",
+            str(trace_state["url"]),
+            icon=":material/open_in_new:",
+        )
+
+
+def event_rows(events: list[JsonObject]) -> list[JsonObject]:
+    return [
+        {
+            "sequence": event.get("sequence_number"),
+            "time": event.get("timestamp"),
+            "event": event.get("event_type"),
+            "source": event.get("source_agent"),
+            "destination": event.get("target_agent"),
+            "checkpoint": str(
+                cast(JsonObject, event.get("metadata", {})).get("checkpoint_id", "")
+            ).removeprefix("event:")[:12],
+        }
+        for event in events
+    ]
+
+
+def render_plan(steps: list[JsonObject]) -> None:
+    if not steps:
+        st.info("Waiting for the supervisor to publish a plan.")
+        return
+    st.dataframe(
+        [
+            {
+                "step": int(step.get("position", 0)) + 1,
+                "task": step.get("name"),
+                "agent": step.get("agent_id"),
+                "capability": step.get("required_capability"),
+                "status": step.get("status"),
+                "dependencies": ", ".join(step.get("dependencies", [])),
+            }
+            for step in steps
+        ],
+        width="stretch",
+        hide_index=True,
+    )
+
+
+def render_interrupt(workflow_id: str, pending: JsonObject | None) -> None:
+    if not pending:
+        return
+    st.subheader("Action required")
+    st.write(str(pending.get("prompt", "Workflow input is required.")))
+    draft = pending.get("draft_reply")
+    if draft:
+        st.info(str(draft))
+    interrupt_type = str(pending.get("type", "human_approval"))
+    if interrupt_type != "human_approval":
+        st.warning(f"Unsupported interrupt type: {interrupt_type}")
+        return
+    approval = pending.get("approval", {})
+    approval_id = str(approval.get("approval_id", workflow_id))
+    feedback = st.text_area(
+        "Feedback",
+        key=f"interrupt-feedback-{approval_id}",
+        placeholder="Required when requesting a revision",
+    )
+    options = normalize_options(pending.get("options"))
+    columns = st.columns(len(options))
+    for index, option in enumerate(options):
+        if columns[index].button(
+            option["label"].title(),
+            key=f"interrupt-{approval_id}-{option['value']}",
+            width="stretch",
+        ):
+            try:
+                client.submit_approval(
+                    workflow_id, option["value"], feedback=feedback.strip()
+                )
+                state = st.session_state.activity_runs.get(workflow_id, {})
+                if isinstance(state, dict):
+                    state["snapshot"] = None
+                st.rerun(scope="app")
+            except httpx.HTTPError as exc:
+                st.error(str(exc))
+
+
+def render_checkpoint_controls(
+    workflow_id: str,
+    steps: list[JsonObject],
+    *,
+    workflow_state_key: str,
+) -> None:
+    with st.expander("Checkpoints, recovery, and reruns"):
+        rerun_columns = st.columns(2)
+        if rerun_columns[0].button(
+            "Rerun workflow",
+            key=f"rerun-workflow-{workflow_id}",
+            icon=":material/replay:",
+            width="stretch",
+        ):
+            try:
+                rerun = client.rerun_workflow(workflow_id)
+                rerun_id = str(rerun["workflow_id"])
+                reset_activity(rerun_id)
+                st.session_state[workflow_state_key] = rerun_id
+                st.rerun(scope="app")
+            except httpx.HTTPError as exc:
+                st.error(str(exc))
+        task_options = [step for step in steps if step.get("task_id")]
+        selected_task = None
+        if task_options:
+            selected_task = st.selectbox(
+                "Task event to rerun",
+                task_options,
+                format_func=lambda item: (
+                    f"{int(item.get('position', 0)) + 1}. "
+                    f"{item.get('name', 'Task')} [{item.get('status', 'PROPOSED')}]"
+                ),
+                key=f"rerun-task-select-{workflow_id}",
+            )
+        if rerun_columns[1].button(
+            "Rerun task",
+            key=f"rerun-task-{workflow_id}",
+            disabled=selected_task is None,
+            icon=":material/restart_alt:",
+            width="stretch",
+        ):
+            try:
+                rerun = client.rerun_task(
+                    workflow_id, str(cast(JsonObject, selected_task)["task_id"])
+                )
+                rerun_id = str(rerun["workflow_id"])
+                reset_activity(rerun_id)
+                st.session_state[workflow_state_key] = rerun_id
+                st.rerun(scope="app")
+            except httpx.HTTPError as exc:
+                st.error(str(exc))
+        if st.button(
+            "Load checkpoints",
+            key=f"load-checkpoints-{workflow_id}",
+            icon=":material/history:",
+        ):
+            try:
+                st.session_state.checkpoint_history[workflow_id] = client.checkpoints(
+                    workflow_id
+                )
+            except httpx.HTTPError as exc:
+                st.error(str(exc))
+        history = st.session_state.checkpoint_history.get(workflow_id, [])
+        checkpoints = [
+            item
+            for item in history
+            if isinstance(item, dict) and item.get("checkpoint_id")
+        ]
+        selected_id: str | None = None
+        selected_recoverable = not checkpoints
+        if checkpoints:
+            selected = st.selectbox(
+                "Checkpoint",
+                checkpoints,
+                format_func=lambda item: (
+                    f"{str(item.get('created_at', ''))[:19]}  "
+                    f"{str(item.get('checkpoint_id'))[:12]}  "
+                    f"next: {', '.join(item.get('next', [])) or 'terminal'}"
+                ),
+                key=f"checkpoint-select-{workflow_id}",
+            )
+            selected_id = str(selected["checkpoint_id"])
+            selected_recoverable = bool(selected.get("next"))
+        controls = st.columns(2)
+        if controls[0].button(
+            "Inspect selected",
+            key=f"inspect-checkpoint-{workflow_id}",
+            disabled=selected_id is None,
+            icon=":material/search:",
+            width="stretch",
+        ):
+            try:
+                st.session_state.checkpoint_replay[workflow_id] = client.replay_checkpoint(
+                    workflow_id, cast(str, selected_id)
+                )
+            except httpx.HTTPError as exc:
+                st.error(str(exc))
+        if controls[1].button(
+            "Recover selected" if checkpoints else "Recover latest",
+            key=f"recover-checkpoint-{workflow_id}",
+            disabled=not selected_recoverable,
+            help=(
+                "Recovery creates a new workflow and preserves source history."
+                if selected_recoverable
+                else "This checkpoint is terminal; choose one with a next step."
+            ),
+            icon=":material/restart_alt:",
+            width="stretch",
+        ):
+            try:
+                recovery = client.recover_checkpoint(workflow_id, selected_id)
+                recovery_id = str(recovery["recovery_workflow_id"])
+                reset_activity(recovery_id)
+                st.session_state[workflow_state_key] = recovery_id
+                st.success(f"Recovery queued as workflow {recovery_id}.")
+                st.rerun(scope="app")
+            except httpx.HTTPError as exc:
+                st.error(str(exc))
+        replay = st.session_state.checkpoint_replay.get(workflow_id)
+        if replay:
+            st.caption("Read-only checkpoint state")
+            st.json(replay, expanded=False)
+
+
+@st.fragment(run_every=1.5)
+def render_live_activity(
+    workflow_id: str,
+    *,
+    queued: bool = False,
+    workflow_state_key: str = "active_orchestration_workflow_id",
+) -> None:
+    activity = load_activity(workflow_id)
+    state = st.session_state.activity_runs.get(workflow_id, {})
+    if activity is None:
+        st.info("Waiting for the control plane to publish workflow activity.")
+        if state.get("last_error"):
+            st.caption("The last refresh failed; polling will retry automatically.")
+        return
+
+    workflow = cast(JsonObject, activity.get("workflow", {}))
+    status = str(workflow.get("status", "PENDING"))
+    heading_columns = st.columns([4, 2])
+    heading_columns[0].subheader("Queued run" if queued else "Workflow execution")
+    heading_columns[0].caption(f"Workflow ID: {workflow_id}")
+    heading_columns[1].metric("Status", status)
+    render_trace_link(workflow_id)
+
+    plan_column, event_column = st.columns([1, 1], gap="large")
+    with plan_column:
+        st.subheader("Proposed plan and progress")
+        steps = cast(list[JsonObject], activity.get("steps", []))
+        render_plan(steps)
+    with event_column:
+        st.subheader("Live event flow")
+        events = cast(list[JsonObject], activity.get("events", []))
+        if events:
+            st.dataframe(event_rows(events), width="stretch", hide_index=True, height=320)
+        else:
+            st.info("Waiting for events.")
+
+    render_interrupt(
+        workflow_id,
+        cast(JsonObject | None, activity.get("pending_interrupt")),
+    )
+    if not queued:
+        render_checkpoint_controls(
+            workflow_id,
+            steps,
+            workflow_state_key=workflow_state_key,
+        )
+
+    if status in TERMINAL_WORKFLOW_STATUSES:
+        answer = workflow_answer(workflow)
+        st.subheader("Result")
+        if answer:
+            st.markdown(answer)
+        elif status == "COMPLETED":
+            st.info("Workflow completed without a text result.")
+        else:
+            st.error(f"Workflow ended with status {status}.")
+
+
+def render_registry() -> None:
+    st.title("Registry")
+    try:
+        resources = client.list_resources()
+        audits = client.list_audit_events()
+    except httpx.HTTPError as exc:
+        st.error(f"Registry API unavailable: {exc}")
+        return
+    metrics = st.columns(3)
+    metrics[0].metric("Resources", len(resources))
+    metrics[1].metric("Online", sum(row.get("status") == "online" for row in resources))
+    metrics[2].metric("Stale", sum(row.get("status") == "stale" for row in resources))
+    if st.button("Refresh", icon=":material/refresh:"):
+        st.rerun()
+    st.subheader("Resources")
+    st.dataframe(resources, width="stretch", hide_index=True)
+    st.subheader("Audit trail")
+    st.dataframe(audits, width="stretch", hide_index=True)
+
+
+def render_agent_playground(worker_cards: list[JsonObject]) -> None:
+    st.title("Agent Playground")
+    if not worker_cards:
+        st.warning("No online worker agents are registered.")
+        return
+    cards_by_id = {str(card["agent_id"]): card for card in worker_cards}
+    agent_id = str(st.selectbox("Agent", options=list(cards_by_id)))
+    card = cards_by_id[agent_id]
+    mode = str(
         st.segmented_control(
             "Execution",
-            options=["Direct", "Queued"],
-            default="Direct",
-            key="agent_execution_mode",
-            on_change=clear_agent_chat,
+            options=["Direct API Request", "Control Plane Request"],
+            default="Direct API Request",
         )
-        or "Direct"
+        or "Direct API Request"
     )
-    if not mode_is_ready(selected_card, execution_mode):
-        st.warning(f"{selected_agent_id} has no ready {execution_mode.lower()} runtime.")
+    direct = mode == "Direct API Request"
+    if not mode_is_ready(card, direct=direct):
+        st.warning(f"{agent_id} has no ready runtime for this execution mode.")
 
     for message in st.session_state.agent_messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        with st.chat_message(str(message["role"])):
+            st.markdown(str(message["content"]))
 
-    pending = st.session_state.pending_human_input
-    if pending:
-        st.subheader("Approval required")
-        st.caption(f"Model: {pending['llm_model']}")
-        st.write(pending["prompt"])
-        if pending["draft_reply"]:
-            st.info(pending["draft_reply"])
-        option_columns = st.columns(len(pending["options"]))
-        for index, option in enumerate(pending["options"]):
-            with option_columns[index]:
-                if st.button(option["label"].title(), width="stretch"):
-                    try:
-                        with st.spinner(f"{selected_agent_id} is processing your decision..."):
-                            result = resume_agent(
-                                selected_card,
-                                pending["thread_id"],
-                                option["value"],
-                            )
-                        st.session_state.agent_messages.append(
-                            {"role": "assistant", "content": result_text(result)}
-                        )
-                        st.session_state.pending_human_input = None
-                        st.rerun()
-                    except (ValueError, httpx.HTTPError) as exc:
-                        st.error(str(exc))
+    pending = st.session_state.pending_direct_input
+    if direct and isinstance(pending, dict):
+        st.subheader("Action required")
+        st.write(str(pending.get("prompt", "Approval is required.")))
+        options = normalize_options(pending.get("options"))
+        columns = st.columns(len(options))
+        for index, option in enumerate(options):
+            if columns[index].button(
+                option["label"].title(),
+                key=f"direct-interrupt-{option['value']}",
+                width="stretch",
+            ):
+                try:
+                    result = client.resume_agent(
+                        card, str(pending["thread_id"]), option["value"]
+                    )
+                    st.session_state.agent_messages.append(
+                        {"role": "assistant", "content": result_text(result)}
+                    )
+                    st.session_state.pending_direct_input = None
+                    st.rerun()
+                except (ValueError, httpx.HTTPError) as exc:
+                    st.error(str(exc))
 
     prompt = st.chat_input(
         "Message agent",
-        disabled=bool(pending) or not mode_is_ready(selected_card, execution_mode),
+        disabled=bool(pending) or not mode_is_ready(card, direct=direct),
     )
     if prompt:
         st.session_state.agent_messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
         try:
-            if execution_mode == "Direct":
-                with st.spinner(f"{selected_agent_id} is processing your request..."):
-                    result = invoke_agent(selected_card, prompt)
-            else:
-                with st.status(
-                    f"{selected_agent_id} is processing the queued assignment...",
-                    expanded=False,
-                ) as queued_status:
-                    queued = submit_queued_agent(selected_card, prompt)
-                    workflow_id = str(queued["workflow_id"])
-                    result, queue_events = wait_for_queued_agent(workflow_id)
-                    st.session_state.agent_queue_events = queue_events
-                    queued_status.update(label="Queued assignment completed.", state="complete")
-            human_input = extract_human_input(result, selected_agent_id)
-            if human_input:
-                st.session_state.pending_human_input = human_input
-                st.session_state.agent_messages.append(
-                    {
-                        "role": "assistant",
-                        "content": f"Draft ready. {human_input['prompt']}",
+            if direct:
+                with st.spinner(f"{agent_id} is processing the direct request..."):
+                    result = client.invoke_agent(card, prompt)
+                if str(result.get("status", "")).upper() in {
+                    "AWAITING_HUMAN",
+                    "AWAITING_APPROVAL",
+                }:
+                    interrupt = result.get("interrupt", {})
+                    if not isinstance(interrupt, dict):
+                        interrupt = {"prompt": str(interrupt)}
+                    st.session_state.pending_direct_input = {
+                        **interrupt,
+                        "thread_id": result.get("thread_id"),
                     }
+                    content = str(interrupt.get("prompt", "Approval is required."))
+                else:
+                    content = result_text(result)
+                st.session_state.agent_messages.append(
+                    {"role": "assistant", "content": content}
                 )
             else:
-                st.session_state.agent_messages.append(
-                    {"role": "assistant", "content": result_text(result)}
+                queued = client.submit_assignment(
+                    agent_id, prompt, f"playground-{uuid4()}"
                 )
-            st.rerun()
-        except (TimeoutError, ValueError, httpx.HTTPError) as exc:
-            st.error(str(exc))
-
-    queue_events = st.session_state.get("agent_queue_events", [])
-    if queue_events:
-        with st.expander("Queued run timeline"):
-            st.dataframe(
-                [
-                    {
-                        "sequence": event.get("sequence_number"),
-                        "event": event.get("event_type"),
-                        "source": event.get("source_agent"),
-                        "target": event.get("target_agent"),
-                        "time": event.get("timestamp"),
-                    }
-                    for event in queue_events
-                ],
-                width="stretch",
-                hide_index=True,
-            )
-
-else:
-    st.title("Orchestration Playground")
-    workflow_goal = st.text_area(
-        "Workflow goal",
-        placeholder="Describe the result you want the orchestrator to produce",
-    )
-    preferred_agents = cast(
-        list[str],
-        st.multiselect("Preferred agents", options=worker_ids),
-    )
-
-    if st.button("Start workflow", type="primary", disabled=not workflow_goal.strip()):
-        try:
-            with st.spinner("Orchestrator is planning the workflow..."):
-                st.session_state.workflow_result = start_master_workflow(
-                    workflow_goal,
-                    preferred_agents,
-                )
-                st.session_state.pop("workflow_task_io", None)
+                workflow_id = str(queued["workflow_id"])
+                reset_activity(workflow_id)
+                st.session_state.active_queue_id = workflow_id
             st.rerun()
         except (ValueError, httpx.HTTPError) as exc:
             st.error(str(exc))
 
-    workflow = st.session_state.get("workflow_result")
-    if workflow:
-        workflow_id = str(workflow["workflow_id"])
-        st.subheader("Workflow")
-        st.caption(f"Workflow ID: {workflow_id}")
-        st.write(f"Status: {workflow['status']}")
+    queue_id = st.session_state.active_queue_id
+    if not direct and queue_id:
+        render_live_activity(str(queue_id), queued=True)
 
-        plan = workflow.get("plan") or {}
-        tasks = plan.get("tasks", [])
-        if tasks:
-            st.subheader("Plan")
-            render_workflow_plan(
-                workflow_id,
-                cast(list[JsonObject], tasks),
-                cast(list[JsonObject], workflow.get("task_results", [])),
+
+def render_workflow_playground(worker_cards: list[JsonObject]) -> None:
+    st.title("Workflow Playground")
+    worker_ids = [str(card["agent_id"]) for card in worker_cards]
+    orchestration_tab, existing_tab = st.tabs(
+        ["Orchestration", "Open existing"],
+        key="workflow_playground_tab",
+    )
+
+    with orchestration_tab:
+        with st.form("start-workflow"):
+            goal = st.text_area(
+                "Workflow goal",
+                placeholder="Describe the result the supervisor should plan and deliver",
             )
-
-        st.subheader("Workflow Event Trail")
-        event_rows = fetch_workflow_events(workflow_id)
-        if event_rows:
-            st.dataframe(event_rows, width="stretch", hide_index=True)
-        else:
-            st.info("Waiting for workflow events to reach PostgreSQL.")
-
-        pending_input = workflow.get("pending_input") or {}
-        if pending_input.get("type") == "human_approval":
-            approval = pending_input.get("approval") or {}
-            approval_type = str(approval.get("approval_type", "PLAN"))
-            approval_id = str(approval.get("approval_id", "approval"))
-            if approval_type == "AGENT_OUTPUT":
-                st.subheader("Agent Output Approval")
-                agent_id = pending_input.get("agent_id", "worker")
-                st.caption(f"Generated by {agent_id}")
-                draft_reply = pending_input.get("draft_reply", "")
-                if draft_reply:
-                    st.markdown(str(draft_reply))
-            else:
-                st.subheader("Workflow Plan Approval")
-            st.write(pending_input.get("prompt", "Approval is required."))
-            feedback = st.text_area(
-                "Revision feedback",
-                key=f"workflow-feedback-{approval_id}",
-                placeholder="Describe what should change when choosing Revise.",
+            preferred_agents = cast(
+                list[str], st.multiselect("Preferred agents", options=worker_ids)
             )
-            options = normalize_human_options(pending_input.get("options"))
-            approval_columns = st.columns(len(options))
-            for index, option in enumerate(options):
-                with approval_columns[index]:
-                    if st.button(
-                        option["label"],
-                        key=f"workflow-{approval_id}-{option['value']}",
-                        width="stretch",
-                    ):
-                        try:
-                            with st.spinner("Orchestrator is applying your decision..."):
-                                st.session_state.workflow_result = submit_workflow_approval(
-                                    workflow_id,
-                                    option["value"],
-                                    feedback,
-                                )
-                            st.rerun()
-                        except httpx.HTTPError as exc:
-                            st.error(str(exc))
-
-        elif workflow["status"] == "WAITING_FOR_AGENT":
-            current_task = workflow.get("current_task") or {}
-            with st.status(
-                f"Waiting for {current_task.get('agent_id', 'worker')}...",
-                expanded=False,
-                state="running",
-            ):
-                st.write(current_task.get("name", "Processing assigned task"))
-            time.sleep(2)
+            submitted = st.form_submit_button(
+                "Start workflow", type="primary", disabled=not goal.strip()
+            )
+        if submitted:
             try:
-                st.session_state.workflow_result = refresh_workflow(workflow_id)
+                workflow = client.start_workflow(
+                    goal.strip(), preferred_agents, f"streamlit-{uuid4()}"
+                )
+                workflow_id = str(workflow["workflow_id"])
+                reset_activity(workflow_id)
+                st.session_state.active_orchestration_workflow_id = workflow_id
                 st.rerun()
             except httpx.HTTPError as exc:
                 st.error(str(exc))
 
-        elif workflow["status"] in TERMINAL_WORKFLOW_STATUSES:
-            answer = workflow_answer(workflow)
-            if answer:
-                st.subheader("Answer")
-                st.markdown(answer)
-            elif workflow["status"] == "COMPLETED":
-                st.info("Workflow completed without a text result.")
+        orchestration_id = st.session_state.active_orchestration_workflow_id
+        if orchestration_id:
+            render_live_activity(
+                str(orchestration_id),
+                workflow_state_key="active_orchestration_workflow_id",
+            )
+
+    with existing_tab:
+        with st.form("open-existing-workflow"):
+            requested_id = st.text_input(
+                "Workflow ID",
+                value=str(st.session_state.opened_workflow_id or ""),
+                placeholder="UUID",
+            )
+            open_submitted = st.form_submit_button(
+                "Open workflow",
+                icon=":material/folder_open:",
+            )
+        if open_submitted:
+            try:
+                workflow_id = str(UUID(requested_id.strip()))
+                reset_activity(workflow_id)
+                st.session_state.opened_workflow_id = workflow_id
+                st.rerun()
+            except ValueError:
+                st.error("Enter a valid workflow UUID.")
+
+        opened_id = st.session_state.opened_workflow_id
+        if opened_id:
+            render_live_activity(
+                str(opened_id),
+                workflow_state_key="opened_workflow_id",
+            )
+
+
+st.set_page_config(page_title="AgentMesh", layout="wide")
+initialize_state()
+st.sidebar.title("AgentMesh")
+page = st.sidebar.radio(
+    "Navigation",
+    ["Registry", "Agent Playground", "Workflow Playground"],
+)
+
+try:
+    registered_agents = client.list_agents()
+except httpx.HTTPError:
+    registered_agents = []
+worker_cards = worker_agent_cards(registered_agents)
+
+if page == "Registry":
+    render_registry()
+elif page == "Agent Playground":
+    render_agent_playground(worker_cards)
+else:
+    render_workflow_playground(worker_cards)

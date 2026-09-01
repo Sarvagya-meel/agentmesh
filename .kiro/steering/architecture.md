@@ -17,3 +17,7 @@ registry, events, claims, retries, and deterministic output validation;
 `supervisor` owns planning, replan, summary, and LangGraph checkpoints; `litellm`
 is the supervisor model gateway. Never import one service application to run it
 inside another service process.
+
+Streamlit must not import a database driver or receive `DATABASE_URL`. Resource,
+audit, workflow activity, checkpoint, recovery, and trace-link data comes from
+public control-plane and registry HTTP APIs.

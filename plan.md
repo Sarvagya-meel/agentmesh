@@ -120,21 +120,38 @@ Streamlit -> Registry agent list -> Selected agent /invoke -> Streamlit
 - Bypasses the control-plane execution queue.
 - Does not perform workflow retries, checkpoints, or supervisor review.
 - Displays request, response, status code, latency, and schema errors.
+- A live-model agent must return a provider/configuration error when its model
+  runtime is unavailable. It must never synthesize a successful fallback answer.
 
 ### 4.2 Agent Playground: Control Plane Request
 
 Purpose: integration testing of registry lookup, queueing, agent selection, dispatch, retry, and events.
 
 ```text
-Streamlit -> Control Plane -> queue -> selected worker -> Control Plane -> Streamlit
-             source=user         destination=agent/capability
+Streamlit/HumanAgent -> Control Plane -> queue -> selected worker
+                         selected worker -> Control Plane -> HumanAgent/result
 ```
 
 - Uses `request_type=direct`.
 - Does not involve the supervisor.
+- Treats `HumanAgent` as the requesting supervisor actor for this single-agent
+  integration path; it does not invoke the Docker supervisor service.
 - Terminal failure is returned directly to the user.
+- Returns immediately and renders the deterministic one-step control-plane dispatch
+  as the proposed request, alongside live event flow, retries,
+  validation, and terminal result in parallel. Streamlit polls a cursor-based public
+  control-plane API and never reads Postgres directly.
 
 ### 4.3 Workflow Playground
+
+The page has two independent tabs:
+
+- `Orchestration` starts a new supervised workflow and retains that run's live state.
+- `Open existing` accepts a workflow UUID and restores that run without replacing
+  the orchestration tab's active workflow.
+
+Rerun and checkpoint-recovery actions update only the workflow state owned by the
+tab where the action was started.
 
 ```mermaid
 sequenceDiagram
@@ -168,6 +185,26 @@ sequenceDiagram
     U->>C: Poll workflow
     C-->>U: Final result and event timeline
 ```
+
+The running workflow view places plan progress and the ordered event flow side by
+side. Proposed, queued, running, validating, retrying, blocked, and completed step
+states update without blocking approval or recovery controls. A unified interrupt
+panel renders typed planning-input, plan approval, task approval, agent-output
+approval, validation, and replan requests.
+
+Checkpoint controls distinguish read-only inspection, diagnostic fork, full rerun,
+same-workflow interrupt resume, and executable recovery. Executable recovery starts
+a linked workflow from a selected checkpoint so immutable source history and prior
+worker side effects are not overwritten.
+
+When LangSmith tracing is enabled and a correlated trace has been ingested, the UI
+shows an `Open LangSmith trace` link for the request/workflow ID. The control plane
+resolves the authenticated trace URL through the LangSmith SDK; Streamlit never
+receives the LangSmith API key and hides the link when tracing is disabled or no
+trace is available.
+
+All Streamlit data access uses public control-plane and registry HTTP APIs. The UI
+must not import a Postgres driver, receive `DATABASE_URL`, or execute SQL.
 
 ## 5. Planning and Selective Context Routing
 
@@ -313,7 +350,10 @@ Every event contains:
 }
 ```
 
-`checkpoint_id` is required for state-changing workflow events and optional for transport-only or diagnostic events.
+`checkpoint_id` is required for every durable request from its initial accepted
+event onward. Direct HumanAgent requests use control-plane event-cursor checkpoints;
+supervised workflows additionally use native LangGraph state checkpoints. Transport-only
+or diagnostic events may omit a LangGraph checkpoint but retain their event checkpoint.
 
 | Event type | Source -> destination | Meaning |
 |---|---|---|
@@ -519,6 +559,11 @@ Defaults: four total mechanical attempts, exponential backoff with full jitter, 
 | `GET` | `/workflows/{workflow_id}/events` | Authorized event timeline |
 | `POST` | `/workflows/{workflow_id}/inputs/{event_id}` | Answer a blocking input request |
 | `POST` | `/workflows/{workflow_id}/decisions` | Approve, reject, or cancel |
+| `GET` | `/workflows/{workflow_id}/activity` | Cursor-based workflow, step, interrupt, event, and result projection |
+| `GET` | `/workflows/{workflow_id}/trace-link` | Resolve a safe LangSmith trace URL when tracing is enabled |
+| `POST` | `/workflows/{workflow_id}/recover` | Start linked executable recovery from a selected or latest resumable checkpoint |
+| `GET` | `/registry/resources` | Read resource inventory without UI database access |
+| `GET` | `/registry/audit-events` | Read resource audit events without UI database access |
 
 ### Supervisor queue APIs
 
@@ -1045,6 +1090,10 @@ Event and artifact query responses must enforce classification and workflow owne
 | E5 | Add structured logging and control-plane health details | B4, C5 | Health reports DB, scheduler, queue age, and stale leases |
 | E6 | Update Compose, environment example, runtime README, roadmap, API docs, and operational guidance | D9, E4 | Fresh setup follows documentation without unstated steps |
 | E7 | Add migration, rollback, fault-injection, and end-to-end verification scripts | All | Full stack passes acceptance suite from clean volumes |
+| E8 | Remove direct Postgres access from Streamlit and add a typed control-plane client | B5 | UI image has no database credential and all views use public APIs |
+| E9 | Add cursor-based live queued/workflow event views beside projected plan progress | E8, C3 | Events and proposed/running/completed steps update without blocking controls |
+| E10 | Add unified interrupt and executable checkpoint recovery controls | C5, D4, D7 | Paused work resumes and selected checkpoints create linked recovery workflows |
+| E11 | Add conditional LangSmith trace navigation resolved by the control plane | D10, E9 | Link appears only for enabled correlated traces and exposes no API key |
 
 ## 18. Validation Gates
 
@@ -1169,6 +1218,12 @@ Event and artifact query responses must enforce classification and workflow owne
 | T55 | Required predecessor is completed but unvalidated | Parallel barrier and downstream dispatch remain blocked |
 | T56 | Supervisor attempts to waive its own failed validation | Request is rejected; only an authorized human decision can create a waiver |
 | T57 | LangSmith evaluator is below threshold | Explicit evaluation CI fails while the persisted workflow result remains unchanged |
+| T58 | Streamlit loads resources, audits, and workflow activity | No database connection or SQL is used by the UI |
+| T59 | Queued/workflow execution is active | New events and plan-step states appear incrementally by sequence cursor |
+| T60 | Workflow is paused at an interrupt | Typed controls resume the same checkpoint exactly once |
+| T61 | User recovers a historical checkpoint | A linked workflow executes without mutating source history |
+| T62 | LangSmith tracing is enabled and trace exists | UI receives a safe direct trace URL for the correlated request ID |
+| T63 | LangSmith is disabled, unavailable, or not ingested yet | Trace control is hidden and workflow/UI behavior is unchanged |
 
 ## 20. Rollout and Compatibility
 

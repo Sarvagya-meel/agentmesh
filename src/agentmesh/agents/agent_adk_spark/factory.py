@@ -19,13 +19,13 @@ def create_google_adk_worker_agent(
     if provider == "mock":
         return GoogleADKAgent(auto_register=False), lambda: None
 
-    try:
-        api_key = groq_api_key(settings)
-    except ValidationError:
-        return GoogleADKAgent(auto_register=False), lambda: None
+    api_key = groq_api_key(settings)
     model_name = settings.google_adk_model.strip() or settings.groq_model
     if _uses_adk_incompatible_groq_model(model_name):
-        return GoogleADKAgent(auto_register=False, model_name=model_name), lambda: None
+        raise ValidationError(
+            "GOOGLE_ADK_MODEL must name an ADK-compatible Groq model; "
+            f"{model_name!r} is not supported by this runtime."
+        )
 
     session_service = create_google_adk_session_service(settings)
     agent = GoogleADKAgent(

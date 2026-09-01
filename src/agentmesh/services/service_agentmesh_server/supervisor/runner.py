@@ -138,6 +138,16 @@ class SupervisorActionRunner:
             return await self.orchestrator.arerun_task(
                 UUID(str(arguments["workflow_id"])), UUID(str(arguments["task_id"]))
             )
+        if action_type == SupervisorActionType.RECOVER_CHECKPOINT:
+            return await self.orchestrator.arecover_checkpoint(
+                UUID(str(arguments["source_workflow_id"])),
+                checkpoint_id=(
+                    str(arguments["checkpoint_id"])
+                    if arguments.get("checkpoint_id")
+                    else None
+                ),
+                new_workflow_id=UUID(str(arguments["new_workflow_id"])),
+            )
         raise ValueError(f"Unsupported supervisor action {action_type}.")
 
     async def _renew_lease(self, event: Event, claim_token: UUID) -> None:

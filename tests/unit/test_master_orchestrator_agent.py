@@ -9,6 +9,7 @@ from agentmesh.agents.agent_langgraph_orchestrator_supervisor import MasterOrche
 from agentmesh.agents.agent_langgraph_orchestrator_supervisor.agent import merge_task_results
 from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.execution import ExecutionContext
+from agentmesh.core.models import Event
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.services.service_agentmesh_server.database.repository import InMemoryEventRepository
@@ -425,6 +426,53 @@ async def test_supervisor_replay_and_fork_do_not_mutate_source() -> None:
     assert source_after.config == source_before.config
     assert source_after.values == source_before.values
     assert len(event_service.replay(workflow_id)) == source_event_count
+
+
+async def test_checkpoint_recovery_creates_new_executable_history() -> None:
+    master, event_service = build_master_agent()
+    started = await master.astart_workflow(
+        "checkpoint-recovery",
+        "Review an architecture proposal",
+        preferred_agent_ids=["review-agent"],
+    )
+    source_id = UUID(started["workflow_id"])
+    history = await master.checkpoint_history(source_id)
+    recoverable = next(item for item in history if item["next"])
+    source_event_count = len(event_service.replay(source_id))
+    recovery_id = uuid4()
+    event_service.append(
+        Event(
+            conversation_id="checkpoint-recovery",
+            workflow_id=recovery_id,
+            event_type="SUPERVISOR_ACTION_REQUESTED",
+            source_agent="agentmesh-control-plane",
+            routing_mode="DIRECTED",
+            target_agent="orchestrator-supervisor-agent",
+            payload={
+                "action_type": "RECOVER_CHECKPOINT",
+                "arguments": {"source_workflow_id": str(source_id)},
+            },
+        )
+    )
+
+    recovered = await master.arecover_checkpoint(
+        source_id,
+        checkpoint_id=str(recoverable["checkpoint_id"]),
+        new_workflow_id=recovery_id,
+    )
+
+    assert recovered["source_workflow_id"] == str(source_id)
+    assert recovered["recovery_workflow_id"] == str(recovery_id)
+    assert len(event_service.replay(source_id)) == source_event_count
+    recovery_events = [event.event_type for event in event_service.replay(recovery_id)]
+    assert "WORKFLOW_RECOVERY_STARTED" in recovery_events
+
+    repeated = await master.arecover_checkpoint(
+        source_id,
+        checkpoint_id=str(recoverable["checkpoint_id"]),
+        new_workflow_id=recovery_id,
+    )
+    assert repeated == recovered
 
 
 async def test_supervisor_checkpoints_capture_execution_metadata() -> None:

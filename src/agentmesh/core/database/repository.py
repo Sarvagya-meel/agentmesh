@@ -149,6 +149,7 @@ class PostgresEventRepository(EventRepository):
 
     def __init__(self, connection: Connection[dict[str, Any]]) -> None:
         self._connection = connection
+        self._lock = RLock()
 
     @classmethod
     def from_connection_url(cls, connection_url: str) -> PostgresEventRepository:
@@ -161,7 +162,7 @@ class PostgresEventRepository(EventRepository):
         self._connection.close()
 
     def append(self, event: Event) -> Event:
-        with self._connection.transaction(), self._connection.cursor() as cursor:
+        with self._lock, self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
                 (str(event.workflow_id),),
@@ -229,18 +230,18 @@ class PostgresEventRepository(EventRepository):
             + " AND ".join(clauses)
             + " ORDER BY sequence_number ASC LIMIT %s"
         )
-        with self._connection.cursor() as cursor:
+        with self._lock, self._connection.cursor() as cursor:
             cursor.execute(sql, parameters)
             return [self._to_event(row) for row in cursor.fetchall()]
 
     def get_by_id(self, event_id: UUID) -> Event | None:
-        with self._connection.cursor() as cursor:
+        with self._lock, self._connection.cursor() as cursor:
             cursor.execute("SELECT * FROM agentmesh_events WHERE event_id = %s", (event_id,))
             row = cursor.fetchone()
             return self._to_event(row) if row is not None else None
 
     def list_pending_assignments(self, target_agent: str, *, limit: int = 20) -> list[Event]:
-        with self._connection.cursor() as cursor:
+        with self._lock, self._connection.cursor() as cursor:
             cursor.execute(
                 """
                 SELECT assignment.*
@@ -282,7 +283,7 @@ class PostgresEventRepository(EventRepository):
     def list_pending_supervisor_actions(
         self, target_agent: str, *, limit: int = 20
     ) -> list[Event]:
-        with self._connection.cursor() as cursor:
+        with self._lock, self._connection.cursor() as cursor:
             cursor.execute(
                 """
                 SELECT action.*
@@ -497,6 +498,7 @@ class PostgresClaimRepository(ClaimRepository):
 
     def __init__(self, connection: Connection[dict[str, Any]]) -> None:
         self._connection = connection
+        self._lock = RLock()
 
     @classmethod
     def from_connection_url(cls, connection_url: str) -> PostgresClaimRepository:
@@ -512,7 +514,7 @@ class PostgresClaimRepository(ClaimRepository):
         self, event_id: UUID, *, agent_id: str, worker_id: str, lease_seconds: int
     ) -> AssignmentClaim | None:
         now = datetime.now(UTC)
-        with self._connection.transaction(), self._connection.cursor() as cursor:
+        with self._lock, self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
                 "SELECT * FROM agentmesh_event_claims WHERE event_id = %s FOR UPDATE",
                 (event_id,),
@@ -579,7 +581,7 @@ class PostgresClaimRepository(ClaimRepository):
     def validate_claim(
         self, event_id: UUID, *, agent_id: str, worker_id: str, claim_token: UUID
     ) -> AssignmentClaim | None:
-        with self._connection.cursor() as cursor:
+        with self._lock, self._connection.cursor() as cursor:
             cursor.execute(
                 """
                 SELECT * FROM agentmesh_event_claims
@@ -595,7 +597,7 @@ class PostgresClaimRepository(ClaimRepository):
     def complete(
         self, event_id: UUID, *, agent_id: str, worker_id: str, claim_token: UUID
     ) -> AssignmentClaim | None:
-        with self._connection.cursor() as cursor:
+        with self._lock, self._connection.cursor() as cursor:
             cursor.execute(
                 """
                 UPDATE agentmesh_event_claims
@@ -619,7 +621,7 @@ class PostgresClaimRepository(ClaimRepository):
         claim_token: UUID,
         lease_seconds: int,
     ) -> AssignmentClaim | None:
-        with self._connection.cursor() as cursor:
+        with self._lock, self._connection.cursor() as cursor:
             cursor.execute(
                 """
                 UPDATE agentmesh_event_claims
@@ -653,7 +655,7 @@ class PostgresClaimRepository(ClaimRepository):
         if active is None:
             return None
         should_retry = retryable and active.attempt_number < active.max_attempts
-        with self._connection.cursor() as cursor:
+        with self._lock, self._connection.cursor() as cursor:
             cursor.execute(
                 """
                 UPDATE agentmesh_event_claims

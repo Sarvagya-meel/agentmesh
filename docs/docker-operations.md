@@ -82,6 +82,16 @@ Host endpoints:
 - Streamlit: `http://localhost:8501`
 - PostgreSQL: `localhost:5432`
 
+The Google ADK service requires `LLM_PROVIDER=groq`, a nonempty `GROQ_API_KEY`,
+and an ADK-compatible `GOOGLE_ADK_MODEL` for live responses. Missing or invalid live
+configuration fails explicitly; the service does not return a synthetic fallback
+answer.
+
+The Streamlit container intentionally has no `DATABASE_URL`. Its Registry, Agent
+Playground, live workflow event flow, checkpoint recovery, and LangSmith controls
+use the control-plane HTTP API. `Open LangSmith trace` appears only when tracing is
+enabled and the correlated workflow trace is available.
+
 Durable direct and workflow requests should be submitted to the control plane. The
 supervisor runs as its own service and claims planning, validation, replan, and
 summary actions; workers expose synchronous `/invoke` behind the control-plane

@@ -125,6 +125,16 @@ class RegistryService:
             if card.status == "online" and bool(card.metadata.get("assignment_ready", True))
         ]
 
+    def list_resources(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        if self.resource_repository is None:
+            return []
+        return self.resource_repository.list_resources(limit=limit)
+
+    def list_audit_events(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        if self.resource_repository is None:
+            return []
+        return self.resource_repository.list_audit_events(limit=limit)
+
     def deregister_agent(self, agent_id: str) -> bool:
         return self.repository.remove(agent_id)
 

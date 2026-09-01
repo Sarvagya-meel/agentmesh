@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agentmesh.core.models import HumanDecisionType, SupervisorActionType
+from agentmesh.core.models import Event, HumanDecisionType, SupervisorActionType
 
 
 class StartWorkflowRequest(BaseModel):
@@ -136,3 +136,45 @@ class WorkflowExecutionResponse(BaseModel):
     task_results: list[dict[str, Any]] = Field(default_factory=list)
     rerun_of_workflow_id: str | None = None
     rerun_of_task_id: str | None = None
+
+
+class WorkflowStepView(BaseModel):
+    task_id: str
+    position: int = 0
+    name: str = "Task"
+    agent_id: str = ""
+    required_capability: str = ""
+    dependencies: list[str] = Field(default_factory=list)
+    status: str = "PROPOSED"
+
+
+class WorkflowActivityResponse(BaseModel):
+    workflow: WorkflowExecutionResponse
+    steps: list[WorkflowStepView] = Field(default_factory=list)
+    events: list[Event] = Field(default_factory=list)
+    next_sequence: int = 0
+    has_more: bool = False
+    pending_interrupt: dict[str, Any] | None = None
+    terminal: bool = False
+
+
+class LangSmithTraceLinkResponse(BaseModel):
+    tracing_enabled: bool
+    available: bool
+    request_id: str
+    url: str | None = None
+    reason: str | None = None
+
+
+class WorkflowRecoveryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    checkpoint_id: str | None = None
+    new_workflow_id: UUID | None = None
+
+
+class WorkflowRecoveryResponse(BaseModel):
+    source_workflow_id: str
+    recovery_workflow_id: str
+    checkpoint_id: str | None = None
+    status: str = "QUEUED"

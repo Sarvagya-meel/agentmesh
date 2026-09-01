@@ -34,6 +34,16 @@ class EventService:
     def append(self, event: Event, *, known_agents: set[str] | None = None) -> Event:
         """Validate and idempotently append one immutable event."""
 
+        event_metadata = {
+            "checkpoint_id": f"event:{event.event_id}",
+            "checkpoint_kind": "event_cursor",
+            **event.metadata,
+        }
+        if event.causation_id is not None:
+            event_metadata.setdefault(
+                "parent_checkpoint_id", f"event:{event.causation_id}"
+            )
+        event = event.model_copy(update={"metadata": event_metadata})
         source_author = self._resolve_author(event.source_agent)
         target_author = self._resolve_author(event.target_agent) if event.target_agent else None
         metadata = agentmesh_metadata(

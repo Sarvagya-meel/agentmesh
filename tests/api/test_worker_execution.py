@@ -176,9 +176,15 @@ async def test_directed_playground_assignment_uses_claim_and_event_contract() ->
     assert completed.status_code == 200
     assert completed.json()["status"] == "COMPLETED"
     assert [event["event_type"] for event in events.json()] == [
+        "DIRECT_REQUEST_SUBMITTED",
         "TASK_ASSIGNED",
         "TASK_COMPLETED",
+        "DIRECT_REQUEST_COMPLETED",
     ]
+    assert events.json()[0]["source_agent"] == "HumanAgent"
+    assert events.json()[0]["target_agent"] == "agentmesh-control-plane"
+    assert events.json()[-1]["source_agent"] == "agentmesh-control-plane"
+    assert events.json()[-1]["target_agent"] == "HumanAgent"
 
 
 def test_provider_rate_limit_is_retryable_and_honors_retry_hint() -> None:

@@ -252,6 +252,39 @@ class PostgresResourceRepository:
                 )
         return audit_id
 
+    def list_resources(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Return the registry-owned resource inventory for public read APIs."""
+
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT resource_id, resource_type, name, status, endpoint, owner,
+                       capabilities, metadata, parent_resource_id, registered_at,
+                       last_seen, updated_at
+                FROM agentmesh_resources
+                ORDER BY resource_type ASC, name ASC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def list_audit_events(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Return recent resource audit events without exposing a database handle."""
+
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT audit_id, resource_id, event_type, severity, actor, message,
+                       payload, workflow_id, event_id, created_at
+                FROM agentmesh_resource_audit_events
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
     def runtime_availability(
         self,
         agent_id: str,

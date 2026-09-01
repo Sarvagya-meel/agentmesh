@@ -3,20 +3,88 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import PlainTextResponse
 
-from agentmesh.services.service_agentmesh_server.api.dependencies import get_master_orchestrator
+from agentmesh.config import get_settings
+from agentmesh.services.service_agentmesh_server.activity import (
+    TERMINAL_WORKFLOW_STATUSES,
+    normalize_pending_interrupt,
+    paginate_events,
+    project_standalone_request,
+    project_step_views,
+)
+from agentmesh.services.service_agentmesh_server.api.dependencies import (
+    get_event_service,
+    get_master_orchestrator,
+)
 from agentmesh.services.service_agentmesh_server.api.schemas import (
     CheckpointReplayRequest,
     HumanDecisionRequest,
+    LangSmithTraceLinkResponse,
     StartWorkflowRequest,
+    WorkflowActivityResponse,
     WorkflowExecutionResponse,
     WorkflowForkRequest,
+    WorkflowRecoveryRequest,
+    WorkflowRecoveryResponse,
 )
+from agentmesh.services.service_agentmesh_server.events.service import EventService
 from agentmesh.services.service_agentmesh_server.orchestration import WorkflowOrchestrator
+from agentmesh.services.service_agentmesh_server.trace_links import (
+    resolve_langsmith_trace_link,
+)
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
+
+
+@router.get("/{workflow_id}/activity", response_model=WorkflowActivityResponse)
+def workflow_activity(
+    workflow_id: UUID,
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
+    event_service: Annotated[EventService, Depends(get_event_service)],
+    after_sequence: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict[str, Any]:
+    all_events = event_service.replay(workflow_id)
+    workflow = project_standalone_request(
+        orchestrator.get_workflow(workflow_id), all_events
+    )
+    events, next_sequence, has_more = paginate_events(
+        all_events, after_sequence=after_sequence, limit=limit
+    )
+    status = str(workflow.get("status", ""))
+    return {
+        "workflow": workflow,
+        "steps": project_step_views(workflow, all_events),
+        "events": events,
+        "next_sequence": next_sequence,
+        "has_more": has_more,
+        "pending_interrupt": normalize_pending_interrupt(workflow.get("pending_input")),
+        "terminal": status in TERMINAL_WORKFLOW_STATUSES,
+    }
+
+
+@router.get("/{workflow_id}/trace-link", response_model=LangSmithTraceLinkResponse)
+def workflow_trace_link(workflow_id: UUID) -> dict[str, Any]:
+    return resolve_langsmith_trace_link(get_settings(), str(workflow_id))
+
+
+@router.post(
+    "/{workflow_id}/recover",
+    response_model=WorkflowRecoveryResponse,
+    status_code=202,
+)
+async def recover_workflow_checkpoint(
+    workflow_id: UUID,
+    body: WorkflowRecoveryRequest,
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
+) -> dict[str, Any]:
+    return await orchestrator.arecover_checkpoint(
+        workflow_id,
+        checkpoint_id=body.checkpoint_id,
+        new_workflow_id=body.new_workflow_id,
+    )
 
 
 @router.get("/graph/mermaid", response_class=PlainTextResponse)

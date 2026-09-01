@@ -106,3 +106,33 @@ def test_event_service_trace_metadata_resolves_agent_card_names(
     assert captured["metadata"]["source_agent_name"] == "Source Agent"
     assert captured["metadata"]["target_agent_name"] == "Target Agent"
     assert captured["metadata"]["author_name"] == "Source Agent"
+
+
+def test_event_service_checkpoints_every_request_from_its_initial_event() -> None:
+    service = EventService(InMemoryEventRepository())
+    workflow_id = uuid4()
+    initial = service.append(
+        Event(
+            conversation_id="checkpointed-request",
+            workflow_id=workflow_id,
+            event_type="DIRECT_REQUEST_SUBMITTED",
+            source_agent="HumanAgent",
+            routing_mode=RoutingMode.DIRECTED,
+            target_agent="agentmesh-control-plane",
+        )
+    )
+    assigned = service.append(
+        Event(
+            conversation_id="checkpointed-request",
+            workflow_id=workflow_id,
+            event_type="TASK_ASSIGNED",
+            source_agent="agentmesh-control-plane",
+            routing_mode=RoutingMode.DIRECTED,
+            target_agent="worker",
+            causation_id=initial.event_id,
+        )
+    )
+
+    assert initial.metadata["checkpoint_id"] == f"event:{initial.event_id}"
+    assert "parent_checkpoint_id" not in initial.metadata
+    assert assigned.metadata["parent_checkpoint_id"] == f"event:{initial.event_id}"

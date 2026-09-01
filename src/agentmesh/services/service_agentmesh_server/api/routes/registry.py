@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.services.service_agentmesh_server.api.dependencies import get_registry_service
@@ -10,6 +10,22 @@ from agentmesh.services.service_agentmesh_server.api.schemas import AgentHeartbe
 from agentmesh.services.service_agentmesh_server.registry.service import RegistryService
 
 router = APIRouter(prefix="/registry", tags=["registry"])
+
+
+@router.get("/resources")
+def list_resources(
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[dict[str, object]]:
+    return service.list_resources(limit=limit)
+
+
+@router.get("/audit-events")
+def list_audit_events(
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[dict[str, object]]:
+    return service.list_audit_events(limit=limit)
 
 
 @router.post("/agents", status_code=201)

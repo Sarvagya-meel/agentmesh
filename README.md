@@ -74,8 +74,12 @@ python scripts/run_local.py
 - `model-gateway`: pinned LiteLLM proxy dependency
 - `agent-langgraph`: selective Copilot runtime
 - `agent-adk`: selective Google ADK runtime
-- `ui`: thin Streamlit service
+- `ui`: HTTP-only Streamlit service with live event and plan progress
 - `local`: all runtime and development dependencies
+
+Streamlit receives no database credential. Registry resources, audit events,
+workflow activity, checkpoints, recovery, and conditional LangSmith trace links
+are read through public control-plane APIs.
 
 ## Docker Quick Start
 

@@ -3,8 +3,10 @@ from typing import Any
 from httpx import ASGITransport, AsyncClient
 
 from agentmesh.agents.agent_langgraph_copilot.agent import ConversationAgent
+from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.runtime import create_agent_runtime_app
 from agentmesh.config import Settings
+from agentmesh.core.models.exceptions import ModelProviderError
 
 
 def conversation_factory(
@@ -12,6 +14,20 @@ def conversation_factory(
 ) -> tuple[ConversationAgent, Any]:
     del settings
     return ConversationAgent(auto_register=False), lambda: None
+
+
+class ProviderFailureAgent(BaseAgent):
+    def __init__(self) -> None:
+        super().__init__("provider-failure", auto_register=False)
+
+    def run_task(self, task_payload: dict[str, Any]) -> dict[str, Any]:
+        del task_payload
+        raise ModelProviderError("Model provider is unavailable.")
+
+
+def provider_failure_factory(settings: Settings) -> tuple[BaseAgent, Any]:
+    del settings
+    return ProviderFailureAgent(), lambda: None
 
 
 async def test_agent_runtime_exposes_health_card_and_invoke() -> None:
@@ -125,3 +141,19 @@ async def test_api_role_keeps_direct_invoke_route() -> None:
             invoked = await client.post("/invoke", json={"message": "hello"})
 
     assert invoked.status_code == 200
+
+
+async def test_direct_invoke_maps_model_provider_failure_to_503() -> None:
+    app = create_agent_runtime_app(
+        kind="provider-failure",
+        factory=provider_failure_factory,
+        worker_enabled=False,
+    )
+
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            invoked = await client.post("/invoke", json={"message": "hello"})
+
+    assert invoked.status_code == 503
+    assert invoked.json() == {"detail": "Model provider is unavailable."}

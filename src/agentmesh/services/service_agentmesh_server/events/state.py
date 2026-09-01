@@ -49,6 +49,10 @@ class StateService:
                 metadata["goal"] = payload.get("goal", "")
                 metadata["rerun_of_workflow_id"] = payload.get("rerun_of_workflow_id")
                 metadata["rerun_of_task_id"] = payload.get("rerun_of_task_id")
+            elif event.event_type == "WORKFLOW_RECOVERY_STARTED":
+                status = WorkflowStatus.RUNNING
+                metadata["recovery_of_workflow_id"] = payload.get("source_workflow_id")
+                metadata["source_checkpoint_id"] = payload.get("checkpoint_id")
             elif event.event_type in {"WORKFLOW_RERUN_REQUESTED", "TASK_RERUN_REQUESTED"}:
                 reruns = list(metadata.get("reruns", []))
                 reruns.append(payload)

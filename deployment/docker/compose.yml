@@ -22,6 +22,7 @@ x-llm-config: &llm-config
   LANGCHAIN_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
   LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
   LANGCHAIN_API_KEY: ${LANGSMITH_API_KEY:-}
+  LANGSMITH_WORKSPACE_ID: ${LANGSMITH_WORKSPACE_ID:-}
 
 x-agent-environment: &agent-environment
   <<: *llm-config
@@ -149,6 +150,7 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
+      <<: *llm-config
       APP_ENV: local
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
       AGENTMESH_API_URL: http://control-plane:8000
@@ -287,9 +289,7 @@ services:
         condition: service_healthy
     environment:
       APP_ENV: local
-      DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
       AGENTMESH_API_URL: http://control-plane:8000
-      AGENT_REGISTRY_URL: http://control-plane:8000/registry/agents
       AUTO_REGISTER_AGENTS: "false"
       AGENT_STALE_SECONDS: ${AGENT_STALE_SECONDS:-180}
     ports:

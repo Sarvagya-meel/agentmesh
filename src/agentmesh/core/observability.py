@@ -33,6 +33,7 @@ SYSTEM_TRACE_IDENTITIES = {
     "system": ("system", "system"),
     "api": ("AgentMesh API", "api"),
     "request": ("request", "request"),
+    "humanagent": ("HumanAgent", "human_supervisor"),
 }
 
 

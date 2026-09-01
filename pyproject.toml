@@ -40,6 +40,7 @@ dev-tools = [
 
 control-plane = [
   { include-group = "shared" },
+  "langsmith",
 ]
 
 supervisor = [
@@ -61,7 +62,7 @@ agent-adk = [
 ]
 
 ui = [
-  { include-group = "shared" },
+  "httpx",
   { include-group = "ui-framework" },
 ]
 

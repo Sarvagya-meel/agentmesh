@@ -87,6 +87,22 @@ class WorkerService:
         }
         if user_id:
             task["user_id"] = user_id
+        request = self.event_service.append(
+            Event(
+                conversation_id=resolved_conversation_id,
+                workflow_id=workflow_id,
+                event_type="DIRECT_REQUEST_SUBMITTED",
+                source_agent="HumanAgent",
+                routing_mode=RoutingMode.DIRECTED,
+                target_agent="agentmesh-control-plane",
+                payload={
+                    "task_id": str(task_id),
+                    "agent_id": agent_id,
+                    "message": message,
+                },
+                metadata={"execution_mode": "queued_direct"},
+            )
+        )
         assignment = self.event_service.append(
             Event(
                 conversation_id=resolved_conversation_id,
@@ -96,6 +112,7 @@ class WorkerService:
                 routing_mode=RoutingMode.DIRECTED,
                 target_agent=agent_id,
                 payload={"task": task, "standalone": True},
+                causation_id=request.event_id,
                 metadata={
                     "execution_mode": "queued_direct",
                     **trace_author_metadata(author),
@@ -344,6 +361,8 @@ class WorkerService:
                 workflow_id=assignment.workflow_id,
                 event_type=event_type,
                 source_agent=assignment.target_agent or "agentmesh-worker",
+                routing_mode=RoutingMode.DIRECTED,
+                target_agent="agentmesh-control-plane",
                 payload={
                     "task_id": str(task["task_id"]),
                     "assignment_event_id": str(assignment.event_id),
@@ -351,6 +370,35 @@ class WorkerService:
                     "result": result,
                 },
                 causation_id=assignment.event_id,
+                causation_chain=(
+                    [assignment.causation_id] if assignment.causation_id else []
+                ),
+                metadata={"execution_mode": "queued_direct"},
+            )
+        )
+        self.event_service.append(
+            Event(
+                conversation_id=assignment.conversation_id,
+                workflow_id=assignment.workflow_id,
+                event_type=(
+                    "DIRECT_REQUEST_COMPLETED"
+                    if event_type == "TASK_COMPLETED"
+                    else "DIRECT_REQUEST_FAILED"
+                ),
+                source_agent="agentmesh-control-plane",
+                routing_mode=RoutingMode.DIRECTED,
+                target_agent="HumanAgent",
+                payload={
+                    "task_id": str(task["task_id"]),
+                    "status": status,
+                    "result": result,
+                },
+                causation_id=terminal.event_id,
+                causation_chain=[
+                    event_id
+                    for event_id in [assignment.causation_id, assignment.event_id]
+                    if event_id is not None
+                ],
                 metadata={"execution_mode": "queued_direct"},
             )
         )

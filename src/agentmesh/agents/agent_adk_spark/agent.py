@@ -15,6 +15,7 @@ from google.adk.sessions import BaseSessionService, DatabaseSessionService
 from google.genai import types
 
 from agentmesh.agents.common.base_agent import BaseAgent
+from agentmesh.core.models.exceptions import ModelProviderError
 from agentmesh.core.observability import (
     agentmesh_metadata,
     agentmesh_run_name,
@@ -99,12 +100,11 @@ class GoogleADKAgent(BaseAgent):
                         self._event_loop,
                     ).result()
             else:
-                reply = f"Local ADK fallback response for: {prompt}"
-            source = (
-                "google_adk_llm"
-                if self._executor is not None or self._adk_runner is not None
-                else "local_fallback"
-            )
+                raise ModelProviderError(
+                    "Google ADK has no configured model runtime. Set LLM_PROVIDER=groq, "
+                    "provide GROQ_API_KEY, and configure a compatible GOOGLE_ADK_MODEL."
+                )
+            source = "google_adk_llm"
             response = {
                 "status": "success",
                 "agent": self.agent_name,

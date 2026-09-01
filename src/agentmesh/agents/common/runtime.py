@@ -19,6 +19,7 @@ from agentmesh.agents.common.execution import AgentExecutor, ExecutionContext
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
 from agentmesh.agents.common.worker import AssignmentWorker
 from agentmesh.config import Settings, get_settings
+from agentmesh.core.models.exceptions import ModelProviderError
 from agentmesh.core.observability import (
     agentmesh_metadata,
     agentmesh_run_name,
@@ -259,7 +260,7 @@ def create_agent_runtime_app(
                     )
                     if run is not None:
                         run.end(outputs={"status": result.get("status"), "thread_id": thread_id})
-            except RuntimeError as exc:
+            except (ModelProviderError, RuntimeError) as exc:
                 raise HTTPException(status_code=503, detail=str(exc)) from exc
             result.setdefault("status", "completed")
             return result

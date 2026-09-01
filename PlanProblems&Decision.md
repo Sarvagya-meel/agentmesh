@@ -124,6 +124,34 @@ The existing combined application remains available while Docker defaults to the
 independent control-plane and supervisor services. This permits incremental client
 migration and gives integration tests a compatibility reference.
 
+### 11. Agent Playground queued requests are HumanAgent-supervised
+
+Queued Agent Playground requests use `HumanAgent` as the requesting supervisor
+actor without invoking the Docker workflow supervisor. Their durable path is
+`HumanAgent -> control plane -> selected agent -> control plane -> HumanAgent`.
+The UI retains a deterministic one-step request plan beside the live event trail.
+
+### 12. Every durable event is an event-cursor checkpoint
+
+The control plane assigns `checkpoint_id=event:<event_id>` from the initial request
+event onward and links caused events with `parent_checkpoint_id`. Supervised
+workflows additionally retain native LangGraph state checkpoints for inspection
+and executable recovery. Event checkpoints make every direct and workflow request
+replayable without pretending direct requests own LangGraph state.
+
+### 13. Live ADK execution fails closed
+
+The Google ADK worker may use an injected executor in isolated tests, but a live
+request requires a configured model runner. Missing credentials, mock-only startup,
+or an ADK-incompatible model returns an explicit provider/configuration failure;
+the worker never returns a fabricated local answer with success status.
+
+### 14. Workflow Playground tabs own independent run state
+
+`Orchestration` and `Open existing` retain separate workflow IDs. Starting, opening,
+rerunning, or recovering a workflow changes only the originating tab, preventing
+historical inspection from replacing the active orchestration view.
+
 ## Problems Found And Resolved
 
 | Problem | Cause | Resolution |
@@ -135,6 +163,12 @@ migration and gives integration tests a compatibility reference.
 | One approval created repeated supervisor commands | Idempotency was derived from the latest action event | Keyed approvals by approval ID and decision |
 | Approval workflows failed output validation | Validator accepted only `COMPLETED` worker output | Accepted durable `AWAITING_APPROVAL` output with a thread ID |
 | `python scripts/test.py` could not find quality tools | System Python has no repository dev dependencies | Use `.venv/Scripts/python.exe scripts/test.py`; do not mutate global Python |
+| Recovery action was mistaken for an existing recovery | The durable queue request is the first event in the recovery workflow | Conflict detection now distinguishes a queued request from `WORKFLOW_RECOVERY_STARTED` and repeated recovery execution is idempotent |
+| Concurrent API requests corrupted psycopg transaction nesting | Event and claim repositories shared one connection across FastAPI worker threads | Serialized every operation per PostgreSQL repository connection with reentrant locks |
+| Completed direct requests remained `RUNNING` in the UI | Generic workflow projection did not understand standalone assignments | Added standalone request projection with one dispatch step, terminal result, and HumanAgent return events |
+| ADK returned `Local ADK fallback response` as a success | Missing provider configuration was silently converted into a fake response | Removed the synthetic response, rejected invalid live configuration, and mapped provider failures to HTTP 503 |
+| Starting and opening workflows shared one UI state slot | Workflow Playground used one `active_workflow_id` for both jobs | Added independent Orchestration and Open existing tabs with tab-scoped rerun and recovery state |
+| Compose recreated model services in mock mode despite a populated root `.env` | A nested Compose file does not reliably auto-discover the repository-root env file | Direct Compose commands and helpers pass `--env-file .env` explicitly; live UAT verifies the effective provider without exposing the key |
 
 ## Validation Evidence
 
@@ -142,15 +176,22 @@ The following passed after deleting the Compose project's containers, local
 images, network, and named Postgres volume, then rebuilding from a fresh volume:
 
 - Ruff: all checks passed.
-- Mypy strict gate: no issues in 92 source files.
-- Pytest: 103 passed; one third-party deprecation warning.
+- Mypy strict gate: no issues in 95 source files.
+- Pytest: 116 passed; two third-party deprecation warnings.
 - Compose: all seven long-running services started; health checks passed.
 - Migration: DDL files `000` through `007` applied to the empty database.
 - Direct API: LangGraph and ADK worker invocations completed.
+- Live ADK: `source=google_adk_llm` with the configured Qwen model; no synthetic
+  fallback text was present.
 - Workflow: multi-step smoke workflow reached `COMPLETED`.
 - Persistence: the expected supervisor, assignment, output, validation, and
   workflow-completed events were present in Postgres.
 - Logs: zero unexpected error matches and zero known transient provider matches.
+- Browser UAT: desktop and mobile Registry, HumanAgent queued request, live plan
+  and event views, results, approvals, checkpoint loading, recovery, and rerun
+  controls rendered without page-level horizontal overflow.
+- Workflow tabs: Orchestration and Open existing rendered as independent tab panels;
+  the browser reported no console errors or horizontal overflow.
 - LangSmith: runtime check skipped because credentials were not configured; unit
   tests cover disabled tracing and exporter failure isolation.
 
@@ -171,8 +212,9 @@ The following `plan.md` capabilities are deliberately still open:
 - Fully normalized request, plan, step, attempt, manifest, artifact, validation,
   approval, and dead-letter tables described in the target DDL.
 - Fine-grained artifact authorization and database-enforced hidden-input access.
-- Workflow Playground graph, checkpoint, input-form, approval, retry, and final
-  result UI described in `plan.md`.
+- Planning-input forms still await the long-task input event contract. The Workflow
+  Playground now provides live plan/event views, approvals, checkpoint inspection,
+  linked executable recovery, final results, and conditional LangSmith navigation.
 - Hosted LangSmith trace/evaluator validation with real credentials in explicit CI.
 - Full T01-T57 acceptance matrix, load tests, crash/recovery tests, and production
   security review.
@@ -184,6 +226,5 @@ The following `plan.md` capabilities are deliberately still open:
 3. Add planning input request/provide events and checkpointed resume APIs.
 4. Add supervisor semantic validation, evidence requests, bounded replan, and final
    compilation.
-5. Complete Workflow Playground views against only public control-plane APIs.
-6. Add crash recovery, parallel isolation, authorization, and hosted evaluation
+5. Add crash recovery, parallel isolation, authorization, and hosted evaluation
    gates before production rollout.

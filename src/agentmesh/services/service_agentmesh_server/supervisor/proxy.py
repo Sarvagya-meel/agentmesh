@@ -172,6 +172,33 @@ class QueuedWorkflowOrchestrator:
         )
         return self.get_workflow(workflow_id)
 
+    async def arecover_checkpoint(
+        self,
+        workflow_id: UUID,
+        *,
+        checkpoint_id: str | None = None,
+        new_workflow_id: UUID | None = None,
+    ) -> dict[str, Any]:
+        state = self.state_service.get_current(workflow_id)
+        recovery_workflow_id = new_workflow_id or uuid4()
+        self._enqueue(
+            recovery_workflow_id,
+            conversation_id=state.conversation_id,
+            action_type=SupervisorActionType.RECOVER_CHECKPOINT,
+            action_key=f"recover:{workflow_id}:{checkpoint_id or 'latest'}",
+            arguments={
+                "source_workflow_id": str(workflow_id),
+                "checkpoint_id": checkpoint_id,
+                "new_workflow_id": str(recovery_workflow_id),
+            },
+        )
+        return {
+            "source_workflow_id": str(workflow_id),
+            "recovery_workflow_id": str(recovery_workflow_id),
+            "checkpoint_id": checkpoint_id,
+            "status": "QUEUED",
+        }
+
     async def checkpoint_history(self, workflow_id: UUID) -> list[dict[str, Any]]:
         response = await self._supervisor_request(
             "GET", f"/workflows/{workflow_id}/checkpoints"

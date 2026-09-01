@@ -53,6 +53,14 @@ class WorkflowOrchestrator(Protocol):
 
     async def arerun_task(self, workflow_id: UUID, task_id: UUID) -> dict[str, Any]: ...
 
+    async def arecover_checkpoint(
+        self,
+        workflow_id: UUID,
+        *,
+        checkpoint_id: str | None = None,
+        new_workflow_id: UUID | None = None,
+    ) -> dict[str, Any]: ...
+
     async def checkpoint_history(self, workflow_id: UUID) -> list[dict[str, Any]]: ...
 
     async def replay_checkpoint(

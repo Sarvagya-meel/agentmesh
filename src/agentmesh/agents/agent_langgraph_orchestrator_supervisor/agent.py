@@ -1587,6 +1587,139 @@ class MasterOrchestratorAgent(BaseAgent):
                 run.end(outputs={"next": response["next"]})
             return response
 
+    async def arecover_checkpoint(
+        self,
+        workflow_id: UUID,
+        *,
+        checkpoint_id: str | None = None,
+        new_workflow_id: UUID | None = None,
+    ) -> dict[str, Any]:
+        """Continue a historical checkpoint in a new immutable workflow history."""
+
+        recovery_workflow_id = new_workflow_id or uuid4()
+        recovery_events = self.event_service.replay(recovery_workflow_id)
+        prior_recovery = next(
+            (
+                event
+                for event in recovery_events
+                if event.event_type == "WORKFLOW_RECOVERY_STARTED"
+            ),
+            None,
+        )
+        if prior_recovery is not None:
+            prior_payload = (
+                prior_recovery.payload
+                if isinstance(prior_recovery.payload, dict)
+                else {}
+            )
+            recovered = self._format_result(recovery_workflow_id, None)
+            return {
+                "source_workflow_id": str(workflow_id),
+                "recovery_workflow_id": str(recovery_workflow_id),
+                "checkpoint_id": str(prior_payload.get("checkpoint_id", "")),
+                "status": recovered["status"],
+            }
+        if any(event.event_type == "WORKFLOW_STARTED" for event in recovery_events):
+            raise WorkflowConflictError(
+                f"Recovery workflow {recovery_workflow_id} already exists."
+            )
+        source_config = (
+            self._checkpoint_config(workflow_id, checkpoint_id)
+            if checkpoint_id
+            else self._config(workflow_id)
+        )
+        snapshot = await self.graph.aget_state(source_config)
+        if checkpoint_id is None and snapshot.values and not snapshot.next:
+            async for candidate in self.graph.aget_state_history(
+                self._config(workflow_id)
+            ):
+                if candidate.next:
+                    snapshot = candidate
+                    break
+        if not snapshot.values:
+            raise ValueError(f"Checkpoint {checkpoint_id or 'latest'!r} was not found.")
+        if not snapshot.next:
+            raise ValidationError(
+                "The selected checkpoint is terminal and has no executable continuation."
+            )
+
+        resolved_checkpoint_id = str(
+            snapshot.config.get("configurable", {}).get("checkpoint_id", "")
+        )
+        values = {
+            **dict(snapshot.values),
+            "workflow_id": str(recovery_workflow_id),
+        }
+        conversation_id = str(values.get("conversation_id") or f"recovery-{workflow_id}")
+        goal = str(values.get("goal", ""))
+        self._emit_raw(
+            conversation_id=conversation_id,
+            workflow_id=recovery_workflow_id,
+            event_type="WORKFLOW_STARTED",
+            payload={
+                "goal": goal,
+                "rerun_of_workflow_id": str(workflow_id),
+                "rerun_of_task_id": None,
+            },
+        )
+        self._emit_raw(
+            conversation_id=conversation_id,
+            workflow_id=recovery_workflow_id,
+            event_type="WORKFLOW_RECOVERY_STARTED",
+            payload={
+                "source_workflow_id": str(workflow_id),
+                "checkpoint_id": resolved_checkpoint_id,
+            },
+        )
+        plan = values.get("plan")
+        if isinstance(plan, dict):
+            self._emit_raw(
+                conversation_id=conversation_id,
+                workflow_id=recovery_workflow_id,
+                event_type="PLAN_CREATED",
+                payload={"plan": plan},
+            )
+        for task_result in values.get("task_results", []):
+            if isinstance(task_result, dict) and task_result.get("task_id"):
+                self._emit_raw(
+                    conversation_id=conversation_id,
+                    workflow_id=recovery_workflow_id,
+                    event_type="TASK_COMPLETED",
+                    payload=task_result,
+                )
+
+        await self.graph.aupdate_state(
+            self._config(
+                recovery_workflow_id,
+                {
+                    "source_workflow_id": str(workflow_id),
+                    "source_checkpoint_id": resolved_checkpoint_id,
+                    "recovery_mode": "executable",
+                },
+            ),
+            values,
+            as_node=self._snapshot_node(snapshot.metadata),
+        )
+        await self.graph.ainvoke(
+            None,
+            config=self._config(
+                recovery_workflow_id,
+                {
+                    "run_id": str(uuid4()),
+                    "operation": "recover_checkpoint",
+                    "source_workflow_id": str(workflow_id),
+                    "source_checkpoint_id": resolved_checkpoint_id,
+                },
+            ),
+        )
+        recovered = self._format_result(recovery_workflow_id, None)
+        return {
+            "source_workflow_id": str(workflow_id),
+            "recovery_workflow_id": str(recovery_workflow_id),
+            "checkpoint_id": resolved_checkpoint_id,
+            "status": recovered["status"],
+        }
+
     async def fork_checkpoint(
         self,
         workflow_id: UUID,
