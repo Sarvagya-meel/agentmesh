@@ -1,0 +1,39 @@
+{
+  "langgraph": {
+    "agent": "langgraph-copilot",
+    "model": "openai/gpt-oss-120b",
+    "status": "COMPLETED",
+    "thread_id": "sanity-langgraph-e0b0f48c-7aa6-4847-8310-1bb61f86f515",
+    "llm_model": "openai/gpt-oss-120b",
+    "task_kind": "simple",
+    "draft_reply": "The LangGraph runtime is ready.",
+    "draft_message_id": "270071c2-f89c-4704-9d6f-ed26ecb561ed",
+    "final_reply": "The LangGraph runtime is ready.",
+    "approval_required": false,
+    "approval_decision": "",
+    "approval_feedback": "",
+    "approved": true,
+    "revision_count": 0,
+    "max_revisions": 2,
+    "quality_score": 1.0,
+    "evaluation_attempts": 1,
+    "max_evaluation_attempts": 3,
+    "evaluation_feedback": "",
+    "evaluation_tokens_used": 5,
+    "max_evaluation_tokens": 12000,
+    "evaluation_deadline_at": "2026-08-30T04:32:51.874647+00:00",
+    "memory_user_id": "",
+    "memory_opt_in": false,
+    "memory_updates": {},
+    "memory_delete_keys": [],
+    "long_term_memories": []
+  },
+  "adk": {
+    "status": "success",
+    "agent": "googleADK-Chatagent",
+    "model": "openai/gpt-oss-120b",
+    "final_reply": "ADK runtime is ready.",
+    "source": "google_adk_llm",
+    "session_id": "sanity-adk-ea371a56-f87e-4556-b9c0-98ab9b28198d"
+  }
+}

@@ -1,0 +1,87 @@
+[
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 11,
+    "text": "LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'."
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 13,
+    "text": "Node execution failed with exception"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 14,
+    "text": "Traceback (most recent call last):"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 25,
+    "text": "litellm.llms.custom_httpx.http_handler.MaskedHTTPStatusError: Client error '429 Too Many Requests' for url 'https://api.groq.com/openai/v1/chat/completions'"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 28,
+    "text": "During handling of the above exception, another exception occurred:"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 30,
+    "text": "Traceback (most recent call last):"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 42,
+    "text": "litellm.llms.openai.common_utils.OpenAIError: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kg75pfzgf21s8rbp1rdfj8ke` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7603, Requested 671. Please try again in 2.055s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 45,
+    "text": "During handling of the above exception, another exception occurred:"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 47,
+    "text": "Traceback (most recent call last):"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 99,
+    "text": "litellm.exceptions.RateLimitError: litellm.RateLimitError: RateLimitError: GroqException - {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kg75pfzgf21s8rbp1rdfj8ke` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7603, Requested 671. Please try again in 2.055s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 101,
+    "text": "Root node adk_spark_worker failed."
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 102,
+    "text": "Traceback (most recent call last):"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 107,
+    "text": "google.adk.workflow._errors.DynamicNodeFailError: Dynamic node adk_spark_worker failed"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 109,
+    "text": "During handling of the above exception, another exception occurred:"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 111,
+    "text": "Traceback (most recent call last):"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 115,
+    "text": "    raise e.error"
+  },
+  {
+    "container": "agentmesh-agent-googleadk-chatagent-1",
+    "line": 167,
+    "text": "litellm.exceptions.RateLimitError: litellm.RateLimitError: RateLimitError: GroqException - {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kg75pfzgf21s8rbp1rdfj8ke` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7603, Requested 671. Please try again in 2.055s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}"
+  }
+]

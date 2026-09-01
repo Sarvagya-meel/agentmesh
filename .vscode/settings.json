@@ -4,7 +4,7 @@
     "*.venv": true
     "*.egg-info": true
     "*.dist": true
-    "*_cache":true
+    // "*_cache":true
     "*\*__init__.py" :true
   }
 }

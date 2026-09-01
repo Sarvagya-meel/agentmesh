@@ -1,0 +1,7 @@
+skip 000_agentmesh_schema_migrations.sql
+skip 001_agentmesh_events.sql
+skip 002_agentmesh_event_claims.sql
+skip 003_agentmesh_agents.sql
+skip 004_agentmesh_resources.sql
+skip 005_agentmesh_resource_audit_events.sql
+skip 006_agent_runtime_instances.sql

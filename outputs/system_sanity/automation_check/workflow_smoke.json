@@ -1,0 +1,801 @@
+[
+  {
+    "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+    "conversation_id": "sanity-workflow-023c1292-fdb6-43f8-b0c6-fe1af5d6597b",
+    "status": "AWAITING_PLAN_APPROVAL",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+          "dependencies": [
+            "334a8833-53b6-4002-b909-708e4b64b70f"
+          ],
+          "expected_output": "Yes, 2+2 equals 4.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "c5fab1d8-1a6f-4f9d-a7c6-1f411bdc4d76",
+      "version": 1,
+      "rationale": "First, the drafting agent creates a minimal sanity\u2011check statement; then the chat agent answers that check in a single sentence, directly fulfilling the goal of drafting a tiny sanity check and responding in one sentence.",
+      "created_at": "2026-08-30T04:29:32.561358Z",
+      "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": null,
+    "pending_input": {
+      "type": "human_approval",
+      "approval": {
+        "approval_id": "b0cb3d56-828d-4cab-88b4-72f74971ace0",
+        "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+        "approval_type": "PLAN",
+        "subject_id": "c5fab1d8-1a6f-4f9d-a7c6-1f411bdc4d76",
+        "prompt": "Approve workflow plan version 1 before tasks are prepared?",
+        "options": [
+          "APPROVE",
+          "REVISE",
+          "REJECT"
+        ],
+        "context": {
+          "plan": {
+            "plan_id": "c5fab1d8-1a6f-4f9d-a7c6-1f411bdc4d76",
+            "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "version": 1,
+            "tasks": [
+              {
+                "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+                "position": 0,
+                "name": "Draft sanity check",
+                "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+                "required_capability": "DRAFT",
+                "agent_id": "langgraph-copilot",
+                "payload": {
+                  "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+                  "revision_feedback": ""
+                },
+                "dependencies": [],
+                "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+                "status": "PROPOSED"
+              },
+              {
+                "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+                "position": 1,
+                "name": "Answer sanity check",
+                "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+                "required_capability": "CHAT",
+                "agent_id": "googleADK-Chatagent",
+                "payload": {
+                  "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+                  "revision_feedback": ""
+                },
+                "dependencies": [
+                  "334a8833-53b6-4002-b909-708e4b64b70f"
+                ],
+                "expected_output": "Yes, 2+2 equals 4.",
+                "status": "PROPOSED"
+              }
+            ],
+            "rationale": "First, the drafting agent creates a minimal sanity\u2011check statement; then the chat agent answers that check in a single sentence, directly fulfilling the goal of drafting a tiny sanity check and responding in one sentence.",
+            "planner_provider": "groq",
+            "planner_model": "openai/gpt-oss-120b",
+            "created_at": "2026-08-30T04:29:32.561358Z"
+          }
+        }
+      },
+      "prompt": "Approve workflow plan version 1 before tasks are prepared?",
+      "options": [
+        {
+          "label": "Approve",
+          "value": "APPROVE"
+        },
+        {
+          "label": "Revise",
+          "value": "REVISE"
+        },
+        {
+          "label": "Reject",
+          "value": "REJECT"
+        }
+      ],
+      "plan": {
+        "plan_id": "c5fab1d8-1a6f-4f9d-a7c6-1f411bdc4d76",
+        "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "version": 1,
+        "tasks": [
+          {
+            "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+            "position": 0,
+            "name": "Draft sanity check",
+            "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+            "required_capability": "DRAFT",
+            "agent_id": "langgraph-copilot",
+            "payload": {
+              "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+              "revision_feedback": ""
+            },
+            "dependencies": [],
+            "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+            "status": "PROPOSED"
+          },
+          {
+            "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+            "position": 1,
+            "name": "Answer sanity check",
+            "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+            "required_capability": "CHAT",
+            "agent_id": "googleADK-Chatagent",
+            "payload": {
+              "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+              "revision_feedback": ""
+            },
+            "dependencies": [
+              "334a8833-53b6-4002-b909-708e4b64b70f"
+            ],
+            "expected_output": "Yes, 2+2 equals 4.",
+            "status": "PROPOSED"
+          }
+        ],
+        "rationale": "First, the drafting agent creates a minimal sanity\u2011check statement; then the chat agent answers that check in a single sentence, directly fulfilling the goal of drafting a tiny sanity check and responding in one sentence.",
+        "planner_provider": "groq",
+        "planner_model": "openai/gpt-oss-120b",
+        "created_at": "2026-08-30T04:29:32.561358Z"
+      }
+    },
+    "assigned_agents": [],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+    "conversation_id": "sanity-workflow-023c1292-fdb6-43f8-b0c6-fe1af5d6597b",
+    "status": "WAITING_FOR_AGENT",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+          "dependencies": [
+            "334a8833-53b6-4002-b909-708e4b64b70f"
+          ],
+          "expected_output": "Yes, 2+2 equals 4.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "c5fab1d8-1a6f-4f9d-a7c6-1f411bdc4d76",
+      "version": 1,
+      "rationale": "First, the drafting agent creates a minimal sanity\u2011check statement; then the chat agent answers that check in a single sentence, directly fulfilling the goal of drafting a tiny sanity check and responding in one sentence.",
+      "created_at": "2026-08-30T04:29:32.561358Z",
+      "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+      "dependencies": [],
+      "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "agent_result",
+      "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+      "task": {
+        "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+        "position": 0,
+        "name": "Draft sanity check",
+        "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+        "required_capability": "DRAFT",
+        "agent_id": "langgraph-copilot",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": ""
+        },
+        "dependencies": [],
+        "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+        "status": "PROPOSED"
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+    "conversation_id": "sanity-workflow-023c1292-fdb6-43f8-b0c6-fe1af5d6597b",
+    "status": "AWAITING_AGENT_APPROVAL",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+          "dependencies": [
+            "334a8833-53b6-4002-b909-708e4b64b70f"
+          ],
+          "expected_output": "Yes, 2+2 equals 4.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "c5fab1d8-1a6f-4f9d-a7c6-1f411bdc4d76",
+      "version": 1,
+      "rationale": "First, the drafting agent creates a minimal sanity\u2011check statement; then the chat agent answers that check in a single sentence, directly fulfilling the goal of drafting a tiny sanity check and responding in one sentence.",
+      "created_at": "2026-08-30T04:29:32.561358Z",
+      "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+      "dependencies": [],
+      "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "human_approval",
+      "approval": {
+        "prompt": "Review the LangGraph Copilot draft before accepting it.",
+        "context": {
+          "task": {
+            "name": "Draft sanity check",
+            "status": "PROPOSED",
+            "payload": {
+              "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+              "revision_feedback": ""
+            },
+            "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+            "agent_id": "langgraph-copilot",
+            "position": 0,
+            "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+            "dependencies": [],
+            "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+            "required_capability": "DRAFT"
+          },
+          "agent_id": "langgraph-copilot",
+          "thread_id": "agent:workflow:334a8833-53b6-4002-b909-708e4b64b70f",
+          "draft_reply": "**Sanity\u2011check:** True or false \u2013 If all squares have four equal sides and this shape is a square, then it has four equal sides.  \n**Answer:** True.",
+          "agent_output": {
+            "agent": "langgraph-copilot",
+            "model": "openai/gpt-oss-120b",
+            "prompt": "Review the LangGraph Copilot draft before accepting it.",
+            "status": "AWAITING_APPROVAL",
+            "options": [
+              "approve",
+              "revise",
+              "reject"
+            ],
+            "interrupt": {
+              "type": "agent_output_approval",
+              "prompt": "Review the LangGraph Copilot draft before accepting it.",
+              "options": [
+                "approve",
+                "revise",
+                "reject"
+              ],
+              "draft_reply": "**Sanity\u2011check:** True or false \u2013 If all squares have four equal sides and this shape is a square, then it has four equal sides.  \n**Answer:** True.",
+              "max_revisions": 2,
+              "revision_count": 0
+            },
+            "llm_model": "openai/gpt-oss-120b",
+            "thread_id": "agent:workflow:334a8833-53b6-4002-b909-708e4b64b70f",
+            "draft_reply": "**Sanity\u2011check:** True or false \u2013 If all squares have four equal sides and this shape is a square, then it has four equal sides.  \n**Answer:** True.",
+            "attempt_number": 1
+          }
+        },
+        "options": [
+          "APPROVE",
+          "REVISE",
+          "REJECT"
+        ],
+        "subject_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+        "approval_id": "f26ff866-7d32-4a77-bef1-9c67399f4ba1",
+        "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+        "approval_type": "AGENT_OUTPUT"
+      },
+      "prompt": "Review the LangGraph Copilot draft before accepting it.",
+      "options": [
+        {
+          "label": "Approve",
+          "value": "APPROVE"
+        },
+        {
+          "label": "Revise",
+          "value": "REVISE"
+        },
+        {
+          "label": "Reject",
+          "value": "REJECT"
+        }
+      ],
+      "task": {
+        "name": "Draft sanity check",
+        "status": "PROPOSED",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": ""
+        },
+        "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+        "agent_id": "langgraph-copilot",
+        "position": 0,
+        "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+        "dependencies": [],
+        "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+        "required_capability": "DRAFT"
+      },
+      "agent_id": "langgraph-copilot",
+      "thread_id": "agent:workflow:334a8833-53b6-4002-b909-708e4b64b70f",
+      "draft_reply": "**Sanity\u2011check:** True or false \u2013 If all squares have four equal sides and this shape is a square, then it has four equal sides.  \n**Answer:** True.",
+      "agent_output": {
+        "agent": "langgraph-copilot",
+        "model": "openai/gpt-oss-120b",
+        "prompt": "Review the LangGraph Copilot draft before accepting it.",
+        "status": "AWAITING_APPROVAL",
+        "options": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "interrupt": {
+          "type": "agent_output_approval",
+          "prompt": "Review the LangGraph Copilot draft before accepting it.",
+          "options": [
+            "approve",
+            "revise",
+            "reject"
+          ],
+          "draft_reply": "**Sanity\u2011check:** True or false \u2013 If all squares have four equal sides and this shape is a square, then it has four equal sides.  \n**Answer:** True.",
+          "max_revisions": 2,
+          "revision_count": 0
+        },
+        "llm_model": "openai/gpt-oss-120b",
+        "thread_id": "agent:workflow:334a8833-53b6-4002-b909-708e4b64b70f",
+        "draft_reply": "**Sanity\u2011check:** True or false \u2013 If all squares have four equal sides and this shape is a square, then it has four equal sides.  \n**Answer:** True.",
+        "attempt_number": 1
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+    "conversation_id": "sanity-workflow-023c1292-fdb6-43f8-b0c6-fe1af5d6597b",
+    "status": "WAITING_FOR_AGENT",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+          "dependencies": [
+            "334a8833-53b6-4002-b909-708e4b64b70f"
+          ],
+          "expected_output": "Yes, 2+2 equals 4.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "c5fab1d8-1a6f-4f9d-a7c6-1f411bdc4d76",
+      "version": 1,
+      "rationale": "First, the drafting agent creates a minimal sanity\u2011check statement; then the chat agent answers that check in a single sentence, directly fulfilling the goal of drafting a tiny sanity check and responding in one sentence.",
+      "created_at": "2026-08-30T04:29:32.561358Z",
+      "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "resume_thread_id": "agent:workflow:334a8833-53b6-4002-b909-708e4b64b70f",
+        "approval_decision": "approve",
+        "approval_feedback": "",
+        "revision_feedback": ""
+      },
+      "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+      "dependencies": [],
+      "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "agent_result",
+      "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+      "task": {
+        "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+        "position": 0,
+        "name": "Draft sanity check",
+        "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+        "required_capability": "DRAFT",
+        "agent_id": "langgraph-copilot",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": "",
+          "resume_thread_id": "agent:workflow:334a8833-53b6-4002-b909-708e4b64b70f",
+          "approval_decision": "approve",
+          "approval_feedback": ""
+        },
+        "dependencies": [],
+        "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+        "status": "PROPOSED"
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+    "conversation_id": "sanity-workflow-023c1292-fdb6-43f8-b0c6-fe1af5d6597b",
+    "status": "WAITING_FOR_AGENT",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+          "dependencies": [
+            "334a8833-53b6-4002-b909-708e4b64b70f"
+          ],
+          "expected_output": "Yes, 2+2 equals 4.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "c5fab1d8-1a6f-4f9d-a7c6-1f411bdc4d76",
+      "version": 1,
+      "rationale": "First, the drafting agent creates a minimal sanity\u2011check statement; then the chat agent answers that check in a single sentence, directly fulfilling the goal of drafting a tiny sanity check and responding in one sentence.",
+      "created_at": "2026-08-30T04:29:32.561358Z",
+      "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Answer sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+      "agent_id": "googleADK-Chatagent",
+      "position": 1,
+      "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+      "dependencies": [
+        "334a8833-53b6-4002-b909-708e4b64b70f"
+      ],
+      "expected_output": "Yes, 2+2 equals 4.",
+      "required_capability": "CHAT"
+    },
+    "pending_input": {
+      "type": "agent_result",
+      "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+      "task": {
+        "name": "Answer sanity check",
+        "status": "PROPOSED",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": ""
+        },
+        "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+        "agent_id": "googleADK-Chatagent",
+        "position": 1,
+        "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+        "dependencies": [
+          "334a8833-53b6-4002-b909-708e4b64b70f"
+        ],
+        "expected_output": "Yes, 2+2 equals 4.",
+        "required_capability": "CHAT"
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot",
+      "googleADK-Chatagent"
+    ],
+    "task_results": [
+      {
+        "result": {
+          "status": "COMPLETED",
+          "approved": true,
+          "rejected": false,
+          "llm_model": "openai/gpt-oss-120b",
+          "task_kind": "simple",
+          "thread_id": "agent:workflow:334a8833-53b6-4002-b909-708e4b64b70f",
+          "draft_reply": "**Sanity\u2011check:** True or false \u2013 If all squares have four equal sides and this shape is a square, then it has four equal sides.  \n**Answer:** True.",
+          "final_reply": "**Sanity\u2011check:** True or false \u2013 If all squares have four equal sides and this shape is a square, then it has four equal sides.  \n**Answer:** True.",
+          "max_revisions": 2,
+          "memory_opt_in": false,
+          "quality_score": 1.0,
+          "attempt_number": 1,
+          "memory_updates": {},
+          "memory_user_id": "",
+          "revision_count": 0,
+          "draft_message_id": "4c9102d0-7237-4cea-9102-03497debf51b",
+          "approval_decision": "approve",
+          "approval_feedback": "",
+          "approval_required": true,
+          "long_term_memories": [],
+          "memory_delete_keys": [],
+          "evaluation_attempts": 1,
+          "evaluation_feedback": "",
+          "max_evaluation_tokens": 12000,
+          "evaluation_deadline_at": "2026-08-30T04:30:17.805387+00:00",
+          "evaluation_tokens_used": 26,
+          "max_evaluation_attempts": 3
+        },
+        "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+        "assignment_event_id": "62bf4c9a-4ec1-4373-8bdf-33968e81d3f4"
+      }
+    ],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+    "conversation_id": "sanity-workflow-023c1292-fdb6-43f8-b0c6-fe1af5d6597b",
+    "status": "COMPLETED",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check statement (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check statement, such as \"Is 2+2 equal to 4?\"",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+          "dependencies": [
+            "334a8833-53b6-4002-b909-708e4b64b70f"
+          ],
+          "expected_output": "Yes, 2+2 equals 4.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "c5fab1d8-1a6f-4f9d-a7c6-1f411bdc4d76",
+      "version": 1,
+      "rationale": "First, the drafting agent creates a minimal sanity\u2011check statement; then the chat agent answers that check in a single sentence, directly fulfilling the goal of drafting a tiny sanity check and responding in one sentence.",
+      "created_at": "2026-08-30T04:29:32.561358Z",
+      "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Answer sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+      "agent_id": "googleADK-Chatagent",
+      "position": 1,
+      "description": "Provide a one\u2011sentence answer to the sanity\u2011check drafted in the previous step.",
+      "dependencies": [
+        "334a8833-53b6-4002-b909-708e4b64b70f"
+      ],
+      "expected_output": "Yes, 2+2 equals 4.",
+      "required_capability": "CHAT"
+    },
+    "pending_input": null,
+    "assigned_agents": [
+      "langgraph-copilot",
+      "googleADK-Chatagent"
+    ],
+    "task_results": [
+      {
+        "result": {
+          "status": "COMPLETED",
+          "approved": true,
+          "rejected": false,
+          "llm_model": "openai/gpt-oss-120b",
+          "task_kind": "simple",
+          "thread_id": "agent:workflow:334a8833-53b6-4002-b909-708e4b64b70f",
+          "draft_reply": "**Sanity\u2011check:** True or false \u2013 If all squares have four equal sides and this shape is a square, then it has four equal sides.  \n**Answer:** True.",
+          "final_reply": "**Sanity\u2011check:** True or false \u2013 If all squares have four equal sides and this shape is a square, then it has four equal sides.  \n**Answer:** True.",
+          "max_revisions": 2,
+          "memory_opt_in": false,
+          "quality_score": 1.0,
+          "attempt_number": 1,
+          "memory_updates": {},
+          "memory_user_id": "",
+          "revision_count": 0,
+          "draft_message_id": "4c9102d0-7237-4cea-9102-03497debf51b",
+          "approval_decision": "approve",
+          "approval_feedback": "",
+          "approval_required": true,
+          "long_term_memories": [],
+          "memory_delete_keys": [],
+          "evaluation_attempts": 1,
+          "evaluation_feedback": "",
+          "max_evaluation_tokens": 12000,
+          "evaluation_deadline_at": "2026-08-30T04:30:17.805387+00:00",
+          "evaluation_tokens_used": 26,
+          "max_evaluation_attempts": 3
+        },
+        "task_id": "334a8833-53b6-4002-b909-708e4b64b70f",
+        "assignment_event_id": "62bf4c9a-4ec1-4373-8bdf-33968e81d3f4"
+      },
+      {
+        "result": {
+          "agent": "googleADK-Chatagent",
+          "model": "openai/gpt-oss-120b",
+          "source": "google_adk_llm",
+          "status": "success",
+          "session_id": "934289cc-9e31-4eb5-b072-e7257f583c46",
+          "final_reply": "The tiny sanity check (does\u202f2\u202f+\u202f2 equal\u202f4?) passes, confirming the expected result.",
+          "attempt_number": 1
+        },
+        "task_id": "875ecec5-46ba-47a0-9951-21f27794d5da",
+        "assignment_event_id": "457a3f88-c4f0-4aa8-816f-7ef27a17c56b"
+      }
+    ],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  }
+]

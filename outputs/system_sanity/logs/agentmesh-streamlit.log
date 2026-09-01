@@ -1,0 +1,12 @@
+2026-08-30T04:00:10.180353721Z 
+2026-08-30T04:00:10.455688803Z 2026-08-30 04:00:10.455 Uvicorn server started on 0.0.0.0:8501
+2026-08-30T04:00:10.180402022Z Collecting usage statistics. To deactivate, set browser.gatherUsageStats to false.
+2026-08-30T04:00:10.180407922Z 
+2026-08-30T04:00:10.664858740Z 
+2026-08-30T04:00:10.664889040Z   You can now view your Streamlit app in your browser.
+2026-08-30T04:00:10.664895941Z 
+2026-08-30T04:00:10.664900441Z   Local URL: http://localhost:8501
+2026-08-30T04:00:10.664904841Z   Network URL: http://172.18.0.4:8501
+2026-08-30T04:00:10.664909041Z   External URL: http://106.222.203.112:8501
+2026-08-30T04:00:10.664913341Z 
+2026-08-30T04:00:10.664917841Z   Detected WSL. Using poll-based file watching for better compatibility. To force watchdog, set server.fileWatcherType = "watchdog".

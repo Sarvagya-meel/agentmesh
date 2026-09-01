@@ -1,0 +1,116 @@
+{
+  "generated_at": "2026-08-30T04:29:42.583486+00:00",
+  "mode": "local",
+  "results": [
+    {
+      "name": "catalog.sqlite",
+      "status": "pass",
+      "detail": "Sanity catalog written.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\automation_check\\agentmesh_sanity_catalog.sqlite"
+      }
+    },
+    {
+      "name": "docker.compose.config",
+      "status": "pass",
+      "detail": "Exit code 0.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\automation_check\\compose_config.log"
+      }
+    },
+    {
+      "name": "docker.compose.ps",
+      "status": "pass",
+      "detail": "Exit code 0.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\automation_check\\docker_ps.log"
+      }
+    },
+    {
+      "name": "docker.containers.expected",
+      "status": "pass",
+      "detail": "All expected containers are listed.",
+      "evidence": null,
+      "metadata": {}
+    },
+    {
+      "name": "http.health_ready_registry",
+      "status": "pass",
+      "detail": "Health, readiness, and registry endpoints responded.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\automation_check\\http_checks.json"
+      }
+    },
+    {
+      "name": "registry.required_agents_online",
+      "status": "pass",
+      "detail": "Required agents are online.",
+      "evidence": null,
+      "metadata": {}
+    },
+    {
+      "name": "agents.direct_invokes",
+      "status": "pass",
+      "detail": "LangGraph and ADK direct invocations completed.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\automation_check\\direct_invokes.json"
+      }
+    },
+    {
+      "name": "workflow.smoke",
+      "status": "pass",
+      "detail": "Final workflow status: COMPLETED.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\automation_check\\workflow_smoke.json",
+        "workflow_id": "c858878d-e646-4cb9-b3e2-f95126334142"
+      }
+    },
+    {
+      "name": "workflow.final_answer_faithfulness_hint",
+      "status": "pass",
+      "detail": "Final result retains some lexical overlap with prior task output.",
+      "evidence": null,
+      "metadata": {}
+    },
+    {
+      "name": "postgres.workflow_events",
+      "status": "pass",
+      "detail": "Exit code 0.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\automation_check\\postgres_workflow_events.log"
+      }
+    },
+    {
+      "name": "postgres.workflow_completed_event",
+      "status": "pass",
+      "detail": "Workflow completion event found.",
+      "evidence": null,
+      "metadata": {}
+    },
+    {
+      "name": "logs.error_scan",
+      "status": "fail",
+      "detail": "2 matching log lines found.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\automation_check\\log_scan.json"
+      }
+    },
+    {
+      "name": "langsmith.project_and_traces",
+      "status": "pass",
+      "detail": "Project matches=1, recent runs=10.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\automation_check\\langsmith_check.json"
+      }
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "endpoint": "https://api.smith.langchain.com",
+  "project": "AgentMesh",
+  "api_key_present": true,
+  "project_matches": 1,
+  "recent_run_count_sample": 10,
+  "recent_runs": [
+    {
+      "name": "complete_workflow",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:32:18.675171+00:00"
+    },
+    {
+      "name": "_advance_route",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:32:18.672412+00:00"
+    },
+    {
+      "name": "advance_task",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:32:18.670607+00:00"
+    },
+    {
+      "name": "_task_result_route",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:32:18.668151+00:00"
+    },
+    {
+      "name": "wait_for_task_result",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:32:18.662631+00:00"
+    },
+    {
+      "name": "LangGraph",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:32:18.659683+00:00"
+    },
+    {
+      "name": "wait_for_task_result",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:32:16.339082+00:00"
+    },
+    {
+      "name": "dispatch_task",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:32:16.332510+00:00"
+    },
+    {
+      "name": "prepare_task",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:32:16.327093+00:00"
+    },
+    {
+      "name": "_advance_route",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:32:16.325005+00:00"
+    }
+  ]
+}

@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     langsmith_api_key: SecretStr | None = None
     langsmith_workspace_id: str = ""
     google_adk_session_backend: str = "memory"
+    google_adk_model: str = ""
 
     llm_provider: str = "mock"
     bedrock_model_id: str = ""

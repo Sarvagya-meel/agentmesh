@@ -1,0 +1,801 @@
+[
+  {
+    "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+    "conversation_id": "sanity-workflow-55cafd6b-70d7-4bea-8fbe-1fd5b91ea15a",
+    "status": "AWAITING_PLAN_APPROVAL",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+          "dependencies": [
+            "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+          ],
+          "expected_output": "A single sentence containing the answer.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "5292fb56-edab-419a-b675-c479d97a349e",
+      "version": 1,
+      "rationale": "We first let the drafting agent create a tiny sanity\u2011check, then the chat agent answers it in one sentence, satisfying the goal.",
+      "created_at": "2026-08-30T04:32:13.505442Z",
+      "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": null,
+    "pending_input": {
+      "type": "human_approval",
+      "approval": {
+        "approval_id": "023893b3-e832-4f88-8523-0f998b1ded9c",
+        "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+        "approval_type": "PLAN",
+        "subject_id": "5292fb56-edab-419a-b675-c479d97a349e",
+        "prompt": "Approve workflow plan version 1 before tasks are prepared?",
+        "options": [
+          "APPROVE",
+          "REVISE",
+          "REJECT"
+        ],
+        "context": {
+          "plan": {
+            "plan_id": "5292fb56-edab-419a-b675-c479d97a349e",
+            "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "version": 1,
+            "tasks": [
+              {
+                "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+                "position": 0,
+                "name": "Draft sanity check",
+                "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+                "required_capability": "DRAFT",
+                "agent_id": "langgraph-copilot",
+                "payload": {
+                  "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+                  "revision_feedback": ""
+                },
+                "dependencies": [],
+                "expected_output": "A one\u2011line sanity\u2011check question.",
+                "status": "PROPOSED"
+              },
+              {
+                "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+                "position": 1,
+                "name": "Answer sanity check",
+                "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+                "required_capability": "CHAT",
+                "agent_id": "googleADK-Chatagent",
+                "payload": {
+                  "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+                  "revision_feedback": ""
+                },
+                "dependencies": [
+                  "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+                ],
+                "expected_output": "A single sentence containing the answer.",
+                "status": "PROPOSED"
+              }
+            ],
+            "rationale": "We first let the drafting agent create a tiny sanity\u2011check, then the chat agent answers it in one sentence, satisfying the goal.",
+            "planner_provider": "groq",
+            "planner_model": "openai/gpt-oss-120b",
+            "created_at": "2026-08-30T04:32:13.505442Z"
+          }
+        }
+      },
+      "prompt": "Approve workflow plan version 1 before tasks are prepared?",
+      "options": [
+        {
+          "label": "Approve",
+          "value": "APPROVE"
+        },
+        {
+          "label": "Revise",
+          "value": "REVISE"
+        },
+        {
+          "label": "Reject",
+          "value": "REJECT"
+        }
+      ],
+      "plan": {
+        "plan_id": "5292fb56-edab-419a-b675-c479d97a349e",
+        "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "version": 1,
+        "tasks": [
+          {
+            "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+            "position": 0,
+            "name": "Draft sanity check",
+            "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+            "required_capability": "DRAFT",
+            "agent_id": "langgraph-copilot",
+            "payload": {
+              "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+              "revision_feedback": ""
+            },
+            "dependencies": [],
+            "expected_output": "A one\u2011line sanity\u2011check question.",
+            "status": "PROPOSED"
+          },
+          {
+            "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+            "position": 1,
+            "name": "Answer sanity check",
+            "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+            "required_capability": "CHAT",
+            "agent_id": "googleADK-Chatagent",
+            "payload": {
+              "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+              "revision_feedback": ""
+            },
+            "dependencies": [
+              "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+            ],
+            "expected_output": "A single sentence containing the answer.",
+            "status": "PROPOSED"
+          }
+        ],
+        "rationale": "We first let the drafting agent create a tiny sanity\u2011check, then the chat agent answers it in one sentence, satisfying the goal.",
+        "planner_provider": "groq",
+        "planner_model": "openai/gpt-oss-120b",
+        "created_at": "2026-08-30T04:32:13.505442Z"
+      }
+    },
+    "assigned_agents": [],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+    "conversation_id": "sanity-workflow-55cafd6b-70d7-4bea-8fbe-1fd5b91ea15a",
+    "status": "WAITING_FOR_AGENT",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+          "dependencies": [
+            "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+          ],
+          "expected_output": "A single sentence containing the answer.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "5292fb56-edab-419a-b675-c479d97a349e",
+      "version": 1,
+      "rationale": "We first let the drafting agent create a tiny sanity\u2011check, then the chat agent answers it in one sentence, satisfying the goal.",
+      "created_at": "2026-08-30T04:32:13.505442Z",
+      "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+      "dependencies": [],
+      "expected_output": "A one\u2011line sanity\u2011check question.",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "agent_result",
+      "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+      "task": {
+        "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+        "position": 0,
+        "name": "Draft sanity check",
+        "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+        "required_capability": "DRAFT",
+        "agent_id": "langgraph-copilot",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": ""
+        },
+        "dependencies": [],
+        "expected_output": "A one\u2011line sanity\u2011check question.",
+        "status": "PROPOSED"
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+    "conversation_id": "sanity-workflow-55cafd6b-70d7-4bea-8fbe-1fd5b91ea15a",
+    "status": "AWAITING_AGENT_APPROVAL",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+          "dependencies": [
+            "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+          ],
+          "expected_output": "A single sentence containing the answer.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "5292fb56-edab-419a-b675-c479d97a349e",
+      "version": 1,
+      "rationale": "We first let the drafting agent create a tiny sanity\u2011check, then the chat agent answers it in one sentence, satisfying the goal.",
+      "created_at": "2026-08-30T04:32:13.505442Z",
+      "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+      "dependencies": [],
+      "expected_output": "A one\u2011line sanity\u2011check question.",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "human_approval",
+      "approval": {
+        "prompt": "Review the LangGraph Copilot draft before accepting it.",
+        "context": {
+          "task": {
+            "name": "Draft sanity check",
+            "status": "PROPOSED",
+            "payload": {
+              "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+              "revision_feedback": ""
+            },
+            "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+            "agent_id": "langgraph-copilot",
+            "position": 0,
+            "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+            "dependencies": [],
+            "expected_output": "A one\u2011line sanity\u2011check question.",
+            "required_capability": "DRAFT"
+          },
+          "agent_id": "langgraph-copilot",
+          "thread_id": "agent:workflow:b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+          "draft_reply": "**Sanity\u2011check prompt:**  \nTrue or False \u2013 If all mammals are warm\u2011blooded and a whale is a mammal, then a whale is warm\u2011blooded.\n\n**Answer:** True.",
+          "agent_output": {
+            "agent": "langgraph-copilot",
+            "model": "openai/gpt-oss-120b",
+            "prompt": "Review the LangGraph Copilot draft before accepting it.",
+            "status": "AWAITING_APPROVAL",
+            "options": [
+              "approve",
+              "revise",
+              "reject"
+            ],
+            "interrupt": {
+              "type": "agent_output_approval",
+              "prompt": "Review the LangGraph Copilot draft before accepting it.",
+              "options": [
+                "approve",
+                "revise",
+                "reject"
+              ],
+              "draft_reply": "**Sanity\u2011check prompt:**  \nTrue or False \u2013 If all mammals are warm\u2011blooded and a whale is a mammal, then a whale is warm\u2011blooded.\n\n**Answer:** True.",
+              "max_revisions": 2,
+              "revision_count": 0
+            },
+            "llm_model": "openai/gpt-oss-120b",
+            "thread_id": "agent:workflow:b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+            "draft_reply": "**Sanity\u2011check prompt:**  \nTrue or False \u2013 If all mammals are warm\u2011blooded and a whale is a mammal, then a whale is warm\u2011blooded.\n\n**Answer:** True.",
+            "attempt_number": 1
+          }
+        },
+        "options": [
+          "APPROVE",
+          "REVISE",
+          "REJECT"
+        ],
+        "subject_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+        "approval_id": "35f1400a-4b8c-4fc9-893b-8d2ceb9f124c",
+        "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+        "approval_type": "AGENT_OUTPUT"
+      },
+      "prompt": "Review the LangGraph Copilot draft before accepting it.",
+      "options": [
+        {
+          "label": "Approve",
+          "value": "APPROVE"
+        },
+        {
+          "label": "Revise",
+          "value": "REVISE"
+        },
+        {
+          "label": "Reject",
+          "value": "REJECT"
+        }
+      ],
+      "task": {
+        "name": "Draft sanity check",
+        "status": "PROPOSED",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": ""
+        },
+        "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+        "agent_id": "langgraph-copilot",
+        "position": 0,
+        "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+        "dependencies": [],
+        "expected_output": "A one\u2011line sanity\u2011check question.",
+        "required_capability": "DRAFT"
+      },
+      "agent_id": "langgraph-copilot",
+      "thread_id": "agent:workflow:b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+      "draft_reply": "**Sanity\u2011check prompt:**  \nTrue or False \u2013 If all mammals are warm\u2011blooded and a whale is a mammal, then a whale is warm\u2011blooded.\n\n**Answer:** True.",
+      "agent_output": {
+        "agent": "langgraph-copilot",
+        "model": "openai/gpt-oss-120b",
+        "prompt": "Review the LangGraph Copilot draft before accepting it.",
+        "status": "AWAITING_APPROVAL",
+        "options": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "interrupt": {
+          "type": "agent_output_approval",
+          "prompt": "Review the LangGraph Copilot draft before accepting it.",
+          "options": [
+            "approve",
+            "revise",
+            "reject"
+          ],
+          "draft_reply": "**Sanity\u2011check prompt:**  \nTrue or False \u2013 If all mammals are warm\u2011blooded and a whale is a mammal, then a whale is warm\u2011blooded.\n\n**Answer:** True.",
+          "max_revisions": 2,
+          "revision_count": 0
+        },
+        "llm_model": "openai/gpt-oss-120b",
+        "thread_id": "agent:workflow:b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+        "draft_reply": "**Sanity\u2011check prompt:**  \nTrue or False \u2013 If all mammals are warm\u2011blooded and a whale is a mammal, then a whale is warm\u2011blooded.\n\n**Answer:** True.",
+        "attempt_number": 1
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+    "conversation_id": "sanity-workflow-55cafd6b-70d7-4bea-8fbe-1fd5b91ea15a",
+    "status": "WAITING_FOR_AGENT",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+          "dependencies": [
+            "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+          ],
+          "expected_output": "A single sentence containing the answer.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "5292fb56-edab-419a-b675-c479d97a349e",
+      "version": 1,
+      "rationale": "We first let the drafting agent create a tiny sanity\u2011check, then the chat agent answers it in one sentence, satisfying the goal.",
+      "created_at": "2026-08-30T04:32:13.505442Z",
+      "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "resume_thread_id": "agent:workflow:b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+        "approval_decision": "approve",
+        "approval_feedback": "",
+        "revision_feedback": ""
+      },
+      "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+      "dependencies": [],
+      "expected_output": "A one\u2011line sanity\u2011check question.",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "agent_result",
+      "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+      "task": {
+        "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+        "position": 0,
+        "name": "Draft sanity check",
+        "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+        "required_capability": "DRAFT",
+        "agent_id": "langgraph-copilot",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": "",
+          "resume_thread_id": "agent:workflow:b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+          "approval_decision": "approve",
+          "approval_feedback": ""
+        },
+        "dependencies": [],
+        "expected_output": "A one\u2011line sanity\u2011check question.",
+        "status": "PROPOSED"
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+    "conversation_id": "sanity-workflow-55cafd6b-70d7-4bea-8fbe-1fd5b91ea15a",
+    "status": "WAITING_FOR_AGENT",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+          "dependencies": [
+            "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+          ],
+          "expected_output": "A single sentence containing the answer.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "5292fb56-edab-419a-b675-c479d97a349e",
+      "version": 1,
+      "rationale": "We first let the drafting agent create a tiny sanity\u2011check, then the chat agent answers it in one sentence, satisfying the goal.",
+      "created_at": "2026-08-30T04:32:13.505442Z",
+      "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Answer sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+      "agent_id": "googleADK-Chatagent",
+      "position": 1,
+      "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+      "dependencies": [
+        "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+      ],
+      "expected_output": "A single sentence containing the answer.",
+      "required_capability": "CHAT"
+    },
+    "pending_input": {
+      "type": "agent_result",
+      "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+      "task": {
+        "name": "Answer sanity check",
+        "status": "PROPOSED",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": ""
+        },
+        "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+        "agent_id": "googleADK-Chatagent",
+        "position": 1,
+        "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+        "dependencies": [
+          "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+        ],
+        "expected_output": "A single sentence containing the answer.",
+        "required_capability": "CHAT"
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot",
+      "googleADK-Chatagent"
+    ],
+    "task_results": [
+      {
+        "result": {
+          "status": "COMPLETED",
+          "approved": true,
+          "rejected": false,
+          "llm_model": "openai/gpt-oss-120b",
+          "task_kind": "simple",
+          "thread_id": "agent:workflow:b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+          "draft_reply": "**Sanity\u2011check prompt:**  \nTrue or False \u2013 If all mammals are warm\u2011blooded and a whale is a mammal, then a whale is warm\u2011blooded.\n\n**Answer:** True.",
+          "final_reply": "**Sanity\u2011check prompt:**  \nTrue or False \u2013 If all mammals are warm\u2011blooded and a whale is a mammal, then a whale is warm\u2011blooded.\n\n**Answer:** True.",
+          "max_revisions": 2,
+          "memory_opt_in": false,
+          "quality_score": 1.0,
+          "attempt_number": 1,
+          "memory_updates": {},
+          "memory_user_id": "",
+          "revision_count": 0,
+          "draft_message_id": "654f144b-d604-4f16-9b48-c3898e50fdef",
+          "approval_decision": "approve",
+          "approval_feedback": "",
+          "approval_required": true,
+          "long_term_memories": [],
+          "memory_delete_keys": [],
+          "evaluation_attempts": 1,
+          "evaluation_feedback": "",
+          "max_evaluation_tokens": 12000,
+          "evaluation_deadline_at": "2026-08-30T04:32:59.236310+00:00",
+          "evaluation_tokens_used": 24,
+          "max_evaluation_attempts": 3
+        },
+        "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+        "assignment_event_id": "0b3b1e8d-e63f-42b5-968c-7b9c5a7957c5"
+      }
+    ],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+    "conversation_id": "sanity-workflow-55cafd6b-70d7-4bea-8fbe-1fd5b91ea15a",
+    "status": "COMPLETED",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Create a brief sanity\u2011check prompt (e.g., a simple true/false question) to verify basic reasoning.",
+          "dependencies": [],
+          "expected_output": "A one\u2011line sanity\u2011check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+          "dependencies": [
+            "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+          ],
+          "expected_output": "A single sentence containing the answer.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "5292fb56-edab-419a-b675-c479d97a349e",
+      "version": 1,
+      "rationale": "We first let the drafting agent create a tiny sanity\u2011check, then the chat agent answers it in one sentence, satisfying the goal.",
+      "created_at": "2026-08-30T04:32:13.505442Z",
+      "workflow_id": "1b37bce3-1a20-49fa-9c00-ae85f0b9a4c6",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Answer sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+      "agent_id": "googleADK-Chatagent",
+      "position": 1,
+      "description": "Provide a one\u2011sentence answer to the drafted sanity\u2011check question.",
+      "dependencies": [
+        "b038b69e-fd3d-47c3-9bfe-3066308b7f2b"
+      ],
+      "expected_output": "A single sentence containing the answer.",
+      "required_capability": "CHAT"
+    },
+    "pending_input": null,
+    "assigned_agents": [
+      "langgraph-copilot",
+      "googleADK-Chatagent"
+    ],
+    "task_results": [
+      {
+        "result": {
+          "status": "COMPLETED",
+          "approved": true,
+          "rejected": false,
+          "llm_model": "openai/gpt-oss-120b",
+          "task_kind": "simple",
+          "thread_id": "agent:workflow:b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+          "draft_reply": "**Sanity\u2011check prompt:**  \nTrue or False \u2013 If all mammals are warm\u2011blooded and a whale is a mammal, then a whale is warm\u2011blooded.\n\n**Answer:** True.",
+          "final_reply": "**Sanity\u2011check prompt:**  \nTrue or False \u2013 If all mammals are warm\u2011blooded and a whale is a mammal, then a whale is warm\u2011blooded.\n\n**Answer:** True.",
+          "max_revisions": 2,
+          "memory_opt_in": false,
+          "quality_score": 1.0,
+          "attempt_number": 1,
+          "memory_updates": {},
+          "memory_user_id": "",
+          "revision_count": 0,
+          "draft_message_id": "654f144b-d604-4f16-9b48-c3898e50fdef",
+          "approval_decision": "approve",
+          "approval_feedback": "",
+          "approval_required": true,
+          "long_term_memories": [],
+          "memory_delete_keys": [],
+          "evaluation_attempts": 1,
+          "evaluation_feedback": "",
+          "max_evaluation_tokens": 12000,
+          "evaluation_deadline_at": "2026-08-30T04:32:59.236310+00:00",
+          "evaluation_tokens_used": 24,
+          "max_evaluation_attempts": 3
+        },
+        "task_id": "b038b69e-fd3d-47c3-9bfe-3066308b7f2b",
+        "assignment_event_id": "0b3b1e8d-e63f-42b5-968c-7b9c5a7957c5"
+      },
+      {
+        "result": {
+          "agent": "googleADK-Chatagent",
+          "model": "openai/gpt-oss-120b",
+          "source": "google_adk_llm",
+          "status": "success",
+          "session_id": "a8f278cd-91b7-4da5-938a-f6c44fb616cb",
+          "final_reply": "Sanity check: Does adding two and two equal four? Yes, adding two and two equals four.",
+          "attempt_number": 1
+        },
+        "task_id": "5521d427-a055-4f4e-8c40-5ac4d358c4fe",
+        "assignment_event_id": "7ac992eb-19f8-45ca-8ba8-ea820135ebab"
+      }
+    ],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  }
+]

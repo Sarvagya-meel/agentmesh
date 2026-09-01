@@ -1,0 +1,60 @@
+{
+  "endpoint": "https://api.smith.langchain.com",
+  "project": "AgentMesh",
+  "api_key_present": true,
+  "project_matches": 1,
+  "recent_run_count_sample": 100,
+  "agentmesh_trace_shape": false,
+  "recent_runs": [
+    {
+      "name": "generate_response",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:34:04.017367+00:00"
+    },
+    {
+      "name": "Unnamed",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:34:04.014931+00:00"
+    },
+    {
+      "name": "classify_task",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:34:04.013386+00:00"
+    },
+    {
+      "name": "load_context",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:34:04.010669+00:00"
+    },
+    {
+      "name": "validate_input",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:34:04.008370+00:00"
+    },
+    {
+      "name": "WorkFlow || agent:workflow:a1033c9c-2291-4003-a013-2ba433368bbf || langgraph agent || langgraph-copilot || 2026-08-30T14:34:04+0",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:34:04.005948+00:00"
+    },
+    {
+      "name": "WorkFlow || 13cbb098-13b0-4d5e-8a6c-8ee85e62dec8 || Use langgraph-copilot to draft a tiny sanity check question. || langgraph-co",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:34:04.005368+00:00"
+    },
+    {
+      "name": "Audit || fbb63085-d02a-44ee-b932-2417ca3a44cd || audit assignment_claimed || ef5b004f-6423-469d-a66b-8337c66bf3bf || 2026-08-30T",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:34:04.001975+00:00"
+    },
+    {
+      "name": "WorkFlow || e91d39b5-a712-4d45-b85a-35b05de9e45d || assignment claim || langgraph-copilot || 2026-08-30T14:34:03+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:34:03.992834+00:00"
+    },
+    {
+      "name": "WorkFlow || 13cbb098-13b0-4d5e-8a6c-8ee85e62dec8 || worker list assignments || langgraph-copilot || 2026-08-30T14:34:03+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:34:03.987967+00:00"
+    }
+  ]
+}

@@ -40,7 +40,7 @@ def test_google_adk_factory_falls_back_to_mock_when_key_missing() -> None:
 
 
 def test_google_adk_factory_falls_back_for_gpt_oss_tool_choice_mismatch() -> None:
-    settings = Settings(llm_provider="groq", groq_api_key="test-key")
+    settings = Settings(llm_provider="groq", groq_api_key="test-key", google_adk_model="")
     agent, _ = create_google_adk_worker_agent(settings)
 
     result = agent.run_task({"messages": ["Is the sky blue on a clear day?"]})
@@ -48,6 +48,22 @@ def test_google_adk_factory_falls_back_for_gpt_oss_tool_choice_mismatch() -> Non
     assert result["status"] == "success"
     assert result["source"] == "local_fallback"
     assert result["model"] == "openai/gpt-oss-120b"
+
+
+def test_google_adk_factory_uses_adk_specific_groq_model_override() -> None:
+    settings = Settings(
+        llm_provider="groq",
+        groq_api_key="test-key",
+        google_adk_model="qwen/qwen3.6-27b",
+        google_adk_session_backend="memory",
+    )
+    agent, close = create_google_adk_worker_agent(settings)
+
+    assert isinstance(agent, GoogleADKAgent)
+    assert agent.model_name == "qwen/qwen3.6-27b"
+    assert agent._adk_runner is not None
+
+    close()
 
 
 def test_google_adk_agent_uses_stable_workflow_task_session_identity() -> None:

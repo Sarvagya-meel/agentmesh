@@ -1,0 +1,33 @@
+INFO:     127.0.0.1:38798 - "GET /health HTTP/1.1" 200 OK
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     172.18.0.5:34164 - "PUT /registry/agents/langgraph-copilot HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "POST /registry/agents/langgraph-copilot/heartbeat HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "POST /registry/agents/langgraph-copilot/heartbeat HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "GET /workers/langgraph-copilot/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "PUT /registry/agents/googleADK-Chatagent HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "POST /registry/agents/googleADK-Chatagent/heartbeat HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "POST /registry/agents/googleADK-Chatagent/heartbeat HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "GET /workers/googleADK-Chatagent/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "GET /workers/langgraph-copilot/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "GET /workers/googleADK-Chatagent/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "GET /workers/langgraph-copilot/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "GET /workers/googleADK-Chatagent/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "GET /workers/langgraph-copilot/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "GET /workers/googleADK-Chatagent/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37036 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "GET /workers/langgraph-copilot/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "GET /workers/googleADK-Chatagent/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "GET /workers/langgraph-copilot/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "GET /workers/googleADK-Chatagent/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "GET /workers/langgraph-copilot/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "GET /workers/googleADK-Chatagent/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "GET /workers/langgraph-copilot/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "GET /workers/googleADK-Chatagent/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "GET /workers/langgraph-copilot/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "GET /workers/googleADK-Chatagent/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     172.18.0.5:34164 - "GET /workers/langgraph-copilot/assignments?limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60942 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.6:58972 - "GET /workers/googleADK-Chatagent/assignments?limit=20 HTTP/1.1" 200 OK

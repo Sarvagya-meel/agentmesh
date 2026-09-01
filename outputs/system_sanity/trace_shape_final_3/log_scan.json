@@ -1,0 +1,90 @@
+{
+  "unexpected": [
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 10,
+      "text": "LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'."
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 12,
+      "text": "Node execution failed with exception"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 13,
+      "text": "Traceback (most recent call last):"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 24,
+      "text": "litellm.llms.custom_httpx.http_handler.MaskedHTTPStatusError: Client error '400 Bad Request' for url 'https://api.groq.com/openai/v1/chat/completions'"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 27,
+      "text": "During handling of the above exception, another exception occurred:"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 29,
+      "text": "Traceback (most recent call last):"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 41,
+      "text": "litellm.llms.openai.common_utils.OpenAIError: {\"error\":{\"message\":\"Tool choice is none, but model called a tool\",\"type\":\"invalid_request_error\",\"code\":\"tool_use_failed\",\"failed_generation\":\"{\\\"name\\\": \\\"googleADK-Chatagent\\\", \\\"arguments\\\": {\\n  \\\"prompt\\\": \\\"Is the sky blue on a clear day?\\\"\\n}}\"}}"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 44,
+      "text": "During handling of the above exception, another exception occurred:"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 46,
+      "text": "Traceback (most recent call last):"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 98,
+      "text": "litellm.exceptions.BadRequestError: litellm.BadRequestError: GroqException - {\"error\":{\"message\":\"Tool choice is none, but model called a tool\",\"type\":\"invalid_request_error\",\"code\":\"tool_use_failed\",\"failed_generation\":\"{\\\"name\\\": \\\"googleADK-Chatagent\\\", \\\"arguments\\\": {\\n  \\\"prompt\\\": \\\"Is the sky blue on a clear day?\\\"\\n}}\"}}"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 100,
+      "text": "Root node adk_spark_worker failed."
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 101,
+      "text": "Traceback (most recent call last):"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 106,
+      "text": "google.adk.workflow._errors.DynamicNodeFailError: Dynamic node adk_spark_worker failed"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 108,
+      "text": "During handling of the above exception, another exception occurred:"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 110,
+      "text": "Traceback (most recent call last):"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 114,
+      "text": "    raise e.error"
+    },
+    {
+      "container": "agentmesh-agent-googleadk-chatagent-1",
+      "line": 166,
+      "text": "litellm.exceptions.BadRequestError: litellm.BadRequestError: GroqException - {\"error\":{\"message\":\"Tool choice is none, but model called a tool\",\"type\":\"invalid_request_error\",\"code\":\"tool_use_failed\",\"failed_generation\":\"{\\\"name\\\": \\\"googleADK-Chatagent\\\", \\\"arguments\\\": {\\n  \\\"prompt\\\": \\\"Is the sky blue on a clear day?\\\"\\n}}\"}}"
+    }
+  ],
+  "known_transient_provider": []
+}

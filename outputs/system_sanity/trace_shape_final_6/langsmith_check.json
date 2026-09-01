@@ -1,0 +1,61 @@
+{
+  "endpoint": "https://api.smith.langchain.com",
+  "project": "AgentMesh",
+  "api_key_present": true,
+  "project_matches": 1,
+  "recent_run_count_sample": 100,
+  "trace_marker_thread_id": "langsmith-trace-shape-600a283a-b511-4bf7-b3ea-c9db2cd51009",
+  "agentmesh_trace_shape": true,
+  "recent_runs": [
+    {
+      "name": "Registry || googleADK-Chatagent || agent heartbeat || googleADK-Chatagent || 2026-08-30T14:39:55+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:39:55.128575+00:00"
+    },
+    {
+      "name": "Registry || agent:langgraph-copilot:runtime:c690ab2e-88c4-4486-94a5-52f32efd26a5 || resource upsert agent_runtime langgraph-copi",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:39:53.420585+00:00"
+    },
+    {
+      "name": "Registry || langgraph-copilot || resource upsert agent || langgraph-copilot || 2026-08-30T14:39:53+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:39:53.418183+00:00"
+    },
+    {
+      "name": "Registry || langgraph-copilot || agent heartbeat || langgraph-copilot || 2026-08-30T14:39:53+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:39:53.413819+00:00"
+    },
+    {
+      "name": "finalize",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:39:28.180863+00:00"
+    },
+    {
+      "name": "_evaluation_route",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:39:28.178114+00:00"
+    },
+    {
+      "name": "evaluate_output",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:39:28.175523+00:00"
+    },
+    {
+      "name": "validate_output",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:39:28.173490+00:00"
+    },
+    {
+      "name": "generate_response",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:39:23.728555+00:00"
+    },
+    {
+      "name": "Unnamed",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:39:23.726634+00:00"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "langgraph": {
+    "agent": "langgraph-copilot",
+    "model": "openai/gpt-oss-120b",
+    "status": "COMPLETED",
+    "thread_id": "sanity-langgraph-940a8c58-7257-4ee2-b556-87f5edf0d155",
+    "llm_model": "openai/gpt-oss-120b",
+    "task_kind": "simple",
+    "draft_reply": "The LangGraph runtime is ready.",
+    "draft_message_id": "80970a89-e525-4d81-a020-8006d09e9936",
+    "final_reply": "The LangGraph runtime is ready.",
+    "approval_required": false,
+    "approval_decision": "",
+    "approval_feedback": "",
+    "approved": true,
+    "revision_count": 0,
+    "max_revisions": 2,
+    "quality_score": 1.0,
+    "evaluation_attempts": 1,
+    "max_evaluation_attempts": 3,
+    "evaluation_feedback": "",
+    "evaluation_tokens_used": 5,
+    "max_evaluation_tokens": 12000,
+    "evaluation_deadline_at": "2026-08-30T14:39:55.854274+00:00",
+    "memory_user_id": "",
+    "memory_opt_in": false,
+    "memory_updates": {},
+    "memory_delete_keys": [],
+    "long_term_memories": []
+  },
+  "adk": {
+    "status": "success",
+    "agent": "googleADK-Chatagent",
+    "model": "openai/gpt-oss-120b",
+    "final_reply": "Local ADK fallback response for: Sanity check: say ADK runtime is ready in one sentence.",
+    "source": "local_fallback",
+    "session_id": "sanity-adk-1f8a34c0-e69b-4086-8d6f-722dabc31b06"
+  }
+}

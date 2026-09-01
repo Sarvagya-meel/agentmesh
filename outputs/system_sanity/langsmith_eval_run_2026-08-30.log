@@ -1,0 +1,56 @@
+Dataset ready: AgentMesh Sanity Eval (d6a6825f-e7ec-45fb-b065-0b7c5afb69a9)
+{
+  "outputs": {
+    "status": "COMPLETED",
+    "planned_agents": [
+      "langgraph-copilot",
+      "googleADK-Chatagent"
+    ],
+    "assigned_agents": [
+      "langgraph-copilot",
+      "googleADK-Chatagent"
+    ],
+    "event_types": [
+      "WORKFLOW_STARTED",
+      "AGENT_SNAPSHOT_CAPTURED",
+      "PLAN_CREATED",
+      "PLAN_APPROVAL_REQUESTED",
+      "PLAN_APPROVED",
+      "TASK_PROPOSED",
+      "TASK_ASSIGNED",
+      "AGENT_OUTPUT_PROPOSED",
+      "AGENT_APPROVAL_REQUESTED",
+      "AGENT_OUTPUT_APPROVED",
+      "TASK_ASSIGNED",
+      "TASK_COMPLETED",
+      "TASK_PROPOSED",
+      "TASK_ASSIGNED",
+      "TASK_COMPLETED",
+      "WORKFLOW_COMPLETED"
+    ],
+    "previous_task_output": "{\"assignment_event_id\": \"ed48860e-b011-4f81-9b80-ec69bf7f6f4f\", \"result\": {\"approval_decision\": \"approve\", \"approval_feedback\": \"\", \"approval_required\": true, \"approved\": true, \"attempt_number\": 1, \"draft_message_id\": \"bc813f10-e00b-404e-a13d-81889a1f1c68\", \"draft_reply\": \"**Sanity\\u2011check sentence**  \\n*\\u201cConfirm that the input dataset contains no null values and that every numeric field falls within its predefined minimum\\u2011maximum range.\\u201d*  \\n\\n**Multi\\u2011agent workflow to answer the sanity check**\\n\\n| Step | Agent | Responsibility | Output |\\n|------|-------|----------------|--------|\\n| 1 | **Data Ingestion Agent** | Loads the dataset and flags any missing (null) entries. | `null_report = {column: count_of_nulls}` |\\n| 2 | **Schema Validator Agent** | Retrieves the schema that defines min\\u2011max limits for each numeric column. | `bounds = {column: (min, max)}` |\\n| 3 | **Range Checker Agent** | Scans each numeric column, compares values to `bounds`, and records out\\u2011of\\u2011range occurrences. | `range_report = {column: count_out_of_range}` |\\n| 4 | **Aggregator Agent** | Merges `null_report` and `range_report` into a single sanity\\u2011status summary. | `sanity_status = { \\u201cnulls\\u201d: bool, \\u201cout_of_range\\u201d: bool, \\u201cdetails\\u201d: \\u2026 }` |\\n| 5 | **Decision Agent** | Evaluates `sanity_status`; if both flags are false, returns **PASS**, otherwise **FAIL** with details. | `result = \\\"PASS\\\" or \\\"FAIL \\u2013 see details\\\"` |\\n\\n**Result** \\u2013 The workflow runs automatically; the final answer will be either \\u201cPASS\\u201d (the sanity check is satisfied) or \\u201cFAIL\\u201d together with a concise list of columns that contain nulls or out\\u2011of\\u2011range values.\", \"evaluation_attempts\": 1, \"evaluation_deadline_at\": \"2026-08-30T04:34:07.884467+00:00\", \"evaluation_feedback\": \"\", \"evaluation_tokens_used\": 200, \"final_reply\": \"**Sanity\\u2011check sentence**  \\n*\\u201cConfirm that the input dataset contains no null values and that every numeric field falls within its predefined minimum\\u2011maximum range.\\u201d*  \\n\\n**Multi\\u2011agent workflow to answer the sanity check**\\n\\n| Step | Agent | Responsibility | Output |\\n|------|-------|----------------|--------|\\n| 1 | **Data Ingestion Agent** | Loads the dataset and flags any missing (null) entries. | `null_report = {column: count_of_nulls}` |\\n| 2 | **Schema Validator Agent** | Retrieves the schema that defines min\\u2011max limits for each numeric column. | `bounds = {column: (min, max)}` |\\n| 3 | **Range Checker Agent** | Scans each numeric column, compares values to `bounds`, and records out\\u2011of\\u2011range occurrences. | `range_report = {column: count_out_of_range}` |\\n| 4 | **Aggregator Agent** | Merges `null_report` and `range_report` into a single sanity\\u2011status summary. | `sanity_status = { \\u201cnulls\\u201d: bool, \\u201cout_of_range\\u201d: bool, \\u201cdetails\\u201d: \\u2026 }` |\\n| 5 | **Decision Agent** | Evaluates `sanity_status`; if both flags are false, returns **PASS**, otherwise **FAIL** with details. | `result = \\\"PASS\\\" or \\\"FAIL \\u2013 see details\\\"` |\\n\\n**Result** \\u2013 The workflow runs automatically; the final answer will be either \\u201cPASS\\u201d (the sanity check is satisfied) or \\u201cFAIL\\u201d together with a concise list of columns that contain nulls or out\\u2011of\\u2011range values.\", \"llm_model\": \"openai/gpt-oss-120b\", \"long_term_memories\": [], \"max_evaluation_attempts\": 3, \"max_evaluation_tokens\": 12000, \"max_revisions\": 2, \"memory_delete_keys\": [], \"memory_opt_in\": false, \"memory_updates\": {}, \"memory_user_id\": \"\", \"quality_score\": 1.0, \"rejected\": false, \"revision_count\": 0, \"status\": \"COMPLETED\", \"task_kind\": \"simple\", \"thread_id\": \"agent:workflow:e2677459-aa4a-48fe-916c-5cf05f77617b\"}, \"task_id\": \"e2677459-aa4a-48fe-916c-5cf05f77617b\"}",
+    "final_answer": "{\"assignment_event_id\": \"f46ac692-367b-411c-8260-741f4a29953c\", \"result\": {\"agent\": \"googleADK-Chatagent\", \"attempt_number\": 1, \"final_reply\": \"The system verifies that all agents are reachable before proceeding.\\n\\n```json\\n{\\n  \\\"workflow_name\\\": \\\"Multi\\u2011Agent Sanity Check and Data Enrichment\\\",\\n  \\\"description\\\": \\\"A short workflow that ensures all agents are online, performs a sanity check, then enriches input data using specialized agents.\\\",\\n  \\\"agents\\\": [\\n    {\\n      \\\"id\\\": \\\"agent_heartbeat\\\",\\n      \\\"role\\\": \\\"Health Monitor\\\",\\n      \\\"capabilities\\\": [\\\"ping\\\", \\\"status_report\\\"]\\n    },\\n    {\\n      \\\"id\\\": \\\"agent_validator\\\",\\n      \\\"role\\\": \\\"Sanity Validator\\\",\\n      \\\"capabilities\\\": [\\\"validate_sentence\\\", \\\"return_boolean\\\"]\\n    },\\n    {\\n      \\\"id\\\": \\\"agent_enricher\\\",\\n      \\\"role\\\": \\\"Data Enricher\\\",\\n      \\\"capabilities\\\": [\\\"extract_entities\\\", \\\"fetch_additional_info\\\"]\\n    }\\n  ],\\n  \\\"steps\\\": [\\n    {\\n      \\\"step_id\\\": \\\"step_1\\\",\\n      \\\"agent\\\": \\\"agent_heartbeat\\\",\\n      \\\"action\\\": \\\"ping\\\",\\n      \\\"input\\\": {\\n        \\\"targets\\\": [\\\"agent_validator\\\", \\\"agent_enricher\\\"]\\n      },\\n      \\\"output\\\": {\\n        \\\"status\\\": \\\"all_reachable\\\"\\n      },\\n      \\\"next_steps\\\": [\\\"step_2\\\"]\\n    },\\n    {\\n      \\\"step_id\\\": \\\"step_2\\\",\\n      \\\"agent\\\": \\\"agent_validator\\\",\\n      \\\"action\\\": \\\"validate_sentence\\\",\\n      \\\"input\\\": {\\n        \\\"sentence\\\": \\\"The system verifies that all agents are reachable before proceeding.\\\"\\n      },\\n      \\\"output\\\": {\\n        \\\"is_valid\\\": true,\\n        \\\"issues\\\": null\\n      },\\n      \\\"next_steps\\\": [\\\"step_3\\\"]\\n    },\\n    {\\n      \\\"step_id\\\": \\\"step_3\\\",\\n      \\\"agent\\\": \\\"agent_enricher\\\",\\n      \\\"action\\\": \\\"extract_entities\\\",\\n      \\\"input\\\": {\\n        \\\"text\\\": \\\"The system verifies that all agents are reachable before proceeding.\\\"\\n      },\\n      \\\"output\\\": {\\n        \\\"entities\\\": [\\\"system\\\", \\\"agents\\\", \\\"reachability\\\"]\\n      },\\n      \\\"next_steps\\\": [\\\"step_4\\\"]\\n    },\\n    {\\n      \\\"step_id\\\": \\\"step_4\\\",\\n      \\\"agent\\\": \\\"agent_enricher\\\",\\n      \\\"action\\\": \\\"fetch_additional_info\\\",\\n      \\\"input\\\": {\\n        \\\"entities\\\": [\\\"system\\\", \\\"agents\\\", \\\"reachability\\\"]\\n      },\\n      \\\"output\\\": {\\n        \\\"enriched_data\\\": {\\n          \\\"system\\\": \\\"monitoring component\\\",\\n          \\\"agents\\\": \\\"micro\\u2011services in the mesh\\\",\\n          \\\"reachability\\\": \\\"network health status\\\"\\n        }\\n      },\\n      \\\"next_steps\\\": []\\n    }\\n  ]\\n}\\n```\", \"model\": \"openai/gpt-oss-120b\", \"session_id\": \"c773845e-395f-4e10-a0de-fd4e34e6b106\", \"source\": \"google_adk_llm\", \"status\": \"success\"}, \"task_id\": \"e6c09717-2470-4f51-a4ef-cda3ac1a9077\"}"
+  },
+  "evaluation_results": [
+    {
+      "key": "workflow_consistency",
+      "score": 1.0,
+      "comment": "planned_agents=['googleADK-Chatagent', 'langgraph-copilot'] status=COMPLETED"
+    },
+    {
+      "key": "approval_gate_events",
+      "score": 1.0,
+      "comment": "missing=[]"
+    },
+    {
+      "key": "routing_choice",
+      "score": 1.0,
+      "comment": "assigned_agents=['googleADK-Chatagent', 'langgraph-copilot'] expected=['googleADK-Chatagent', 'langgraph-copilot']"
+    },
+    {
+      "key": "final_answer_faithfulness",
+      "score": 0.0784313725490196,
+      "comment": "overlap_terms=['\"attempt_number\":', '\"final_reply\":', '\"openai/gpt-oss-120b\",', '\"result\":', '\"status\":', '\"task_id\":', 'check', 'input', 'sanity', 'that']"
+    }
+  ]
+}

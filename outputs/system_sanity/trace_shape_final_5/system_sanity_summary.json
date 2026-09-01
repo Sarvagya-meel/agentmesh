@@ -1,0 +1,116 @@
+{
+  "generated_at": "2026-08-30T14:38:23.224421+00:00",
+  "mode": "local",
+  "results": [
+    {
+      "name": "catalog.sqlite",
+      "status": "pass",
+      "detail": "Sanity catalog written.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\trace_shape_final_5\\agentmesh_sanity_catalog.sqlite"
+      }
+    },
+    {
+      "name": "docker.compose.config",
+      "status": "pass",
+      "detail": "Exit code 0.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\trace_shape_final_5\\compose_config.log"
+      }
+    },
+    {
+      "name": "docker.compose.ps",
+      "status": "pass",
+      "detail": "Exit code 0.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\trace_shape_final_5\\docker_ps.log"
+      }
+    },
+    {
+      "name": "docker.containers.expected",
+      "status": "pass",
+      "detail": "All expected containers are listed.",
+      "evidence": null,
+      "metadata": {}
+    },
+    {
+      "name": "http.health_ready_registry",
+      "status": "pass",
+      "detail": "Health, readiness, and registry endpoints responded.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\trace_shape_final_5\\http_checks.json"
+      }
+    },
+    {
+      "name": "registry.required_agents_online",
+      "status": "pass",
+      "detail": "Required agents are online.",
+      "evidence": null,
+      "metadata": {}
+    },
+    {
+      "name": "agents.direct_invokes",
+      "status": "pass",
+      "detail": "LangGraph and ADK direct invocations completed.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\trace_shape_final_5\\direct_invokes.json"
+      }
+    },
+    {
+      "name": "workflow.smoke",
+      "status": "pass",
+      "detail": "Final workflow status: COMPLETED.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\trace_shape_final_5\\workflow_smoke.json",
+        "workflow_id": "7de3157e-cbe2-4c25-9aa8-a7e180438d19"
+      }
+    },
+    {
+      "name": "workflow.final_answer_faithfulness_hint",
+      "status": "pass",
+      "detail": "Final result retains some lexical overlap with prior task output.",
+      "evidence": null,
+      "metadata": {}
+    },
+    {
+      "name": "postgres.workflow_events",
+      "status": "pass",
+      "detail": "Exit code 0.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\trace_shape_final_5\\postgres_workflow_events.log"
+      }
+    },
+    {
+      "name": "postgres.workflow_completed_event",
+      "status": "pass",
+      "detail": "Workflow completion event found.",
+      "evidence": null,
+      "metadata": {}
+    },
+    {
+      "name": "logs.error_scan",
+      "status": "pass",
+      "detail": "0 unexpected matches; 0 known transient provider matches.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\trace_shape_final_5\\log_scan.json"
+      }
+    },
+    {
+      "name": "langsmith.project_and_traces",
+      "status": "fail",
+      "detail": "Project matches=1, recent runs=100, agentmesh_shape=False.",
+      "evidence": null,
+      "metadata": {
+        "evidence": "outputs\\system_sanity\\trace_shape_final_5\\langsmith_check.json"
+      }
+    }
+  ]
+}

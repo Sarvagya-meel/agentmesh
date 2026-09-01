@@ -1,0 +1,124 @@
+{
+  "orchestrator.health": {
+    "status": "ok"
+  },
+  "langgraph.ready": {
+    "status": "ready",
+    "runtime_role": "combined",
+    "presence_enabled": true,
+    "runtime_status": "READY",
+    "runtime_instance_id": "42d3ff99-3a2e-4e7d-a999-8a608b132004",
+    "active_execution_count": 0
+  },
+  "adk.ready": {
+    "status": "ready",
+    "runtime_role": "combined",
+    "presence_enabled": true,
+    "runtime_status": "READY",
+    "runtime_instance_id": "6643efed-9d51-49ac-80fa-387b0eed58dd",
+    "active_execution_count": 0
+  },
+  "registry.agents": [
+    {
+      "agent_id": "googleADK-Chatagent",
+      "name": "googleADK-Chatagent",
+      "version": "1.0.0",
+      "description": "Google ADK LLM worker for conversational and review tasks",
+      "endpoint": "http://agent-googleadk-chatagent:8102",
+      "capabilities": [
+        "CHAT",
+        "TRIP PLANNER",
+        "GoogleADK"
+      ],
+      "skills": [
+        "google_adk",
+        "conversation",
+        "llm_connector"
+      ],
+      "owner": "platform-team",
+      "status": "online",
+      "metadata": {
+        "direct_ready": true,
+        "runtime_model": "multi-instance",
+        "direct_endpoint": "http://agent-googleadk-chatagent:8102",
+        "assignment_ready": true,
+        "ready_runtime_count": 1,
+        "ready_runtime_roles": [
+          "combined"
+        ]
+      },
+      "registered_at": "2026-08-30T03:59:12.361100Z",
+      "last_seen": "2026-08-30T04:56:11.422816Z",
+      "updated_at": "2026-08-30T04:56:12.864153Z"
+    },
+    {
+      "agent_id": "langgraph-copilot",
+      "name": "langgraph-copilot",
+      "version": "1.0.0",
+      "description": "LangGraph conversation and review agent with resumable output approval",
+      "endpoint": "http://agent-langgraph-copilot:8101",
+      "capabilities": [
+        "CHAT",
+        "DRAFT",
+        "REVIEW"
+      ],
+      "skills": [
+        "conversation",
+        "drafting",
+        "output_review"
+      ],
+      "owner": "platform-team",
+      "status": "online",
+      "metadata": {
+        "framework": "langgraph",
+        "direct_ready": true,
+        "human_in_loop": true,
+        "runtime_model": "multi-instance",
+        "approval_modes": [
+          "output_review"
+        ],
+        "direct_endpoint": "http://agent-langgraph-copilot:8101",
+        "supports_resume": true,
+        "assignment_ready": true,
+        "long_term_memory": "opt_in",
+        "ready_runtime_count": 1,
+        "ready_runtime_roles": [
+          "combined"
+        ],
+        "supports_time_travel": true
+      },
+      "registered_at": "2026-08-30T03:59:11.226911Z",
+      "last_seen": "2026-08-30T04:56:10.371795Z",
+      "updated_at": "2026-08-30T04:56:12.865733Z"
+    },
+    {
+      "agent_id": "orchestrator-supervisor-agent",
+      "name": "orchestrator-supervisor-agent",
+      "version": "1.0.0",
+      "description": "Supervisor agent that plans workflows, routes tasks, and gates approvals.",
+      "endpoint": "http://orchestrator-supervisor-agent:8000",
+      "capabilities": [
+        "ORCHESTRATE",
+        "PLAN",
+        "ROUTE",
+        "APPROVAL_GATE",
+        "WORKFLOW_SUPERVISION"
+      ],
+      "skills": [
+        "workflow_planning",
+        "agent_routing",
+        "human_approval",
+        "event_sourcing"
+      ],
+      "owner": "platform-team",
+      "status": "online",
+      "metadata": {
+        "runtime": "fastapi",
+        "resource_type": "orchestrator"
+      },
+      "registered_at": "2026-08-30T03:59:00.079754Z",
+      "last_seen": "2026-08-30T04:55:58.899785Z",
+      "updated_at": "2026-08-30T04:56:12.866874Z"
+    }
+  ]
+}
