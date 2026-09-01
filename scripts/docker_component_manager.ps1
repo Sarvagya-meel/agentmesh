@@ -8,7 +8,7 @@ It allows you to start, stop, restart, inspect, and follow logs for each service
 without repeatedly typing docker compose commands.
 
 .EXAMPLE
-pwsh -File scripts\docker_component_manager.ps1 -Action start -Service orchestrator-supervisor-agent
+pwsh -File scripts\docker_component_manager.ps1 -Action start -Service control-plane,supervisor
 pwsh -File scripts\docker_component_manager.ps1 -Action restart -Service all
 pwsh -File scripts\docker_component_manager.ps1 -Action rebuild -Service agent-langgraph-copilot
 pwsh -File scripts\docker_component_manager.ps1 -Action logs-iterative -Service agent-googleadk-chatagent
@@ -17,7 +17,9 @@ pwsh -File scripts\docker_component_manager.ps1 -Action logs-iterative -Service 
 Available services:
   postgres
   migrate
-  orchestrator-supervisor-agent
+  litellm
+  control-plane
+  supervisor
   agent-langgraph-copilot
   agent-langgraph-copilot-api
   agent-langgraph-copilot-worker
@@ -71,7 +73,9 @@ if (Test-Path $dotenvFile) {
 $combinedServices = @(
     "postgres",
     "migrate",
-    "orchestrator-supervisor-agent",
+    "litellm",
+    "control-plane",
+    "supervisor",
     "agent-langgraph-copilot",
     "agent-googleadk-chatagent",
     "streamlit"
@@ -80,7 +84,9 @@ $combinedServices = @(
 $splitServices = @(
     "postgres",
     "migrate",
-    "orchestrator-supervisor-agent",
+    "litellm",
+    "control-plane",
+    "supervisor",
     "agent-langgraph-copilot-api",
     "agent-langgraph-copilot-worker",
     "agent-googleadk-chatagent-api",
@@ -190,7 +196,9 @@ function Wait-ForServiceReady {
 
     $healthMap = @{
         "postgres" = "http://127.0.0.1:5432";
-        "orchestrator-supervisor-agent" = "http://127.0.0.1:8000/health";
+        "litellm" = "http://127.0.0.1:4000/health/liveliness";
+        "control-plane" = "http://127.0.0.1:8000/health";
+        "supervisor" = "http://127.0.0.1:8110/health";
         "agent-langgraph-copilot" = "http://127.0.0.1:8101/health";
         "agent-langgraph-copilot-api" = "http://127.0.0.1:8101/health";
         "agent-googleadk-chatagent" = "http://127.0.0.1:8102/health";

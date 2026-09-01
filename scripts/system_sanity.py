@@ -136,7 +136,9 @@ class SanityRun:
         completed = self.run_command("docker.compose.ps", self.compose("ps"), "docker_ps.log")
         expected = [
             "agentmesh-postgres",
-            "agentmesh-orchestrator-supervisor",
+            "agentmesh-control-plane",
+            "agentmesh-supervisor",
+            "agentmesh-litellm",
             "agentmesh-agent-langgraph-copilot-1",
             "agentmesh-agent-googleadk-chatagent-1",
             "agentmesh-streamlit",
@@ -149,7 +151,9 @@ class SanityRun:
 
     def http_checks(self) -> None:
         checks = {
-            "orchestrator.health": http_json("GET", f"{self.api_url}/health"),
+            "control_plane.health": http_json("GET", f"{self.api_url}/health"),
+            "supervisor.health": http_json("GET", "http://127.0.0.1:8110/health"),
+            "litellm.health": http_json("GET", "http://127.0.0.1:4000/health/liveliness"),
             "langgraph.ready": http_json("GET", f"{self.langgraph_url}/ready"),
             "adk.ready": http_json("GET", f"{self.adk_url}/ready"),
             "registry.agents": http_json("GET", f"{self.api_url}/registry/agents"),
@@ -300,7 +304,9 @@ class SanityRun:
         log_dir = self.output_dir / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         containers = [
-            "agentmesh-orchestrator-supervisor",
+            "agentmesh-control-plane",
+            "agentmesh-supervisor",
+            "agentmesh-litellm",
             "agentmesh-agent-langgraph-copilot-1",
             "agentmesh-agent-googleadk-chatagent-1",
             "agentmesh-postgres",

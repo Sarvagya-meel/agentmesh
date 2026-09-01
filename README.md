@@ -70,6 +70,8 @@ python scripts/run_local.py
 `pyproject.toml` owns the install sets:
 
 - `control-plane`: FastAPI registry/control plane, PostgreSQL, and queue ownership
+- `supervisor`: LangGraph supervisor process and PostgreSQL checkpoints
+- `model-gateway`: pinned LiteLLM proxy dependency
 - `agent-langgraph`: selective Copilot runtime
 - `agent-adk`: selective Google ADK runtime
 - `ui`: thin Streamlit service
@@ -80,7 +82,7 @@ python scripts/run_local.py
 The easiest way to manage the stack is using the PowerShell helper scripts:
 
 ```powershell
-# Start all services (postgres, migrate, control plane, supervisor, agents, streamlit)
+# Start all services (Postgres, LiteLLM, control plane, supervisor, agents, UI)
 pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
 
 # Check health

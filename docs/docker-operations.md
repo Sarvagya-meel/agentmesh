@@ -4,8 +4,8 @@ Run commands from the repository root. Copy `.env.example` to `.env`, keep crede
 only in the ignored `.env`, and choose exactly one Compose profile through
 `COMPOSE_PROFILES`. Do not add a second profile with the `--profile` flag.
 
-> The stack has no authentication in this phase. Bind it only to a local machine or a
-> trusted development network.
+> Internal control-plane routes use `INTERNAL_SERVICE_TOKEN`. Public agent and UI ports
+> remain local-development surfaces and should not be exposed directly to the internet.
 
 ## Quick Start
 
@@ -75,6 +75,8 @@ docker compose --env-file .env `
 Host endpoints:
 
 - registry/control plane: `http://localhost:8000`
+- supervisor health/checkpoints: `http://localhost:8110`
+- LiteLLM proxy: `http://localhost:4000`
 - LangGraph Copilot: `http://localhost:8101`
 - Google ADK agent: `http://localhost:8102`
 - Streamlit: `http://localhost:8501`
@@ -113,6 +115,8 @@ docker compose --env-file .env `
 
 ```powershell
 Invoke-RestMethod http://localhost:8000/health
+Invoke-RestMethod http://localhost:8110/health
+Invoke-RestMethod http://localhost:4000/health/liveliness
 Invoke-RestMethod http://localhost:8101/ready
 Invoke-RestMethod http://localhost:8102/ready
 
@@ -129,7 +133,7 @@ pwsh -File .\scripts\docker_component_manager.ps1 -Action health
 pwsh -File .\scripts\docker_component_manager.ps1 `
   -Action rebuild -Service agent-langgraph-copilot
 pwsh -File .\scripts\docker_component_manager.ps1 `
-  -Action logs -Service orchestrator-supervisor-agent
+  -Action logs -Service control-plane,supervisor
 ```
 
 ## Migrations
@@ -158,7 +162,7 @@ DDL in place; add the next numbered migration instead.
 ## Troubleshooting
 
 - Use `localhost` from Windows and service names such as `postgres` or
-  `orchestrator-supervisor-agent` only inside the Compose network.
+  `control-plane`, `supervisor`, or `litellm` only inside the Compose network.
 - A healthy container proves process liveness. `/ready` additionally proves registration
   and role readiness.
 - `LLM_PROVIDER=groq` requires a valid `GROQ_API_KEY`; use `mock` for credential-free

@@ -31,3 +31,6 @@ The state projection algorithm must be tested to verify determinism and replay s
 - Keep fixtures small and explicit
 - Run the full suite from the project root with `python -m pytest -q`
 - CI must also run `ruff check .` and `mypy src`
+- Validate both `control_plane_app:app` and `supervisor_app:app` as independent imports.
+- Compose acceptance must inspect control-plane, supervisor, LiteLLM, migration, and
+  worker logs, then repeat after project-scoped image and volume deletion.

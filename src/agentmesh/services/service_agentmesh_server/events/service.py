@@ -80,29 +80,14 @@ class EventService:
     def list_pending_assignments(self, agent_id: str, *, limit: int = 20) -> list[Event]:
         """Return directed assignments that do not yet have a terminal result."""
 
-        events = self.repository.list_pending_assignments(agent_id, limit=limit)
-        if not events:
-            return events
-        author = self._resolve_author(agent_id)
-        with agentmesh_span(
-            agentmesh_run_name(
-                "WorkFlow",
-                events[0].workflow_id,
-                "assignment queue list",
-                author.author_name,
-            ),
-            inputs={"agent_id": agent_id, "limit": limit},
-            metadata=agentmesh_metadata(
-                agent_id=agent_id,
-                workflow_id=events[0].workflow_id,
-                limit=limit,
-                **trace_author_metadata(author),
-            ),
-            tags=["assignments", "queue"],
-        ) as run:
-            if run is not None:
-                run.end(outputs={"assignment_count": len(events)})
-        return events
+        return self.repository.list_pending_assignments(agent_id, limit=limit)
+
+    def list_pending_supervisor_actions(
+        self, supervisor_id: str, *, limit: int = 20
+    ) -> list[Event]:
+        """Return durable commands waiting for one supervisor runtime."""
+
+        return self.repository.list_pending_supervisor_actions(supervisor_id, limit=limit)
 
     def replay(self, workflow_id: UUID) -> list[Event]:
         """Return the complete ordered event history for a workflow."""

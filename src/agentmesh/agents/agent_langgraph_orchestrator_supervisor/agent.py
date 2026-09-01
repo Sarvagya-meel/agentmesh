@@ -317,7 +317,10 @@ class MasterOrchestratorAgent(BaseAgent):
         """Start planning and run until the plan approval checkpoint."""
 
         resolved_workflow_id = workflow_id or uuid4()
-        if self.event_service.replay(resolved_workflow_id):
+        if any(
+            event.event_type == "WORKFLOW_STARTED"
+            for event in self.event_service.replay(resolved_workflow_id)
+        ):
             raise WorkflowConflictError(f"Workflow {resolved_workflow_id} already exists.")
         self._emit_raw(
             conversation_id=conversation_id,
@@ -409,7 +412,10 @@ class MasterOrchestratorAgent(BaseAgent):
             metadata=metadata,
             tags=["workflow", "orchestrator", self.agent_name],
         ) as run:
-            if self.event_service.replay(resolved_workflow_id):
+            if any(
+                event.event_type == "WORKFLOW_STARTED"
+                for event in self.event_service.replay(resolved_workflow_id)
+            ):
                 raise WorkflowConflictError(f"Workflow {resolved_workflow_id} already exists.")
             self._emit_raw(
                 conversation_id=conversation_id,
@@ -992,6 +998,32 @@ class MasterOrchestratorAgent(BaseAgent):
         plan = WorkflowPlan.model_validate(state["plan"])
         task = plan.tasks[state.get("task_index", 0)]
         task_payload = task.model_dump(mode="json")
+        results_by_task = {
+            str(item.get("task_id")): item.get("result", {})
+            for item in state.get("task_results", [])
+            if item.get("task_id")
+        }
+        tasks_by_id = {str(item.task_id): item for item in plan.tasks}
+        resolved_inputs: dict[str, Any] = {}
+        for dependency_id in task.dependencies:
+            dependency_key = str(dependency_id)
+            dependency = tasks_by_id[dependency_key]
+            if dependency_key not in results_by_task:
+                raise ValidationError(
+                    f"Task {task.task_id} is blocked by unvalidated dependency {dependency_id}."
+                )
+            resolved_inputs[f"step_{dependency.position}"] = results_by_task[dependency_key]
+        task_payload["payload"] = {
+            **task_payload.get("payload", {}),
+            "workflow_context": {
+                "workflow_id": state["workflow_id"],
+                "plan_id": str(plan.plan_id),
+                "plan_version": plan.version,
+                "position": task.position,
+                "dependency_ids": [str(item) for item in task.dependencies],
+                "resolved_inputs": resolved_inputs,
+            },
+        }
         self._emit(state, "TASK_PROPOSED", {"task": task_payload, "plan_id": str(plan.plan_id)})
         return {"current_task": task_payload, "pending_approval": {}}
 

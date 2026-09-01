@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agentmesh.core.models import HumanDecisionType
+from agentmesh.core.models import HumanDecisionType, SupervisorActionType
 
 
 class StartWorkflowRequest(BaseModel):
@@ -87,6 +87,29 @@ class WorkerResultRequest(BaseModel):
     claim_token: UUID
     status: str
     result: dict[str, Any] = Field(default_factory=dict)
+
+
+class SupervisorActionEnqueueRequest(BaseModel):
+    """Internal control-plane command destined for the supervisor queue."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    conversation_id: str = Field(min_length=1)
+    workflow_id: UUID
+    action_type: SupervisorActionType
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    action_event_id: UUID | None = None
+
+
+class SupervisorActionCompleteRequest(WorkerLeaseRenewRequest):
+    result: dict[str, Any] = Field(default_factory=dict)
+
+
+class SupervisorActionFailureRequest(WorkerLeaseRenewRequest):
+    error_code: str = Field(min_length=1)
+    error_message: str = Field(min_length=1)
+    retryable: bool = False
+    retry_after_seconds: float = Field(default=0, ge=0, le=3600)
 
 
 class DirectedAssignmentRequest(BaseModel):

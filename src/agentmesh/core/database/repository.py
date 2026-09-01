@@ -38,6 +38,12 @@ class EventRepository(ABC):
     def list_pending_assignments(self, target_agent: str, *, limit: int = 20) -> list[Event]:
         """Return directed assignments without a terminal result event."""
 
+    @abstractmethod
+    def list_pending_supervisor_actions(
+        self, target_agent: str, *, limit: int = 20
+    ) -> list[Event]:
+        """Return supervisor commands without a terminal action event."""
+
 
 class InMemoryEventRepository(EventRepository):
     """Thread-safe local repository used by the API, UI, and unit tests."""
@@ -97,10 +103,32 @@ class InMemoryEventRepository(EventRepository):
                     pending.append(event.model_copy(deep=True))
             return pending[:limit]
 
+    def list_pending_supervisor_actions(
+        self, target_agent: str, *, limit: int = 20
+    ) -> list[Event]:
+        with self._lock:
+            terminal_action_ids = {
+                event.causation_id
+                for events in self._workflow_events.values()
+                for event in events
+                if event.event_type
+                in {"SUPERVISOR_ACTION_COMPLETED", "SUPERVISOR_ACTION_FAILED"}
+                and event.causation_id is not None
+            }
+            actions = [
+                event.model_copy(deep=True)
+                for events in self._workflow_events.values()
+                for event in events
+                if event.event_type == "SUPERVISOR_ACTION_REQUESTED"
+                and event.target_agent == target_agent
+                and event.event_id not in terminal_action_ids
+            ]
+            return sorted(actions, key=lambda event: event.timestamp)[:limit]
+
     def _has_proposed_agent_output(self, assignment: Event) -> bool:
         events = self._workflow_events.get(assignment.workflow_id, [])
         return any(
-            event.event_type == "AGENT_OUTPUT_PROPOSED"
+            event.event_type in {"AGENT_OUTPUT_PROPOSED", "TASK_OUTPUT_RECEIVED"}
             and event.causation_id == assignment.event_id
             for event in events
         )
@@ -239,10 +267,47 @@ class PostgresEventRepository(EventRepository):
                   AND NOT EXISTS (
                     SELECT 1 FROM agentmesh_events AS proposed
                     WHERE proposed.workflow_id = assignment.workflow_id
-                      AND proposed.event_type = 'AGENT_OUTPUT_PROPOSED'
+                      AND proposed.event_type IN (
+                        'AGENT_OUTPUT_PROPOSED', 'TASK_OUTPUT_RECEIVED'
+                      )
                       AND proposed.causation_id = assignment.event_id
                   )
                 ORDER BY assignment.timestamp ASC, assignment.sequence_number ASC
+                LIMIT %s
+                """,
+                (target_agent, limit),
+            )
+            return [self._to_event(row) for row in cursor.fetchall()]
+
+    def list_pending_supervisor_actions(
+        self, target_agent: str, *, limit: int = 20
+    ) -> list[Event]:
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT action.*
+                FROM agentmesh_events AS action
+                WHERE action.event_type = 'SUPERVISOR_ACTION_REQUESTED'
+                  AND action.target_agent = %s
+                  AND NOT EXISTS (
+                    SELECT 1 FROM agentmesh_events AS terminal
+                    WHERE terminal.causation_id = action.event_id
+                      AND terminal.event_type IN (
+                        'SUPERVISOR_ACTION_COMPLETED',
+                        'SUPERVISOR_ACTION_FAILED'
+                      )
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM agentmesh_event_claims AS claim
+                    WHERE claim.event_id = action.event_id
+                      AND claim.completed_at IS NULL
+                      AND claim.dead_lettered_at IS NULL
+                      AND (
+                        claim.lease_expires_at > CURRENT_TIMESTAMP
+                        OR claim.next_attempt_at > CURRENT_TIMESTAMP
+                      )
+                  )
+                ORDER BY action.timestamp ASC, action.sequence_number ASC
                 LIMIT %s
                 """,
                 (target_agent, limit),

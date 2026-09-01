@@ -4,7 +4,6 @@ import random
 from typing import Any
 from uuid import UUID, uuid4
 
-from agentmesh.agents.agent_langgraph_orchestrator_supervisor import MasterOrchestratorAgent
 from agentmesh.core.models import AssignmentClaim, Event, RoutingMode
 from agentmesh.core.models.exceptions import (
     AgentRegistryError,
@@ -20,7 +19,9 @@ from agentmesh.core.observability import (
 )
 from agentmesh.services.service_agentmesh_server.database.repository import ClaimRepository
 from agentmesh.services.service_agentmesh_server.events.service import EventService
+from agentmesh.services.service_agentmesh_server.orchestration import WorkflowOrchestrator
 from agentmesh.services.service_agentmesh_server.registry.service import RegistryService
+from agentmesh.services.service_agentmesh_server.validation import TaskOutputValidator
 
 
 class WorkerService:
@@ -32,7 +33,7 @@ class WorkerService:
         event_service: EventService,
         claim_repository: ClaimRepository,
         registry_service: RegistryService,
-        orchestrator: MasterOrchestratorAgent,
+        orchestrator: WorkflowOrchestrator,
         lease_seconds: int,
     ) -> None:
         self.event_service = event_service
@@ -40,6 +41,7 @@ class WorkerService:
         self.registry_service = registry_service
         self.orchestrator = orchestrator
         self.lease_seconds = lease_seconds
+        self.output_validator = TaskOutputValidator(event_service)
 
     def list_assignments(self, agent_id: str, *, limit: int = 20) -> list[Event]:
         """Return pending assignments for one currently registered agent."""
@@ -51,30 +53,7 @@ class WorkerService:
             raise AgentRegistryError(
                 f"Agent {agent_id!r} has no ready worker or combined runtime."
             )
-        assignments = self.event_service.list_pending_assignments(agent_id, limit=limit)
-        if not assignments:
-            return assignments
-        author = resolve_trace_author(agent_id, agent_card=card)
-        with agentmesh_span(
-            agentmesh_run_name(
-                "WorkFlow",
-                assignments[0].workflow_id,
-                "worker list assignments",
-                author.author_name,
-            ),
-            inputs={"agent_id": agent_id, "limit": limit},
-            metadata=agentmesh_metadata(
-                agent_id=agent_id,
-                agent_name=author.author_name,
-                workflow_id=assignments[0].workflow_id,
-                limit=limit,
-                **trace_author_metadata(author),
-            ),
-            tags=["worker", "assignments", agent_id],
-        ) as run:
-            if run is not None:
-                run.end(outputs={"assignment_count": len(assignments)})
-        return assignments
+        return self.event_service.list_pending_assignments(agent_id, limit=limit)
 
     def submit_directed_assignment(
         self,
@@ -317,11 +296,25 @@ class WorkerService:
                 worker_id=worker_id,
                 claim_token=claim_token,
             )
+        decision = self.output_validator.validate(
+            assignment,
+            task_id=task_id,
+            status=normalized_status,
+            result=result,
+        )
+        if not decision.valid:
+            normalized_status = "FAILED"
+            result = {
+                **result,
+                "validation_failed": True,
+                "validation_reasons": decision.reasons,
+                "output_hash": decision.output_hash,
+            }
         workflow_result = await self.orchestrator.asubmit_task_result(
             assignment.workflow_id,
             task_id=task_id,
             assignment_event_id=assignment.event_id,
-            status=status,
+            status=normalized_status,
             result=result,
         )
         completed = self.claim_repository.complete(
@@ -383,42 +376,17 @@ class WorkerService:
         worker_id: str,
         claim_token: UUID,
     ) -> AssignmentClaim:
-        author = resolve_trace_author(
-            agent_id,
-            agent_card=self.registry_service.get_agent(agent_id),
+        self._get_assignment(event_id, agent_id=agent_id)
+        renewed = self.claim_repository.renew(
+            event_id,
+            agent_id=agent_id,
+            worker_id=worker_id,
+            claim_token=claim_token,
+            lease_seconds=self.lease_seconds,
         )
-        with agentmesh_span(
-            agentmesh_run_name(
-                "WorkFlow",
-                event_id,
-                "assignment lease renew",
-                author.author_name,
-            ),
-            inputs={"event_id": str(event_id), "agent_id": agent_id, "worker_id": worker_id},
-            metadata=agentmesh_metadata(
-                event_id=event_id,
-                assignment_event_id=event_id,
-                agent_id=agent_id,
-                agent_name=author.author_name,
-                worker_id=worker_id,
-                claim_token=claim_token,
-                **trace_author_metadata(author),
-            ),
-            tags=["worker", "lease", agent_id],
-        ) as run:
-            self._get_assignment(event_id, agent_id=agent_id)
-            renewed = self.claim_repository.renew(
-                event_id,
-                agent_id=agent_id,
-                worker_id=worker_id,
-                claim_token=claim_token,
-                lease_seconds=self.lease_seconds,
-            )
-            if renewed is None:
-                raise ClaimConflictError("The assignment lease cannot be renewed.")
-            if run is not None:
-                run.end(outputs={"lease_expires_at": renewed.lease_expires_at.isoformat()})
-            return renewed
+        if renewed is None:
+            raise ClaimConflictError("The assignment lease cannot be renewed.")
+        return renewed
 
     def _get_assignment(self, event_id: UUID, *, agent_id: str) -> Event:
         event = self.event_service.get_by_id(event_id)

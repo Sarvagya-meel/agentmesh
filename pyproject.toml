@@ -19,9 +19,11 @@ langgraph-framework = [
 ]
 adk-framework = [
     "google-adk[db]==2.7.0",
-    "litellm==1.97.0",
     "google-genai",
     "asyncpg",
+]
+model-gateway = [
+    "litellm==1.97.0",
 ]
 postgres-checkpoint = [
     "langgraph-checkpoint-postgres",
@@ -38,6 +40,10 @@ dev-tools = [
 
 control-plane = [
   { include-group = "shared" },
+]
+
+supervisor = [
+  { include-group = "shared" },
   { include-group = "langgraph-framework" },
   { include-group = "postgres-checkpoint" },
 ]
@@ -51,6 +57,7 @@ agent-langgraph = [
 agent-adk = [
   { include-group = "shared" },
   { include-group = "adk-framework" },
+  { include-group = "model-gateway" },
 ]
 
 ui = [

@@ -11,9 +11,13 @@ def create_groq_client(settings: Settings) -> GroqStructuredOutputClient:
     if settings.llm_provider.strip().lower() != "groq":
         raise ValidationError("Worker LLM_PROVIDER must be mock or groq.")
     return GroqStructuredOutputClient(
-        api_key=groq_api_key(settings),
-        model=settings.groq_model,
-        api_base=settings.groq_api_base,
+        api_key=(
+            settings.litellm_master_key.get_secret_value()
+            if settings.litellm_enabled
+            else groq_api_key(settings)
+        ),
+        model=settings.litellm_model if settings.litellm_enabled else settings.groq_model,
+        api_base=settings.litellm_api_base if settings.litellm_enabled else settings.groq_api_base,
         reasoning_effort=settings.groq_reasoning_effort,
         temperature=settings.groq_temperature,
         max_completion_tokens=settings.groq_max_completion_tokens,

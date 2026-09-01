@@ -6,7 +6,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
 
-from agentmesh.agents.agent_langgraph_orchestrator_supervisor import MasterOrchestratorAgent
 from agentmesh.services.service_agentmesh_server.api.dependencies import get_master_orchestrator
 from agentmesh.services.service_agentmesh_server.api.schemas import (
     CheckpointReplayRequest,
@@ -15,13 +14,14 @@ from agentmesh.services.service_agentmesh_server.api.schemas import (
     WorkflowExecutionResponse,
     WorkflowForkRequest,
 )
+from agentmesh.services.service_agentmesh_server.orchestration import WorkflowOrchestrator
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
 
 @router.get("/graph/mermaid", response_class=PlainTextResponse)
 def workflow_graph(
-    orchestrator: Annotated[MasterOrchestratorAgent, Depends(get_master_orchestrator)],
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
 ) -> str:
     return orchestrator.graph_mermaid()
 
@@ -29,7 +29,7 @@ def workflow_graph(
 @router.get("/{workflow_id}/checkpoints")
 async def workflow_checkpoints(
     workflow_id: UUID,
-    orchestrator: Annotated[MasterOrchestratorAgent, Depends(get_master_orchestrator)],
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
 ) -> list[dict[str, Any]]:
     return await orchestrator.checkpoint_history(workflow_id)
 
@@ -38,7 +38,7 @@ async def workflow_checkpoints(
 async def replay_workflow_checkpoint(
     workflow_id: UUID,
     body: CheckpointReplayRequest,
-    orchestrator: Annotated[MasterOrchestratorAgent, Depends(get_master_orchestrator)],
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
 ) -> dict[str, Any]:
     return await orchestrator.replay_checkpoint(workflow_id, body.checkpoint_id)
 
@@ -47,7 +47,7 @@ async def replay_workflow_checkpoint(
 async def fork_workflow_checkpoint(
     workflow_id: UUID,
     body: WorkflowForkRequest,
-    orchestrator: Annotated[MasterOrchestratorAgent, Depends(get_master_orchestrator)],
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
 ) -> dict[str, Any]:
     return await orchestrator.fork_checkpoint(
         workflow_id,
@@ -60,7 +60,7 @@ async def fork_workflow_checkpoint(
 @router.post("/start", response_model=WorkflowExecutionResponse, status_code=201)
 async def start_workflow(
     body: StartWorkflowRequest,
-    orchestrator: Annotated[MasterOrchestratorAgent, Depends(get_master_orchestrator)],
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
 ) -> dict[str, Any]:
     return await orchestrator.astart_workflow(
         body.conversation_id,
@@ -82,7 +82,7 @@ async def start_workflow(
 @router.get("/{workflow_id}", response_model=WorkflowExecutionResponse)
 def get_workflow(
     workflow_id: UUID,
-    orchestrator: Annotated[MasterOrchestratorAgent, Depends(get_master_orchestrator)],
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
 ) -> dict[str, Any]:
     return orchestrator.get_workflow(workflow_id)
 
@@ -91,7 +91,7 @@ def get_workflow(
 async def submit_approval(
     workflow_id: UUID,
     body: HumanDecisionRequest,
-    orchestrator: Annotated[MasterOrchestratorAgent, Depends(get_master_orchestrator)],
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
 ) -> dict[str, Any]:
     return await orchestrator.asubmit_human_decision(
         workflow_id,
@@ -105,7 +105,7 @@ async def submit_approval(
 @router.post("/{workflow_id}/rerun", response_model=WorkflowExecutionResponse, status_code=201)
 async def rerun_workflow(
     workflow_id: UUID,
-    orchestrator: Annotated[MasterOrchestratorAgent, Depends(get_master_orchestrator)],
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
 ) -> dict[str, Any]:
     return await orchestrator.arerun_workflow(workflow_id)
 
@@ -118,6 +118,6 @@ async def rerun_workflow(
 async def rerun_task(
     workflow_id: UUID,
     task_id: UUID,
-    orchestrator: Annotated[MasterOrchestratorAgent, Depends(get_master_orchestrator)],
+    orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
 ) -> dict[str, Any]:
     return await orchestrator.arerun_task(workflow_id, task_id)

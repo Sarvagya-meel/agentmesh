@@ -22,4 +22,4 @@ __all__ = [
     "create_event_repository",
 ]
 
-# TODO next fixes remove this file and make reference to original module at src/agentmesh/core/database/repository.py
+# TODO: Remove this shim after callers import the core repository module directly.

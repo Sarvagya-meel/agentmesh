@@ -97,6 +97,17 @@ class StateService:
                 if event.target_agent and event.target_agent not in assigned_agents:
                     assigned_agents.append(event.target_agent)
                 pending = ["TASK_COMPLETED", "TASK_FAILED", "AGENT_APPROVAL_REQUESTED"]
+            elif event.event_type == "TASK_OUTPUT_RECEIVED":
+                status = WorkflowStatus.WAITING_FOR_AGENT
+                metadata["received_output"] = payload
+                pending = ["TASK_VALIDATION_COMPLETED"]
+            elif event.event_type == "TASK_VALIDATION_REQUESTED":
+                status = WorkflowStatus.WAITING_FOR_AGENT
+                pending = ["TASK_VALIDATION_COMPLETED"]
+            elif event.event_type == "TASK_VALIDATION_COMPLETED":
+                decision = payload.get("decision", {})
+                metadata["validation_decision"] = decision
+                pending = ["TASK_COMPLETED", "TASK_FAILED"]
             elif event.event_type == "AGENT_OUTPUT_PROPOSED":
                 metadata["proposed_agent_output"] = payload.get("result", {})
             elif event.event_type == "AGENT_APPROVAL_REQUESTED":

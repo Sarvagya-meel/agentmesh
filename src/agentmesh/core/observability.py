@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
+import sys
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
@@ -8,7 +11,18 @@ from typing import Any, Literal
 
 from agentmesh.config import Settings
 
-SECRET_METADATA_KEYS = {"api_key", "claim_token", "token", "secret", "password"}
+SECRET_METADATA_KEYS = {
+    "api_key",
+    "claim_token",
+    "token",
+    "secret",
+    "password",
+    "hidden",
+    "qa_test",
+    "artifact_content",
+    "messages",
+    "prompt",
+}
 MAX_RUN_NAME_FIELD_LENGTH = 80
 SYSTEM_TRACE_IDENTITIES = {
     "agentmesh-registry": ("AgentMesh Registry", "registry"),
@@ -75,6 +89,37 @@ def agentmesh_metadata(**values: Any) -> dict[str, Any]:
         else:
             metadata[key] = str(value)
     return metadata
+
+
+def _safe_trace_values(values: Mapping[str, Any] | None) -> dict[str, Any]:
+    safe: dict[str, Any] = {}
+    for key, value in (values or {}).items():
+        lowered = key.lower()
+        if any(secret in lowered for secret in SECRET_METADATA_KEYS):
+            encoded = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
+            safe[f"{key}_sha256"] = hashlib.sha256(encoded).hexdigest()
+            safe[f"{key}_size"] = len(encoded)
+        elif isinstance(value, (str, int, float, bool)) or value is None:
+            safe[key] = value if not isinstance(value, str) else _shorten(value)
+        else:
+            encoded = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
+            safe[f"{key}_sha256"] = hashlib.sha256(encoded).hexdigest()
+            safe[f"{key}_size"] = len(encoded)
+    return safe
+
+
+class _SafeTraceRun:
+    def __init__(self, run: Any) -> None:
+        self._run = run
+
+    def end(self, *args: Any, **kwargs: Any) -> None:
+        try:
+            self._run.end(*args, **kwargs)
+        except Exception:
+            return
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._run, name)
 
 
 def resolve_trace_author(
@@ -207,11 +252,30 @@ def agentmesh_span(
             yield run
         return
 
-    with trace(
-        name=name,
-        run_type=run_type,
-        inputs=dict(inputs or {}),
-        metadata=dict(metadata or {}),
-        tags=["agentmesh", *(tags or [])],
-    ) as run:
-        yield run
+    try:
+        manager = trace(
+            name=name,
+            run_type=run_type,
+            inputs=_safe_trace_values(inputs),
+            metadata=_safe_trace_values(metadata),
+            tags=["agentmesh", *(tags or [])],
+        )
+        run = manager.__enter__()
+    except Exception:
+        yield None
+        return
+
+    try:
+        yield _SafeTraceRun(run)
+    except BaseException:
+        error = sys.exc_info()
+        try:
+            manager.__exit__(*error)
+        except Exception:
+            pass
+        raise
+    else:
+        try:
+            manager.__exit__(None, None, None)
+        except Exception:
+            pass
