@@ -8,9 +8,9 @@ It allows you to start, stop, restart, inspect, and follow logs for each service
 without repeatedly typing docker compose commands.
 
 .EXAMPLE
-pwsh -File scripts\docker_component_manager.ps1 -Action start -Service control-plane,supervisor
+pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
 pwsh -File scripts\docker_component_manager.ps1 -Action restart -Service all
-pwsh -File scripts\docker_component_manager.ps1 -Action rebuild -Service agent-langgraph-copilot
+pwsh -File scripts\docker_component_manager.ps1 -Action rebuild -Service all
 pwsh -File scripts\docker_component_manager.ps1 -Action logs-iterative -Service agent-googleadk-chatagent
 
 .NOTES
@@ -232,19 +232,7 @@ Write-Host ""
 switch ($Action) {
     "start" {
         foreach ($svc in $servicesToManage) {
-            if ($svc -eq "migrate") {
-                Write-Host "==> Starting $svc (rebuilds to apply any new/changed DDLs, then exits)"
-                if ($NoBuild) {
-                    Invoke-Compose -ComposeArgs @("up", "-d", $svc) -StepLabel "Starting $svc"
-                } else {
-                    Invoke-Compose -ComposeArgs @("up", "--build", "-d", $svc) -StepLabel "Starting $svc (with rebuild)"
-                }
-                Wait-ForServiceReady -ServiceName $svc
-            } elseif ($NoBuild) {
-                Invoke-Compose -ComposeArgs @("up", "-d", $svc) -StepLabel "Starting $svc"
-            } else {
-                Invoke-Compose -ComposeArgs @("up", "--build", "-d", $svc) -StepLabel "Starting $svc (with build)"
-            }
+            Invoke-Compose -ComposeArgs @("up", "-d", $svc) -StepLabel "Starting $svc from the current image"
             Wait-ForServiceReady -ServiceName $svc
         }
     }
@@ -275,40 +263,24 @@ switch ($Action) {
     }
 
     "rebuild" {
-        foreach ($svc in $servicesToManage) {
-            if ($svc -eq "migrate") {
-                Write-Host "==> Rebuilding $svc"
-                if ($NoCache) {
-                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build --no-cache $svc
-                } else {
-                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build $svc
-                }
-                if ($LASTEXITCODE -ne 0) {
-                    throw "docker build failed for $svc"
-                }
-                Write-Host "==> Starting $svc (will run once and exit)"
-                & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile up -d $svc
-                if ($LASTEXITCODE -ne 0) {
-                    throw "docker start failed for $svc"
-                }
-                Wait-ForServiceReady -ServiceName $svc
-            } else {
-                Write-Host "==> Building $svc"
-                if ($NoCache) {
-                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build --no-cache $svc
-                } else {
-                    & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile build $svc
-                }
-                if ($LASTEXITCODE -ne 0) {
-                    throw "docker build failed for $svc"
-                }
-                Write-Host "==> Starting $svc after rebuild"
-                & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile up -d $svc
-                if ($LASTEXITCODE -ne 0) {
-                    throw "docker start failed for $svc"
-                }
-                Wait-ForServiceReady -ServiceName $svc
-            }
+        if (-not ($Service -contains "all")) {
+            throw "Rebuild is a destructive full-stack action. Use -Action rebuild -Service all."
+        }
+
+        Write-Host "WARNING: rebuild deletes all AgentMesh containers, images, and database volumes." -ForegroundColor Yellow
+        Invoke-Compose -ComposeArgs @("down", "--volumes", "--rmi", "all", "--remove-orphans") -StepLabel "Destroying the existing AgentMesh stack"
+
+        Write-Host "==> Removing Docker build cache"
+        & docker builder prune --all --force
+        if ($LASTEXITCODE -ne 0) {
+            throw "docker builder cache prune failed"
+        }
+
+        Invoke-Compose -ComposeArgs @("build", "--no-cache", "--pull") -StepLabel "Building every image from scratch"
+        Invoke-Compose -ComposeArgs @("up", "-d") -StepLabel "Respawning the full AgentMesh stack"
+
+        foreach ($svc in $serviceCatalog) {
+            Wait-ForServiceReady -ServiceName $svc
         }
     }
 

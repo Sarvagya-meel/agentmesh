@@ -102,7 +102,8 @@ pwsh -File scripts\docker_component_manager.ps1 -Action stop -Service all
 The scripts automatically:
 - Detect your `COMPOSE_PROFILES` setting from `.env`
 - Apply the correct service set (combined or split profile)
-- Rebuild the `migrate` service on each start/restart to apply any new/changed DDLs
+- Use current images for `start`, rebuild/recreate for `restart`, and perform a
+  destructive full-stack scratch build for `rebuild`
 - Wait for services to be healthy before returning
 
 See [`docs/docker-operations.md`](docs/docker-operations.md) for the complete runbook.

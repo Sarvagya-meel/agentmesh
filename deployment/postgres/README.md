@@ -93,11 +93,11 @@ Both commands read `DATABASE_URL` from the environment or root `.env`.
 When using Docker Compose, the `migrate` service is automatically managed:
 
 ```powershell
-# Start services - migrate rebuilds and applies new/changed DDLs
-docker compose --env-file .env -f deployment/docker/compose.yml up -d migrate
+# Rebuild and recreate migrate after adding a DDL.
+docker compose --env-file .env -f deployment/docker/compose.yml up -d --build --force-recreate migrate
 
 # The migrate service:
-# - Rebuilds on each start/restart to pick up code changes
+# - Is rebuilt by restart to pick up DDL changes
 # - Applies only new or changed DDLs (idempotent - checksum tracked)
 # - Exits with status 0 after completion
 # - Orchestrator waits for service_completed_successfully before starting
