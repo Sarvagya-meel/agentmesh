@@ -79,6 +79,37 @@ async def test_langgraph_runtime_resumes_approval_conversation() -> None:
     assert resumed.json()["final_reply"] == invoked.json()["draft_reply"]
 
 
+async def test_langgraph_runtime_revises_then_rejects_the_same_conversation() -> None:
+    app = create_agent_runtime_app(
+        kind="langgraph",
+        factory=conversation_factory,
+        worker_enabled=False,
+    )
+
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            invoked = await client.post(
+                "/invoke",
+                json={"message": "Plan Dubai", "approval_required": True},
+            )
+            thread_id = invoked.json()["thread_id"]
+            revised = await client.post(
+                f"/conversations/{thread_id}/resume",
+                json={"decision": "revise", "feedback": "Add a security review."},
+            )
+            rejected = await client.post(
+                f"/conversations/{thread_id}/resume",
+                json={"decision": "reject"},
+            )
+
+    assert revised.json()["status"] == "AWAITING_APPROVAL"
+    assert revised.json()["thread_id"] == thread_id
+    assert "security review" in revised.json()["draft_reply"].lower()
+    assert rejected.json()["status"] == "REJECTED"
+    assert rejected.json()["final_reply"] == "Approval rejected."
+
+
 async def test_agent_runtime_reports_ready_when_worker_mode_is_disabled() -> None:
     app = create_agent_runtime_app(
         kind="langgraph",
@@ -157,3 +188,22 @@ async def test_direct_invoke_maps_model_provider_failure_to_503() -> None:
 
     assert invoked.status_code == 503
     assert invoked.json() == {"detail": "Model provider is unavailable."}
+
+
+async def test_direct_resume_maps_model_provider_failure_to_503() -> None:
+    app = create_agent_runtime_app(
+        kind="provider-failure",
+        factory=provider_failure_factory,
+        worker_enabled=False,
+    )
+
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resumed = await client.post(
+                "/conversations/provider-failure-thread/resume",
+                json={"decision": "revise", "feedback": "Add evidence."},
+            )
+
+    assert resumed.status_code == 503
+    assert resumed.json() == {"detail": "Model provider is unavailable."}

@@ -22,6 +22,8 @@ class WorkflowOrchestrator(Protocol):
         preferred_agent_ids: list[str] | None = None,
         rerun_of_workflow_id: UUID | None = None,
         rerun_of_task_id: UUID | None = None,
+        approval_required: bool = True,
+        start_event_persisted: bool = False,
         memory_user_id: str = "",
         memory_opt_in: bool = False,
         memory_updates: dict[str, str] | None = None,
@@ -59,6 +61,7 @@ class WorkflowOrchestrator(Protocol):
         *,
         checkpoint_id: str | None = None,
         new_workflow_id: UUID | None = None,
+        start_event_persisted: bool = False,
     ) -> dict[str, Any]: ...
 
     async def checkpoint_history(self, workflow_id: UUID) -> list[dict[str, Any]]: ...

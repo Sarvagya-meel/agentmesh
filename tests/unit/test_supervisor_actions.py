@@ -4,7 +4,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from agentmesh.core.models import EventFilters, SupervisorActionType
+from agentmesh.core.models import Event, EventFilters, SupervisorActionType
+from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.services.service_agentmesh_server.database.repository import (
     InMemoryClaimRepository,
     InMemoryEventRepository,
@@ -19,6 +20,9 @@ from agentmesh.services.service_agentmesh_server.supervisor.runner import (
 )
 from agentmesh.services.service_agentmesh_server.supervisor.service import (
     SupervisorActionService,
+)
+from agentmesh.services.service_agentmesh_server.supervisor_app import (
+    _upsert_supervisor_resource,
 )
 
 
@@ -103,9 +107,64 @@ async def test_queued_start_is_idempotent_and_projectable() -> None:
     first = await proxy.astart_workflow("conversation", "goal", workflow_id=workflow_id)
     second = await proxy.astart_workflow("conversation", "goal", workflow_id=workflow_id)
 
-    assert first["status"] == "PENDING"
+    assert first["status"] == "RUNNING"
     assert second == first
     assert len(service.list_actions("supervisor")) == 1
+    events = event_service.replay(workflow_id)
+    assert [event.event_type for event in events] == [
+        "WORKFLOW_STARTED",
+        "SUPERVISOR_ACTION_REQUESTED",
+    ]
+    assert [event.sequence_number for event in events] == [1, 2]
+    assert events[0].source_agent == "agentmesh-control-plane"
+    assert events[0].target_agent == "supervisor"
+    assert events[0].payload["approval_required"] is True
+    assert events[1].payload["arguments"]["start_event_persisted"] is True
+
+
+@pytest.mark.asyncio
+async def test_queued_start_persists_disabled_approval_policy() -> None:
+    service, event_service = build_action_service()
+    proxy = QueuedWorkflowOrchestrator(
+        action_service=service,
+        state_service=StateService(event_service),
+        supervisor_id="supervisor",
+        supervisor_api_url="http://supervisor",
+    )
+
+    result = await proxy.astart_workflow(
+        "conversation", "goal", approval_required=False
+    )
+    events = event_service.replay(UUID(result["workflow_id"]))
+
+    assert events[0].payload["approval_required"] is False
+    assert events[1].payload["arguments"]["approval_required"] is False
+
+
+@pytest.mark.asyncio
+async def test_duplicate_approval_after_state_advance_does_not_enqueue_dead_letter() -> None:
+    service, event_service = build_action_service()
+    proxy = QueuedWorkflowOrchestrator(
+        action_service=service,
+        state_service=StateService(event_service),
+        supervisor_id="supervisor",
+        supervisor_api_url="http://supervisor",
+    )
+    workflow_id = uuid4()
+    event_service.append(
+        Event(
+            conversation_id="conversation",
+            workflow_id=workflow_id,
+            event_type="WORKFLOW_STARTED",
+            source_agent="supervisor",
+            payload={"goal": "goal"},
+        )
+    )
+
+    result = await proxy.asubmit_human_decision(workflow_id, decision="APPROVE")
+
+    assert result["status"] == "RUNNING"
+    assert service.list_actions("supervisor") == []
 
 
 def test_rate_limit_is_classified_for_control_plane_retry() -> None:
@@ -129,3 +188,35 @@ def test_start_action_uses_workflow_uuid() -> None:
     )
 
     assert UUID(str(action.workflow_id)) == workflow_id
+
+
+@pytest.mark.asyncio
+async def test_supervisor_is_written_to_resource_inventory() -> None:
+    calls: list[dict[str, object]] = []
+
+    class FakeOrchestrator:
+        def agent_card(self) -> AgentCard:
+            return AgentCard(
+                agent_id="orchestrator-supervisor-agent",
+                name="orchestrator-supervisor-agent",
+                endpoint="http://supervisor:8110",
+                capabilities=["ORCHESTRATE", "PLAN"],
+            )
+
+    class FakeResourceRepository:
+        def upsert_resource(self, resource_id: str, **kwargs: object) -> None:
+            calls.append({"resource_id": resource_id, **kwargs})
+
+    await _upsert_supervisor_resource(
+        FakeOrchestrator(),
+        runtime_instance_id="runtime-1",
+        status="ready",
+        resource_repository=FakeResourceRepository(),
+        trace=False,
+    )
+
+    assert calls[0]["resource_id"] == "orchestrator-supervisor-agent"
+    assert calls[0]["resource_type"] == "orchestrator"
+    assert calls[1]["resource_id"] == "orchestrator:orchestrator-supervisor-agent:runtime:runtime-1"
+    assert calls[1]["resource_type"] == "agent_runtime"
+    assert calls[1]["parent_resource_id"] == "orchestrator-supervisor-agent"

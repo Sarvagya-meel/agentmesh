@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import suppress
 from typing import Any
 from uuid import UUID
@@ -11,6 +12,8 @@ from agentmesh.core.models import Event, HumanDecisionType, SupervisorAction, Su
 from agentmesh.core.models.exceptions import ModelProviderError, WorkflowConflictError
 from agentmesh.services.service_agentmesh_server.orchestration import WorkflowOrchestrator
 from agentmesh.services.service_agentmesh_server.supervisor.client import ControlPlaneGateway
+
+logger = logging.getLogger("uvicorn.error")
 
 
 class SupervisorActionRunner:
@@ -43,18 +46,34 @@ class SupervisorActionRunner:
                 actions = await asyncio.to_thread(
                     self.gateway.list_actions, self.supervisor_id, limit=20
                 )
+                if actions:
+                    logger.info(
+                        "Supervisor %s found %s pending action(s).",
+                        self.supervisor_id,
+                        len(actions),
+                    )
                 for action in actions:
                     if self._stop.is_set():
                         break
                     await self._process(action)
-            except (httpx.HTTPError, OSError):
-                pass
+            except (httpx.HTTPError, OSError) as exc:
+                logger.warning(
+                    "Supervisor %s failed to poll actions: %s",
+                    self.supervisor_id,
+                    exc,
+                )
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self.poll_interval_seconds)
             except TimeoutError:
                 continue
 
     async def _process(self, event: Event) -> None:
+        logger.info(
+            "Supervisor %s claiming action %s for workflow %s.",
+            self.supervisor_id,
+            event.event_id,
+            event.workflow_id,
+        )
         claim = await asyncio.to_thread(
             self.gateway.claim_action,
             self.supervisor_id,
@@ -62,10 +81,20 @@ class SupervisorActionRunner:
             worker_id=self.worker_id,
         )
         if claim is None:
+            logger.info(
+                "Supervisor action %s was already claimed by another worker.",
+                event.event_id,
+            )
             return
         renew_task = asyncio.create_task(self._renew_lease(event, claim.claim_token))
         try:
             result = await self.execute(event)
+            logger.info(
+                "Supervisor %s completed action %s with result keys: %s.",
+                self.supervisor_id,
+                event.event_id,
+                sorted(result),
+            )
             await asyncio.to_thread(
                 self.gateway.complete_action,
                 self.supervisor_id,
@@ -76,6 +105,13 @@ class SupervisorActionRunner:
             )
         except Exception as exc:
             retryable, retry_after = self.classify_failure(exc, claim.attempt_number)
+            logger.exception(
+                "Supervisor %s failed action %s; retryable=%s retry_after_seconds=%s.",
+                self.supervisor_id,
+                event.event_id,
+                retryable,
+                retry_after,
+            )
             with suppress(Exception):
                 await asyncio.to_thread(
                     self.gateway.fail_action,
@@ -108,6 +144,10 @@ class SupervisorActionRunner:
                         arguments.get("rerun_of_workflow_id")
                     ),
                     rerun_of_task_id=self._uuid_or_none(arguments.get("rerun_of_task_id")),
+                    approval_required=bool(arguments.get("approval_required", True)),
+                    start_event_persisted=bool(
+                        arguments.get("start_event_persisted", False)
+                    ),
                     memory_user_id=str(arguments.get("memory_user_id", "")),
                     memory_opt_in=bool(arguments.get("memory_opt_in", False)),
                     memory_updates=dict(arguments.get("memory_updates", {})),
@@ -147,6 +187,9 @@ class SupervisorActionRunner:
                     else None
                 ),
                 new_workflow_id=UUID(str(arguments["new_workflow_id"])),
+                start_event_persisted=bool(
+                    arguments.get("start_event_persisted", False)
+                ),
             )
         raise ValueError(f"Unsupported supervisor action {action_type}.")
 

@@ -32,6 +32,7 @@ def submit_directed_assignment(
     return service.submit_directed_assignment(
         agent_id,
         message=body.message,
+        approval_required=body.approval_required,
         conversation_id=body.conversation_id,
         thread_id=body.thread_id,
         user_id=body.user_id,

@@ -60,10 +60,43 @@ def project_standalone_request(
         ),
         None,
     )
+    approval_event = next(
+        (
+            event
+            for event in reversed(events)
+            if event.event_type == "AGENT_APPROVAL_REQUESTED"
+        ),
+        None,
+    )
+    decision_sequence = max(
+        (
+            event.sequence_number or 0
+            for event in events
+            if event.event_type
+            in {
+                "AGENT_OUTPUT_APPROVED",
+                "AGENT_OUTPUT_REVISION_REQUESTED",
+                "AGENT_OUTPUT_REJECTED",
+            }
+        ),
+        default=0,
+    )
+    approval_pending = (
+        approval_event is not None
+        and (approval_event.sequence_number or 0) > decision_sequence
+    )
     status = "RUNNING"
     task_results: list[dict[str, Any]] = []
     task_status = "RUNNING"
-    if terminal is not None:
+    pending_input = None
+    if approval_pending and approval_event is not None:
+        status = "AWAITING_AGENT_APPROVAL"
+        task_status = "AWAITING_APPROVAL"
+        approval_payload = (
+            approval_event.payload if isinstance(approval_event.payload, dict) else {}
+        )
+        pending_input = approval_payload.get("approval")
+    elif terminal is not None:
         status = "COMPLETED" if terminal.event_type == "TASK_COMPLETED" else "FAILED"
         task_status = status
         terminal_payload = terminal.payload if isinstance(terminal.payload, dict) else {}
@@ -86,7 +119,7 @@ def project_standalone_request(
             "planner_provider": "control-plane",
         },
         "current_task": direct_task,
-        "pending_input": None,
+        "pending_input": pending_input,
         "assigned_agents": [assignment.target_agent] if assignment.target_agent else [],
         "task_results": task_results,
     }
@@ -103,7 +136,11 @@ def project_step_views(
         payload = event.payload if isinstance(event.payload, dict) else {}
         task = payload.get("task", {})
         nested_task_id = task.get("task_id") if isinstance(task, dict) else ""
-        task_id = str(payload.get("task_id") or nested_task_id)
+        approval = payload.get("approval", {})
+        approval_task_id = (
+            approval.get("subject_id") if isinstance(approval, dict) else ""
+        )
+        task_id = str(payload.get("task_id") or nested_task_id or approval_task_id)
         if not task_id:
             continue
         status = _event_step_status(event.event_type, payload)
@@ -146,6 +183,15 @@ def _event_step_status(event_type: str, payload: dict[str, Any]) -> str | None:
         return "PROPOSED"
     if event_type == "TASK_ASSIGNED":
         return "RUNNING"
+    if event_type == "AGENT_APPROVAL_REQUESTED":
+        return "AWAITING_APPROVAL"
+    if event_type in {
+        "AGENT_OUTPUT_APPROVED",
+        "AGENT_OUTPUT_REVISION_REQUESTED",
+    }:
+        return "RUNNING"
+    if event_type == "AGENT_OUTPUT_REJECTED":
+        return "REJECTED"
     if event_type in {
         "TASK_OUTPUT_RECEIVED",
         "TASK_VALIDATION_REQUESTED",

@@ -17,6 +17,7 @@ class StartWorkflowRequest(BaseModel):
     goal: str = Field(min_length=1)
     workflow_id: UUID | None = None
     preferred_agent_ids: list[str] = Field(default_factory=list)
+    approval_required: bool = True
     memory_user_id: str = ""
     memory_opt_in: bool = False
     memory_updates: dict[str, str] = Field(default_factory=dict)
@@ -118,6 +119,7 @@ class DirectedAssignmentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     message: str = Field(min_length=1)
+    approval_required: bool = True
     conversation_id: str | None = None
     thread_id: str | None = None
     user_id: str | None = None

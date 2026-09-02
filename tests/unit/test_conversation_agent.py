@@ -69,6 +69,17 @@ def test_conversation_agent_revises_the_same_checkpoint_with_feedback() -> None:
     assert "security review" in revised["draft_reply"].lower()
 
 
+def test_conversation_agent_rejects_with_an_explicit_terminal_result() -> None:
+    agent = ConversationAgent(auto_register=False)
+    started = agent.start_conversation("Draft a launch plan.", thread_id="reject-thread")
+
+    rejected = agent.resume_conversation(started["thread_id"], "reject")
+
+    assert rejected["status"] == "REJECTED"
+    assert rejected["rejected"] is True
+    assert rejected["final_reply"] == "Approval rejected."
+
+
 def test_conversation_agent_advertises_work_capabilities_and_runtime_features() -> None:
     card = ConversationAgent(auto_register=False).agent_card()
 
@@ -88,6 +99,26 @@ def test_conversation_agent_accepts_the_platform_text_completion_contract() -> N
     assert result["status"] == "COMPLETED"
     assert result["llm_model"] == "fake-platform-model"
     assert "Explain dependency inversion." in result["final_reply"]
+
+
+def test_conversation_agent_includes_validated_dependency_outputs_in_prompt() -> None:
+    prompt = ConversationAgent._task_prompt(
+        {
+            "description": "Review the earlier result.",
+            "payload": {
+                "goal": "Produce a final answer.",
+                "workflow_context": {
+                    "resolved_inputs": {
+                        "step_0": {"final_reply": "Dependency result"}
+                    }
+                },
+            },
+        }
+    )
+
+    assert "Validated dependency outputs:" in prompt
+    assert '"final_reply": "Dependency result"' in prompt
+    assert "Use these dependency outputs as input" in prompt
 
 
 def test_add_messages_updates_an_existing_message_by_id() -> None:

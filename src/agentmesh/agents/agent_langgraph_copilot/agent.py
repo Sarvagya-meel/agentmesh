@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
@@ -319,7 +320,11 @@ class ConversationAgent(BaseAgent):
 
     @staticmethod
     def _reject(state: ConversationState) -> dict[str, Any]:
-        return {"final_reply": "", "approved": False, "rejected": True}
+        return {
+            "final_reply": "Approval rejected.",
+            "approved": False,
+            "rejected": True,
+        }
 
     def start_conversation(
         self,
@@ -715,15 +720,28 @@ class ConversationAgent(BaseAgent):
     def _task_prompt(task_payload: dict[str, Any]) -> str:
         messages = task_payload.get("messages")
         if isinstance(messages, list) and messages:
-            return str(messages[-1])
+            prompt = str(messages[-1])
+        else:
+            nested_payload = task_payload.get("payload", {})
+            if not isinstance(nested_payload, dict):
+                nested_payload = {}
+            goal = str(nested_payload.get("goal", ""))
+            description = str(task_payload.get("description", "")).strip()
+            prompt = "\n\n".join(part for part in [description, goal] if part)
         nested_payload = task_payload.get("payload", {})
         if not isinstance(nested_payload, dict):
             nested_payload = {}
-        goal = str(nested_payload.get("goal", ""))
-        description = str(task_payload.get("description", "")).strip()
-        prompt = "\n\n".join(part for part in [description, goal] if part)
         if not prompt:
             raise ValidationError("A LangGraph task requires messages, a goal, or a description.")
+        workflow_context = nested_payload.get("workflow_context", {})
+        if isinstance(workflow_context, dict):
+            resolved_inputs = workflow_context.get("resolved_inputs", {})
+            if isinstance(resolved_inputs, dict) and resolved_inputs:
+                prompt = (
+                    f"{prompt}\n\nValidated dependency outputs:\n"
+                    f"{json.dumps(resolved_inputs, indent=2, sort_keys=True, default=str)}\n\n"
+                    "Use these dependency outputs as input to this task."
+                )
         return prompt
 
     @staticmethod

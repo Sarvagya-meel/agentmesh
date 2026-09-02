@@ -5,7 +5,13 @@ from uuid import UUID, uuid4, uuid5
 
 import httpx
 
-from agentmesh.core.models import HumanDecisionType, SupervisorActionType
+from agentmesh.core.models import (
+    Event,
+    HumanDecisionType,
+    RoutingMode,
+    SupervisorActionType,
+    WorkflowStatus,
+)
 from agentmesh.services.service_agentmesh_server.events.state import StateService
 from agentmesh.services.service_agentmesh_server.supervisor.service import (
     SupervisorActionService,
@@ -51,6 +57,8 @@ class QueuedWorkflowOrchestrator:
         preferred_agent_ids: list[str] | None = None,
         rerun_of_workflow_id: UUID | None = None,
         rerun_of_task_id: UUID | None = None,
+        approval_required: bool = True,
+        start_event_persisted: bool = False,
         memory_user_id: str = "",
         memory_opt_in: bool = False,
         memory_updates: dict[str, str] | None = None,
@@ -58,6 +66,14 @@ class QueuedWorkflowOrchestrator:
         trace_metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         resolved_workflow_id = workflow_id or uuid4()
+        self._ensure_workflow_started(
+            resolved_workflow_id,
+            conversation_id=conversation_id,
+            goal=goal,
+            rerun_of_workflow_id=rerun_of_workflow_id,
+            rerun_of_task_id=rerun_of_task_id,
+            approval_required=approval_required,
+        )
         self._enqueue(
             resolved_workflow_id,
             conversation_id=conversation_id,
@@ -70,6 +86,8 @@ class QueuedWorkflowOrchestrator:
                 "preferred_agent_ids": preferred_agent_ids or [],
                 "rerun_of_workflow_id": self._optional_uuid(rerun_of_workflow_id),
                 "rerun_of_task_id": self._optional_uuid(rerun_of_task_id),
+                "approval_required": approval_required,
+                "start_event_persisted": True,
                 "memory_user_id": memory_user_id,
                 "memory_opt_in": memory_opt_in,
                 "memory_updates": memory_updates or {},
@@ -105,6 +123,12 @@ class QueuedWorkflowOrchestrator:
         edits: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         state = self.state_service.get_current(workflow_id)
+        if state.status not in {
+            WorkflowStatus.AWAITING_PLAN_APPROVAL,
+            WorkflowStatus.AWAITING_TASK_APPROVAL,
+            WorkflowStatus.AWAITING_AGENT_APPROVAL,
+        }:
+            return self.get_workflow(workflow_id)
         decision_value = (
             decision.value if isinstance(decision, HumanDecisionType) else str(decision)
         )
@@ -178,9 +202,17 @@ class QueuedWorkflowOrchestrator:
         *,
         checkpoint_id: str | None = None,
         new_workflow_id: UUID | None = None,
+        start_event_persisted: bool = False,
     ) -> dict[str, Any]:
         state = self.state_service.get_current(workflow_id)
         recovery_workflow_id = new_workflow_id or uuid4()
+        self._ensure_workflow_started(
+            recovery_workflow_id,
+            conversation_id=state.conversation_id,
+            goal=str(state.metadata.get("goal", "")),
+            rerun_of_workflow_id=workflow_id,
+            approval_required=bool(state.metadata.get("approval_required", True)),
+        )
         self._enqueue(
             recovery_workflow_id,
             conversation_id=state.conversation_id,
@@ -190,6 +222,7 @@ class QueuedWorkflowOrchestrator:
                 "source_workflow_id": str(workflow_id),
                 "checkpoint_id": checkpoint_id,
                 "new_workflow_id": str(recovery_workflow_id),
+                "start_event_persisted": True,
             },
         )
         return {
@@ -250,6 +283,35 @@ class QueuedWorkflowOrchestrator:
             arguments=arguments,
             supervisor_id=self.supervisor_id,
             action_event_id=uuid5(workflow_id, action_key),
+        )
+
+    def _ensure_workflow_started(
+        self,
+        workflow_id: UUID,
+        *,
+        conversation_id: str,
+        goal: str,
+        rerun_of_workflow_id: UUID | None = None,
+        rerun_of_task_id: UUID | None = None,
+        approval_required: bool = True,
+    ) -> None:
+        self.state_service.event_service.append(
+            Event(
+                event_id=uuid5(workflow_id, "workflow-started"),
+                conversation_id=conversation_id,
+                workflow_id=workflow_id,
+                event_type="WORKFLOW_STARTED",
+                source_agent="agentmesh-control-plane",
+                routing_mode=RoutingMode.DIRECTED,
+                target_agent=self.supervisor_id,
+                payload={
+                    "goal": goal,
+                    "rerun_of_workflow_id": self._optional_uuid(rerun_of_workflow_id),
+                    "rerun_of_task_id": self._optional_uuid(rerun_of_task_id),
+                    "approval_required": approval_required,
+                },
+                metadata={"execution_mode": "workflow"},
+            )
         )
 
     async def _supervisor_request(

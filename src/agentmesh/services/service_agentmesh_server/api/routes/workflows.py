@@ -17,6 +17,7 @@ from agentmesh.services.service_agentmesh_server.activity import (
 from agentmesh.services.service_agentmesh_server.api.dependencies import (
     get_event_service,
     get_master_orchestrator,
+    get_worker_service,
 )
 from agentmesh.services.service_agentmesh_server.api.schemas import (
     CheckpointReplayRequest,
@@ -34,6 +35,7 @@ from agentmesh.services.service_agentmesh_server.orchestration import WorkflowOr
 from agentmesh.services.service_agentmesh_server.trace_links import (
     resolve_langsmith_trace_link,
 )
+from agentmesh.services.service_agentmesh_server.workers.service import WorkerService
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
@@ -135,6 +137,7 @@ async def start_workflow(
         body.goal,
         workflow_id=body.workflow_id,
         preferred_agent_ids=body.preferred_agent_ids,
+        approval_required=body.approval_required,
         memory_user_id=body.memory_user_id,
         memory_opt_in=body.memory_opt_in,
         memory_updates=body.memory_updates,
@@ -160,7 +163,16 @@ async def submit_approval(
     workflow_id: UUID,
     body: HumanDecisionRequest,
     orchestrator: Annotated[WorkflowOrchestrator, Depends(get_master_orchestrator)],
+    worker_service: Annotated[WorkerService, Depends(get_worker_service)],
 ) -> dict[str, Any]:
+    if worker_service.has_pending_standalone_approval(workflow_id):
+        return worker_service.submit_standalone_approval(
+            workflow_id,
+            decision=body.decision,
+            feedback=body.feedback,
+            actor=body.actor,
+            edits=body.edits,
+        )
     return await orchestrator.asubmit_human_decision(
         workflow_id,
         decision=body.decision,

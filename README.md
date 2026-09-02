@@ -122,7 +122,8 @@ requires an `api` or `combined` instance; assignment readiness requires a `worke
 ## Agent Playground Contracts
 
 Direct mode waits on the selected agent API and does not create durable workflow
-state:
+state. Human approval is required by default for approval-capable agents; send
+`"approval_required": false` only when that request may complete without review:
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri http://localhost:8101/invoke `
@@ -130,8 +131,9 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8101/invoke `
   -Body '{"message":"Make Dubai travel plans","approval_required":false}'
 ```
 
-Control-plane mode submits durable direct work asynchronously. The control plane
-owns queueing, leased dispatch, retries, deterministic validation, and result events:
+Control-plane mode submits durable direct work asynchronously and also requires
+human approval by default. The control plane owns queueing, leased dispatch,
+retries, deterministic validation, and result events:
 
 ```powershell
 Invoke-RestMethod -Method Post `
@@ -140,7 +142,10 @@ Invoke-RestMethod -Method Post `
   -Body '{"message":"Make Dubai travel plans"}'
 ```
 
-Normal workflows always enter the control plane first. The supervisor claims
+Normal workflows always enter the control plane first. `WORKFLOW_STARTED` is event
+1 and `SUPERVISOR_ACTION_REQUESTED` is event 2. Supervisor plan approval defaults
+to required and can be disabled per start request with
+`"approval_required": false`. The supervisor claims
 planning actions, can pause on `planning.input_requested` until
 `planning.input_provided`, and returns the final `workflow.result` with
 `source=supervisor` and `destination=user`. Transient worker failures such as 429,
@@ -153,12 +158,19 @@ the supervisor; semantic failures trigger checkpoint review or replan.
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\ruff.exe check src tests
 .\.venv\Scripts\mypy.exe --strict src
+.\.venv\Scripts\python.exe scripts\clear_langsmith_traces.py
+.\.venv\Scripts\python.exe scripts\system_sanity.py
 $env:COMPOSE_PROFILES = "combined"
 docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
 $env:COMPOSE_PROFILES = "split"
 docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
 Remove-Item Env:COMPOSE_PROFILES
 ```
+
+UAT case definitions are seeded into PostgreSQL by
+`deployment/postgres/ddls/008_agentmesh_uat_cases.sql`, so smoke, unit,
+validation, Streamlit behavior, retry, replay, checkpoint, Postgres, and LangSmith
+coverage survives code refactors and fresh Docker volumes.
 
 The active LangGraph delivery status is in
 [`src/agentmesh/agents/ROADMAP.md`](src/agentmesh/agents/ROADMAP.md).

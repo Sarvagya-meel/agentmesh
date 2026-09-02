@@ -4,7 +4,15 @@ import random
 from typing import Any
 from uuid import UUID, uuid4
 
-from agentmesh.core.models import AssignmentClaim, Event, RoutingMode
+from agentmesh.core.models import (
+    ApprovalRequest,
+    ApprovalType,
+    AssignmentClaim,
+    Event,
+    HumanDecision,
+    HumanDecisionType,
+    RoutingMode,
+)
 from agentmesh.core.models.exceptions import (
     AgentRegistryError,
     ClaimConflictError,
@@ -49,10 +57,6 @@ class WorkerService:
         card = self.registry_service.get_agent(agent_id)
         if card is None:
             raise AgentRegistryError(f"Agent {agent_id!r} is not registered.")
-        if not self.registry_service.is_assignment_ready(agent_id):
-            raise AgentRegistryError(
-                f"Agent {agent_id!r} has no ready worker or combined runtime."
-            )
         return self.event_service.list_pending_assignments(agent_id, limit=limit)
 
     def submit_directed_assignment(
@@ -60,6 +64,7 @@ class WorkerService:
         agent_id: str,
         *,
         message: str,
+        approval_required: bool = True,
         conversation_id: str | None = None,
         thread_id: str | None = None,
         user_id: str | None = None,
@@ -81,7 +86,7 @@ class WorkerService:
             "description": message,
             "messages": [message],
             "thread_id": thread_id or str(workflow_id),
-            "approval_required": False,
+            "approval_required": approval_required,
             "workflow_id": str(workflow_id),
             "conversation_id": resolved_conversation_id,
         }
@@ -305,6 +310,14 @@ class WorkerService:
                 },
             )
         if self._is_standalone(assignment):
+            if normalized_status == "AWAITING_APPROVAL":
+                return self._await_standalone_approval(
+                    assignment,
+                    task,
+                    result=result,
+                    worker_id=worker_id,
+                    claim_token=claim_token,
+                )
             return self._complete_standalone(
                 assignment,
                 task,
@@ -343,6 +356,208 @@ class WorkerService:
         if completed is None:
             raise ClaimConflictError("The assignment lease expired before completion was recorded.")
         return workflow_result
+
+    def has_pending_standalone_approval(self, workflow_id: UUID) -> bool:
+        return self._pending_standalone_approval(workflow_id) is not None
+
+    def submit_standalone_approval(
+        self,
+        workflow_id: UUID,
+        *,
+        decision: HumanDecisionType | str,
+        feedback: str = "",
+        actor: str = "human",
+        edits: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        pending = self._pending_standalone_approval(workflow_id)
+        if pending is None:
+            raise ValidationError(
+                f"Standalone workflow {workflow_id} is not waiting for approval."
+            )
+        assignment, approval_event = pending
+        task = self._task_payload(assignment)
+        approval_payload = (
+            approval_event.payload.get("approval", {})
+            if isinstance(approval_event.payload, dict)
+            else {}
+        )
+        approval = ApprovalRequest.model_validate(approval_payload)
+        decision_value = (
+            decision
+            if isinstance(decision, HumanDecisionType)
+            else HumanDecisionType(str(decision))
+        )
+        human_decision = HumanDecision(
+            approval_id=approval.approval_id,
+            workflow_id=workflow_id,
+            decision=decision_value,
+            feedback=feedback,
+            actor=actor,
+            edits=edits or {},
+        )
+        event_type = {
+            HumanDecisionType.APPROVE: "AGENT_OUTPUT_APPROVED",
+            HumanDecisionType.REVISE: "AGENT_OUTPUT_REVISION_REQUESTED",
+            HumanDecisionType.REJECT: "AGENT_OUTPUT_REJECTED",
+        }[decision_value]
+        decision_event = self.event_service.append(
+            Event(
+                conversation_id=assignment.conversation_id,
+                workflow_id=workflow_id,
+                event_type=event_type,
+                source_agent="HumanAgent",
+                routing_mode=RoutingMode.DIRECTED,
+                target_agent="agentmesh-control-plane",
+                payload={
+                    "decision": human_decision.model_dump(mode="json"),
+                    "feedback": feedback,
+                },
+                causation_id=approval_event.event_id,
+                metadata={"execution_mode": "queued_direct"},
+            )
+        )
+        context = approval.context
+        resume_assignment = self.event_service.append(
+            Event(
+                conversation_id=assignment.conversation_id,
+                workflow_id=workflow_id,
+                event_type="TASK_ASSIGNED",
+                source_agent="agentmesh-control-plane",
+                routing_mode=RoutingMode.DIRECTED,
+                target_agent=assignment.target_agent,
+                payload={
+                    "task": {
+                        **task,
+                        "resume_thread_id": str(context["thread_id"]),
+                        "approval_decision": decision_value.value.lower(),
+                        "approval_feedback": feedback,
+                    },
+                    "standalone": True,
+                    "resume": True,
+                },
+                causation_id=decision_event.event_id,
+                metadata={"execution_mode": "queued_direct"},
+            )
+        )
+        return self._directed_snapshot(
+            resume_assignment,
+            "RUNNING",
+            result={"approval_decision": decision_value.value},
+        )
+
+    def _await_standalone_approval(
+        self,
+        assignment: Event,
+        task: dict[str, Any],
+        *,
+        result: dict[str, Any],
+        worker_id: str,
+        claim_token: UUID,
+    ) -> dict[str, Any]:
+        thread_id = str(result.get("thread_id", "")).strip()
+        if not thread_id:
+            raise ValidationError("An agent approval result must include a durable thread_id.")
+        proposed = self.event_service.append(
+            Event(
+                conversation_id=assignment.conversation_id,
+                workflow_id=assignment.workflow_id,
+                event_type="AGENT_OUTPUT_PROPOSED",
+                source_agent=assignment.target_agent or "agentmesh-worker",
+                routing_mode=RoutingMode.DIRECTED,
+                target_agent="agentmesh-control-plane",
+                payload={
+                    "task_id": str(task["task_id"]),
+                    "assignment_event_id": str(assignment.event_id),
+                    "result": result,
+                },
+                causation_id=assignment.event_id,
+                causation_chain=(
+                    [assignment.causation_id] if assignment.causation_id else []
+                ),
+                metadata={"execution_mode": "queued_direct"},
+            )
+        )
+        approval = ApprovalRequest(
+            workflow_id=assignment.workflow_id,
+            approval_type=ApprovalType.AGENT_OUTPUT,
+            subject_id=UUID(str(task["task_id"])),
+            prompt=str(result.get("prompt", "Review the generated agent output.")),
+            context={
+                "agent_id": assignment.target_agent or "",
+                "task": task,
+                "thread_id": thread_id,
+                "draft_reply": result.get("draft_reply", ""),
+                "agent_output": result,
+            },
+        )
+        self.event_service.append(
+            Event(
+                conversation_id=assignment.conversation_id,
+                workflow_id=assignment.workflow_id,
+                event_type="AGENT_APPROVAL_REQUESTED",
+                source_agent="agentmesh-control-plane",
+                routing_mode=RoutingMode.DIRECTED,
+                target_agent="HumanAgent",
+                payload={"approval": approval.model_dump(mode="json")},
+                causation_id=proposed.event_id,
+                metadata={"execution_mode": "queued_direct"},
+            )
+        )
+        completed = self.claim_repository.complete(
+            assignment.event_id,
+            agent_id=assignment.target_agent or "",
+            worker_id=worker_id,
+            claim_token=claim_token,
+        )
+        if completed is None:
+            raise ClaimConflictError(
+                "The assignment lease expired before approval was recorded."
+            )
+        return self._directed_snapshot(
+            assignment,
+            "AWAITING_AGENT_APPROVAL",
+            result=result,
+            pending_input=approval.model_dump(mode="json"),
+        )
+
+    def _pending_standalone_approval(
+        self, workflow_id: UUID
+    ) -> tuple[Event, Event] | None:
+        events = self.event_service.replay(workflow_id)
+        assignment = next(
+            (
+                event
+                for event in events
+                if event.event_type == "TASK_ASSIGNED" and self._is_standalone(event)
+            ),
+            None,
+        )
+        approval_event = next(
+            (
+                event
+                for event in reversed(events)
+                if event.event_type == "AGENT_APPROVAL_REQUESTED"
+            ),
+            None,
+        )
+        if assignment is None or approval_event is None:
+            return None
+        decision_sequence = max(
+            (
+                event.sequence_number or 0
+                for event in events
+                if event.event_type
+                in {
+                    "AGENT_OUTPUT_APPROVED",
+                    "AGENT_OUTPUT_REVISION_REQUESTED",
+                    "AGENT_OUTPUT_REJECTED",
+                }
+            ),
+            default=0,
+        )
+        if (approval_event.sequence_number or 0) <= decision_sequence:
+            return None
+        return assignment, approval_event
 
     def _complete_standalone(
         self,
@@ -465,6 +680,7 @@ class WorkerService:
         status: str,
         *,
         result: dict[str, Any] | None = None,
+        pending_input: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         task = WorkerService._task_payload(assignment)
         return {
@@ -473,7 +689,7 @@ class WorkerService:
             "status": status,
             "plan": None,
             "current_task": task,
-            "pending_input": None,
+            "pending_input": pending_input,
             "assigned_agents": [assignment.target_agent] if assignment.target_agent else [],
             "task_results": [result] if result else [],
             "rerun_of_workflow_id": None,

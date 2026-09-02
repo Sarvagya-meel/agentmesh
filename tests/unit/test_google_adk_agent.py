@@ -54,6 +54,10 @@ def test_google_adk_factory_uses_adk_specific_groq_model_override() -> None:
     assert isinstance(agent, GoogleADKAgent)
     assert agent.model_name == "qwen/qwen3.6-27b"
     assert agent._adk_runner is not None
+    assert agent._adk_runner.agent.model._additional_args == {
+        "include_reasoning": False,
+        "reasoning_effort": "none",
+    }
 
     close()
 
@@ -71,6 +75,26 @@ def test_google_adk_agent_uses_stable_workflow_task_session_identity() -> None:
     )
 
     assert result["session_id"] == "agent:workflow-123:task-456"
+
+
+def test_google_adk_agent_includes_validated_dependency_outputs_in_prompt() -> None:
+    prompt = GoogleADKAgent._task_prompt(
+        {
+            "description": "Review the earlier result.",
+            "payload": {
+                "goal": "Produce a final answer.",
+                "workflow_context": {
+                    "resolved_inputs": {
+                        "step_0": {"final_reply": "Dependency result"}
+                    }
+                },
+            },
+        }
+    )
+
+    assert "Validated dependency outputs:" in prompt
+    assert '"final_reply": "Dependency result"' in prompt
+    assert "Use these dependency outputs as input" in prompt
 
 
 async def test_google_adk_agent_closes_database_sessions_from_async_runtime() -> None:

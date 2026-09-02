@@ -4,6 +4,7 @@ import asyncio
 import socket
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
 from typing import cast
 from uuid import uuid4
 
@@ -15,6 +16,7 @@ from agentmesh.agents.agent_langgraph_orchestrator_supervisor import MasterOrche
 from agentmesh.agents.agent_langgraph_orchestrator_supervisor.factory import (
     create_workflow_planner,
 )
+from agentmesh.agents.common.resource_repository import PostgresResourceRepository
 from agentmesh.config import get_settings
 from agentmesh.core.frameworks.langgraph import (
     create_async_langgraph_checkpointer,
@@ -43,6 +45,7 @@ async def _heartbeat_loop(
     *,
     runtime_instance_id: str,
     interval_seconds: float,
+    resource_repository: PostgresResourceRepository | None = None,
 ) -> None:
     while True:
         try:
@@ -51,9 +54,65 @@ async def _heartbeat_loop(
                 orchestrator.agent_card(),
                 runtime_instance_id=runtime_instance_id,
             )
+            await _upsert_supervisor_resource(
+                orchestrator,
+                runtime_instance_id=runtime_instance_id,
+                status="ready",
+                resource_repository=resource_repository,
+                trace=False,
+            )
         except (httpx.HTTPError, OSError):
             pass
         await asyncio.sleep(interval_seconds)
+
+
+async def _upsert_supervisor_resource(
+    orchestrator: MasterOrchestratorAgent,
+    *,
+    runtime_instance_id: str,
+    status: str,
+    resource_repository: PostgresResourceRepository | None,
+    trace: bool = True,
+) -> None:
+    if resource_repository is None:
+        return
+    card = orchestrator.agent_card()
+    runtime_resource_id = f"orchestrator:{card.agent_id}:runtime:{runtime_instance_id}"
+    telemetry = {
+        "agent_id": card.agent_id,
+        "agent_version": card.version,
+        "runtime_instance_id": runtime_instance_id,
+        "runtime_role": "supervisor",
+        "runtime_status": status.upper(),
+        "endpoint": card.endpoint,
+        "active_task_count": 0,
+        "started_at": datetime.now(UTC).isoformat(),
+    }
+    await asyncio.to_thread(
+        resource_repository.upsert_resource,
+        card.agent_id,
+        resource_type="orchestrator",
+        name=card.name,
+        status="online" if status in {"ready", "online"} else status,
+        endpoint=card.endpoint,
+        owner=card.owner,
+        capabilities=card.capabilities,
+        metadata={"runtime_model": "multi-instance", **card.metadata},
+        trace=trace,
+    )
+    await asyncio.to_thread(
+        resource_repository.upsert_resource,
+        runtime_resource_id,
+        resource_type="agent_runtime",
+        name=f"{card.agent_id}-supervisor",
+        status=status,
+        endpoint=card.endpoint,
+        owner=card.owner,
+        capabilities=card.capabilities,
+        metadata=telemetry,
+        parent_resource_id=card.agent_id,
+        trace=trace,
+    )
 
 
 @asynccontextmanager
@@ -76,6 +135,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     checkpointer, close_checkpointer = await create_async_langgraph_checkpointer(settings)
     store, close_store = create_langgraph_store(settings)
     planner, close_planner = create_workflow_planner(settings)
+    resource_repository = (
+        PostgresResourceRepository.from_connection_url(settings.database_url)
+        if settings.registry_backend.strip().lower() == "postgres"
+        else None
+    )
     orchestrator = MasterOrchestratorAgent(
         registry_service=cast(RegistryService, registry_service),
         event_service=cast(EventService, event_service),
@@ -90,6 +154,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     runtime_instance_id = f"{socket.gethostname()}-{uuid4()}"
     await asyncio.to_thread(gateway.register, orchestrator.agent_card())
+    await _upsert_supervisor_resource(
+        orchestrator,
+        runtime_instance_id=runtime_instance_id,
+        status="ready",
+        resource_repository=resource_repository,
+    )
     runner = SupervisorActionRunner(
         gateway=gateway,
         orchestrator=orchestrator,
@@ -105,6 +175,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             orchestrator,
             runtime_instance_id=runtime_instance_id,
             interval_seconds=settings.worker_heartbeat_seconds,
+            resource_repository=resource_repository,
         )
     )
     app.state.settings = settings
@@ -121,6 +192,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         close_planner()
         close_store()
         await close_checkpointer()
+        if resource_repository is not None:
+            await asyncio.to_thread(resource_repository.close)
         gateway.close()
 
 

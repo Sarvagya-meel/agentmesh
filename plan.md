@@ -186,11 +186,14 @@ sequenceDiagram
     C-->>U: Final result and event timeline
 ```
 
-The running workflow view places plan progress and the ordered event flow side by
-side. Proposed, queued, running, validating, retrying, blocked, and completed step
-states update without blocking approval or recovery controls. A unified interrupt
-panel renders typed planning-input, plan approval, task approval, agent-output
-approval, validation, and replan requests.
+The running workflow view uses a three-column operations layout: checkpoint and
+recovery controls on the left, plan progress and user actions in the center, and a
+newest-first linked event trail on the right. Each event shows its source and
+destination beside the event name and exposes its complete output on demand.
+Proposed, queued, running, validating, retrying, blocked, and completed step states
+update without blocking approval or recovery controls. A unified interrupt panel
+renders typed planning-input, plan approval, task approval, agent-output approval,
+validation, and replan requests.
 
 Checkpoint controls distinguish read-only inspection, diagnostic fork, full rerun,
 same-workflow interrupt resume, and executable recovery. Executable recovery starts

@@ -96,7 +96,7 @@ EVALUATORS = (
 def seed_dataset() -> str:
     from langsmith import Client
 
-    from agentmesh.testing.sanity_catalog import SANITY_CASES
+    from agentmesh.testing.sanity_catalog import load_postgres_catalog, read_seeded_catalog
 
     client = Client(
         api_url=os.environ.get("LANGSMITH_ENDPOINT") or None,
@@ -111,7 +111,11 @@ def seed_dataset() -> str:
     existing_ids = {
         example.inputs.get("case_id") for example in client.list_examples(dataset_id=dataset.id)
     }
-    for case in SANITY_CASES:
+    try:
+        cases = load_postgres_catalog(os.environ["DATABASE_URL"])
+    except (KeyError, OSError):
+        cases = read_seeded_catalog()
+    for case in cases:
         if not case.langsmith_eval or case.case_id in existing_ids:
             continue
         client.create_example(

@@ -9,7 +9,7 @@ from agentmesh.agents.agent_langgraph_orchestrator_supervisor import MasterOrche
 from agentmesh.agents.agent_langgraph_orchestrator_supervisor.agent import merge_task_results
 from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.execution import ExecutionContext
-from agentmesh.core.models import Event
+from agentmesh.core.models import Event, RoutingMode
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.services.service_agentmesh_server.database.repository import InMemoryEventRepository
@@ -84,6 +84,69 @@ def test_master_agent_requires_only_plan_approval_before_dispatch() -> None:
     assert "TASK_APPROVAL_REQUESTED" not in [
         event.event_type for event in event_service.replay(workflow_id)
     ]
+
+
+def test_master_agent_skips_plan_approval_only_when_explicitly_disabled() -> None:
+    master, event_service = build_master_agent()
+
+    started = master.start_workflow(
+        "conversation-no-approval",
+        "Research an architecture proposal",
+        preferred_agent_ids=["research-agent"],
+        approval_required=False,
+    )
+    events = event_service.replay(UUID(started["workflow_id"]))
+
+    assert started["status"] == "WAITING_FOR_AGENT"
+    assert started["pending_input"]["type"] == "agent_result"
+    assert "PLAN_APPROVAL_REQUESTED" not in [event.event_type for event in events]
+    assert "TASK_ASSIGNED" in [event.event_type for event in events]
+    assert events[0].payload["approval_required"] is False
+    assignment = next(event for event in events if event.event_type == "TASK_ASSIGNED")
+    assert assignment.payload["task"]["approval_required"] is False
+
+
+async def test_master_agent_consumes_control_plane_start_without_duplicate_event() -> None:
+    master, event_service = build_master_agent()
+    workflow_id = uuid4()
+    event_service.append(
+        Event(
+            conversation_id="queued-conversation",
+            workflow_id=workflow_id,
+            event_type="WORKFLOW_STARTED",
+            source_agent="agentmesh-control-plane",
+            routing_mode=RoutingMode.DIRECTED,
+            target_agent="orchestrator-supervisor-agent",
+            payload={"goal": "Research a proposal", "approval_required": True},
+        )
+    )
+    event_service.append(
+        Event(
+            conversation_id="queued-conversation",
+            workflow_id=workflow_id,
+            event_type="SUPERVISOR_ACTION_REQUESTED",
+            source_agent="agentmesh-control-plane",
+            routing_mode=RoutingMode.DIRECTED,
+            target_agent="orchestrator-supervisor-agent",
+            payload={"action_type": "START_WORKFLOW", "arguments": {}},
+        )
+    )
+
+    started = await master.astart_workflow(
+        "queued-conversation",
+        "Research a proposal",
+        workflow_id=workflow_id,
+        preferred_agent_ids=["research-agent"],
+        start_event_persisted=True,
+    )
+    events = event_service.replay(workflow_id)
+
+    assert started["status"] == "AWAITING_PLAN_APPROVAL"
+    assert [event.event_type for event in events[:2]] == [
+        "WORKFLOW_STARTED",
+        "SUPERVISOR_ACTION_REQUESTED",
+    ]
+    assert sum(event.event_type == "WORKFLOW_STARTED" for event in events) == 1
 
 
 def test_master_agent_uses_the_shared_agent_contract() -> None:

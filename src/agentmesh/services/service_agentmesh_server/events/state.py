@@ -49,6 +49,9 @@ class StateService:
                 metadata["goal"] = payload.get("goal", "")
                 metadata["rerun_of_workflow_id"] = payload.get("rerun_of_workflow_id")
                 metadata["rerun_of_task_id"] = payload.get("rerun_of_task_id")
+                metadata["approval_required"] = bool(
+                    payload.get("approval_required", True)
+                )
             elif event.event_type == "WORKFLOW_RECOVERY_STARTED":
                 status = WorkflowStatus.RUNNING
                 metadata["recovery_of_workflow_id"] = payload.get("source_workflow_id")

@@ -77,6 +77,7 @@ class MasterWorkflowState(MessagesState, total=False):
     workflow_id: str
     goal: str
     preferred_agent_ids: list[str]
+    approval_required: bool
     agent_snapshot: list[dict[str, Any]]
     plan: dict[str, Any]
     plan_version: int
@@ -252,7 +253,11 @@ class MasterOrchestratorAgent(BaseAgent):
         builder.add_conditional_edges(
             "evaluate_plan",
             self._plan_evaluation_route,
-            {"revise": "create_plan", "complete": "request_plan_approval"},
+            {
+                "revise": "create_plan",
+                "approval": "request_plan_approval",
+                "continue": "prepare_task",
+            },
         )
         builder.add_edge("request_plan_approval", "review_plan")
         builder.add_conditional_edges(
@@ -309,6 +314,7 @@ class MasterOrchestratorAgent(BaseAgent):
         preferred_agent_ids: list[str] | None = None,
         rerun_of_workflow_id: UUID | None = None,
         rerun_of_task_id: UUID | None = None,
+        approval_required: bool = True,
         memory_user_id: str = "",
         memory_opt_in: bool = False,
         memory_updates: dict[str, str] | None = None,
@@ -332,6 +338,7 @@ class MasterOrchestratorAgent(BaseAgent):
                     str(rerun_of_workflow_id) if rerun_of_workflow_id else None
                 ),
                 "rerun_of_task_id": str(rerun_of_task_id) if rerun_of_task_id else None,
+                "approval_required": approval_required,
             },
         )
         try:
@@ -342,6 +349,7 @@ class MasterOrchestratorAgent(BaseAgent):
                     "workflow_id": str(resolved_workflow_id),
                     "goal": goal,
                     "preferred_agent_ids": preferred_agent_ids or [],
+                    "approval_required": approval_required,
                     "plan_version": 0,
                     "task_index": 0,
                     "task_results": [],
@@ -377,6 +385,8 @@ class MasterOrchestratorAgent(BaseAgent):
         preferred_agent_ids: list[str] | None = None,
         rerun_of_workflow_id: UUID | None = None,
         rerun_of_task_id: UUID | None = None,
+        approval_required: bool = True,
+        start_event_persisted: bool = False,
         memory_user_id: str = "",
         memory_opt_in: bool = False,
         memory_updates: dict[str, str] | None = None,
@@ -393,6 +403,7 @@ class MasterOrchestratorAgent(BaseAgent):
             "preferred_agent_ids": ",".join(preferred_agent_ids or []),
             "rerun_of_workflow_id": rerun_of_workflow_id,
             "rerun_of_task_id": rerun_of_task_id,
+            "approval_required": approval_required,
             "memory_opt_in": memory_opt_in,
         }
         raw_metadata.update(trace_metadata or {})
@@ -412,23 +423,40 @@ class MasterOrchestratorAgent(BaseAgent):
             metadata=metadata,
             tags=["workflow", "orchestrator", self.agent_name],
         ) as run:
-            if any(
-                event.event_type == "WORKFLOW_STARTED"
-                for event in self.event_service.replay(resolved_workflow_id)
-            ):
-                raise WorkflowConflictError(f"Workflow {resolved_workflow_id} already exists.")
-            self._emit_raw(
-                conversation_id=conversation_id,
-                workflow_id=resolved_workflow_id,
-                event_type="WORKFLOW_STARTED",
-                payload={
-                    "goal": goal,
-                    "rerun_of_workflow_id": (
-                        str(rerun_of_workflow_id) if rerun_of_workflow_id else None
-                    ),
-                    "rerun_of_task_id": str(rerun_of_task_id) if rerun_of_task_id else None,
-                },
+            existing_events = self.event_service.replay(resolved_workflow_id)
+            workflow_started = any(
+                event.event_type == "WORKFLOW_STARTED" for event in existing_events
             )
+            if start_event_persisted:
+                allowed_event_types = {
+                    "WORKFLOW_STARTED",
+                    "SUPERVISOR_ACTION_REQUESTED",
+                    "SUPERVISOR_ACTION_RETRY_SCHEDULED",
+                }
+                if not workflow_started or any(
+                    event.event_type not in allowed_event_types for event in existing_events
+                ):
+                    raise WorkflowConflictError(
+                        f"Workflow {resolved_workflow_id} has already been processed."
+                    )
+            elif workflow_started:
+                raise WorkflowConflictError(f"Workflow {resolved_workflow_id} already exists.")
+            else:
+                self._emit_raw(
+                    conversation_id=conversation_id,
+                    workflow_id=resolved_workflow_id,
+                    event_type="WORKFLOW_STARTED",
+                    payload={
+                        "goal": goal,
+                        "rerun_of_workflow_id": (
+                            str(rerun_of_workflow_id) if rerun_of_workflow_id else None
+                        ),
+                        "rerun_of_task_id": (
+                            str(rerun_of_task_id) if rerun_of_task_id else None
+                        ),
+                        "approval_required": approval_required,
+                    },
+                )
             try:
                 result = await self.graph.ainvoke(
                     {
@@ -437,6 +465,7 @@ class MasterOrchestratorAgent(BaseAgent):
                         "workflow_id": str(resolved_workflow_id),
                         "goal": goal,
                         "preferred_agent_ids": preferred_agent_ids or [],
+                        "approval_required": approval_required,
                         "plan_version": 0,
                         "task_index": 0,
                         "task_results": [],
@@ -503,6 +532,11 @@ class MasterOrchestratorAgent(BaseAgent):
             goal,
             workflow_id=UUID(str(raw_workflow_id)) if raw_workflow_id else None,
             preferred_agent_ids=[str(item) for item in raw_preferred_agents],
+            approval_required=bool(
+                task_payload.get(
+                    "approval_required", nested_payload.get("approval_required", True)
+                )
+            ),
             memory_user_id=str(
                 task_payload.get("memory_user_id") or nested_payload.get("memory_user_id") or ""
             ),
@@ -971,7 +1005,7 @@ class MasterOrchestratorAgent(BaseAgent):
             "plan_evaluation_attempts", 0
         ) < state.get("max_plan_evaluation_attempts", 3):
             return "revise"
-        return "complete"
+        return "approval" if state.get("approval_required", True) else "continue"
 
     def _review_plan(self, state: MasterWorkflowState) -> dict[str, Any]:
         decision = self._interrupt_for_decision(state)
@@ -1047,6 +1081,8 @@ class MasterOrchestratorAgent(BaseAgent):
 
     def _dispatch_task(self, state: MasterWorkflowState) -> dict[str, Any]:
         task = PlanTask.model_validate(state["current_task"])
+        assignment_task = task.model_dump(mode="json")
+        assignment_task["approval_required"] = bool(state.get("approval_required", True))
         author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
         target_author = resolve_trace_author(
             task.agent_id,
@@ -1078,7 +1114,7 @@ class MasterOrchestratorAgent(BaseAgent):
             assignment = self._emit(
                 state,
                 "TASK_ASSIGNED",
-                {"task": task.model_dump(mode="json"), "task_type": task.required_capability},
+                {"task": assignment_task, "task_type": task.required_capability},
                 routing_mode=RoutingMode.DIRECTED,
                 target_agent=task.agent_id,
             )
@@ -1593,6 +1629,7 @@ class MasterOrchestratorAgent(BaseAgent):
         *,
         checkpoint_id: str | None = None,
         new_workflow_id: UUID | None = None,
+        start_event_persisted: bool = False,
     ) -> dict[str, Any]:
         """Continue a historical checkpoint in a new immutable workflow history."""
 
@@ -1619,9 +1656,16 @@ class MasterOrchestratorAgent(BaseAgent):
                 "checkpoint_id": str(prior_payload.get("checkpoint_id", "")),
                 "status": recovered["status"],
             }
-        if any(event.event_type == "WORKFLOW_STARTED" for event in recovery_events):
+        workflow_started = any(
+            event.event_type == "WORKFLOW_STARTED" for event in recovery_events
+        )
+        if workflow_started and not start_event_persisted:
             raise WorkflowConflictError(
                 f"Recovery workflow {recovery_workflow_id} already exists."
+            )
+        if start_event_persisted and not workflow_started:
+            raise WorkflowConflictError(
+                f"Recovery workflow {recovery_workflow_id} has no start event."
             )
         source_config = (
             self._checkpoint_config(workflow_id, checkpoint_id)
@@ -1652,16 +1696,18 @@ class MasterOrchestratorAgent(BaseAgent):
         }
         conversation_id = str(values.get("conversation_id") or f"recovery-{workflow_id}")
         goal = str(values.get("goal", ""))
-        self._emit_raw(
-            conversation_id=conversation_id,
-            workflow_id=recovery_workflow_id,
-            event_type="WORKFLOW_STARTED",
-            payload={
-                "goal": goal,
-                "rerun_of_workflow_id": str(workflow_id),
-                "rerun_of_task_id": None,
-            },
-        )
+        if not start_event_persisted:
+            self._emit_raw(
+                conversation_id=conversation_id,
+                workflow_id=recovery_workflow_id,
+                event_type="WORKFLOW_STARTED",
+                payload={
+                    "goal": goal,
+                    "rerun_of_workflow_id": str(workflow_id),
+                    "rerun_of_task_id": None,
+                    "approval_required": bool(values.get("approval_required", True)),
+                },
+            )
         self._emit_raw(
             conversation_id=conversation_id,
             workflow_id=recovery_workflow_id,

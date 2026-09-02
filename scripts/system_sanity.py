@@ -70,6 +70,7 @@ class SanityRun:
         self.compose_config()
         if self.build:
             self.compose_up()
+        self.postgres_catalog_check()
         self.container_status()
         self.http_checks()
         self.direct_invokes()
@@ -84,11 +85,16 @@ class SanityRun:
         self.results.append(CheckResult(name, status, detail, metadata=metadata))
 
     def write_catalog(self) -> None:
-        from agentmesh.testing.sanity_catalog import write_sqlite_catalog
+        from agentmesh.testing.sanity_catalog import write_seeded_catalog_snapshot
 
-        catalog = self.output_dir / "agentmesh_sanity_catalog.sqlite"
-        write_sqlite_catalog(catalog)
-        self.add("catalog.sqlite", "pass", "Sanity catalog written.", evidence=str(catalog))
+        catalog = self.output_dir / "agentmesh_uat_catalog_from_ddl.json"
+        write_seeded_catalog_snapshot(catalog)
+        self.add(
+            "catalog.ddl_snapshot",
+            "pass",
+            "UAT catalog snapshot written from DDL.",
+            evidence=str(catalog),
+        )
 
     def compose(self, *args: str) -> list[str]:
         return [
@@ -111,6 +117,8 @@ class SanityRun:
             command,
             cwd=ROOT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             check=False,
@@ -148,6 +156,40 @@ class SanityRun:
             self.add("docker.containers.expected", "fail", f"Missing containers: {missing}")
         else:
             self.add("docker.containers.expected", "pass", "All expected containers are listed.")
+
+    def postgres_catalog_check(self) -> None:
+        sql = (
+            "SELECT suite, execution_layer, priority, case_count "
+            "FROM v_agentmesh_uat_case_summary "
+            "ORDER BY suite, execution_layer, priority;"
+        )
+        completed = self.run_command(
+            "postgres.uat_catalog",
+            [
+                "docker",
+                "exec",
+                "agentmesh-postgres",
+                "psql",
+                "-U",
+                "agentmesh",
+                "-d",
+                "agentmesh",
+                "-c",
+                sql,
+            ],
+            "postgres_uat_catalog.log",
+        )
+        required_terms = ("smoke", "unit", "validation", "uat", "streamlit", "postgres")
+        missing = [term for term in required_terms if term not in completed.stdout]
+        self.add(
+            "postgres.uat_catalog.coverage",
+            "fail" if missing else "pass",
+            (
+                f"Missing expected catalog dimensions: {missing}."
+                if missing
+                else "UAT catalog includes smoke, unit, validation, Streamlit, and Postgres cases."
+            ),
+        )
 
     def http_checks(self) -> None:
         checks = {
@@ -321,6 +363,8 @@ class SanityRun:
                 ["docker", "logs", "--since", self.started_at.isoformat(), container],
                 cwd=ROOT,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 check=False,
@@ -330,13 +374,15 @@ class SanityRun:
             for number, line in enumerate(completed.stdout.splitlines(), start=1):
                 if LOG_PATTERN.search(line):
                     matches.append({"container": container, "line": number, "text": line})
+        transient_log_containers = {
+            container
+            for container, output in raw_logs.items()
+            if KNOWN_TRANSIENT_LOG_PATTERN.search(output)
+        }
         transient_provider_matches = [
             match
             for match in matches
-            if match["container"] == "agentmesh-agent-googleadk-chatagent-1"
-            and KNOWN_TRANSIENT_LOG_PATTERN.search(
-                raw_logs.get("agentmesh-agent-googleadk-chatagent-1", "")
-            )
+            if match["container"] in transient_log_containers
         ]
         unexpected_matches = [
             match for match in matches if match not in transient_provider_matches

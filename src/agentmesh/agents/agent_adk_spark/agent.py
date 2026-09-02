@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from collections.abc import Callable
 from threading import Event as ThreadEvent
@@ -129,9 +130,12 @@ class GoogleADKAgent(BaseAgent):
         os.environ["GROQ_API_KEY"] = api_key
         os.environ.setdefault("PYTHONUTF8", "1")
         provider_model = model_name if model_name.startswith("groq/") else f"groq/{model_name}"
+        model_options: dict[str, Any] = {"include_reasoning": False}
+        if "qwen/qwen3" in provider_model.lower():
+            model_options["reasoning_effort"] = "none"
         root_agent = LlmAgent(
             name="adk_spark_worker",
-            model=LiteLlm(model=provider_model, include_reasoning=False),
+            model=LiteLlm(model=provider_model, **model_options),
             description="AgentMesh Google ADK worker",
             instruction=(
                 "Complete the assigned AgentMesh task concisely. Return only useful task output, "
@@ -215,13 +219,29 @@ class GoogleADKAgent(BaseAgent):
     def _task_prompt(task_payload: dict[str, Any]) -> str:
         messages = task_payload.get("messages")
         if isinstance(messages, list) and messages:
-            return str(messages[-1])
+            prompt = str(messages[-1])
+        else:
+            nested_payload = task_payload.get("payload")
+            goal = (
+                str(nested_payload.get("goal", ""))
+                if isinstance(nested_payload, dict)
+                else ""
+            )
+            description = str(task_payload.get("description", "")).strip()
+            prompt = "\n\n".join(part for part in [description, goal] if part)
         nested_payload = task_payload.get("payload")
-        goal = str(nested_payload.get("goal", "")) if isinstance(nested_payload, dict) else ""
-        description = str(task_payload.get("description", "")).strip()
-        prompt = "\n\n".join(part for part in [description, goal] if part)
         if not prompt:
             raise ValueError("A Google ADK task requires messages, a goal, or a description.")
+        if isinstance(nested_payload, dict):
+            workflow_context = nested_payload.get("workflow_context", {})
+            if isinstance(workflow_context, dict):
+                resolved_inputs = workflow_context.get("resolved_inputs", {})
+                if isinstance(resolved_inputs, dict) and resolved_inputs:
+                    prompt = (
+                        f"{prompt}\n\nValidated dependency outputs:\n"
+                        f"{json.dumps(resolved_inputs, indent=2, sort_keys=True, default=str)}"
+                        "\n\nUse these dependency outputs as input to this task."
+                    )
         return prompt
 
     @staticmethod

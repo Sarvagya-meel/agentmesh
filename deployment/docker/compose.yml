@@ -194,6 +194,7 @@ services:
       AGENTMESH_API_URL: http://control-plane:8000
       SUPERVISOR_API_URL: http://supervisor:8110
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-agentmesh-local-service-token}
+      REGISTRY_BACKEND: postgres
       LANGGRAPH_CHECKPOINT_BACKEND: postgres
       LANGGRAPH_STORE_BACKEND: postgres
       AGENT_STALE_SECONDS: ${AGENT_STALE_SECONDS:-180}

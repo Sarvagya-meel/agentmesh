@@ -38,6 +38,8 @@ Current DDLs:
 004_agentmesh_resources.sql
 005_agentmesh_resource_audit_events.sql
 006_agent_runtime_instances.sql
+007_supervisor_control_plane.sql
+008_agentmesh_uat_cases.sql
 ```
 
 ## Core Tables
@@ -61,6 +63,11 @@ final `workflow.result` delivery records.
 
 `agentmesh_event_claims`
 Lease table for safely claiming worker assignments and supervisor actions.
+
+`agentmesh_uat_cases`
+Database-owned acceptance catalog seeded by DDL. These rows define repeatable
+smoke, unit, validation, Streamlit behavior, retry, replay, checkpoint,
+PostgreSQL, and LangSmith cases for every fresh environment.
 
 `agentmesh_schema_migrations`
 Tracks applied DDL files by checksum.
