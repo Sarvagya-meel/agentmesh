@@ -10,6 +10,13 @@ resolved on this integration branch. See [Demo Validation](docs/demo-validation.
 for the repeatable acceptance procedure and readiness fixes. Final hosted CI and
 mergeability still need verification against the PR's eventual head SHA.
 
+Clean-install testing subsequently identified M3, which the initial source review
+missed: main's LangGraph dependency group pulled LiteLLM into the local install,
+whereas the current branch's separate gateway group was omitted from `local`.
+Commit `444158eb` adds the existing gateway group to `local` and a regression test.
+The Docker ADK group already included it. This is a useful dependency-coverage
+correction from main's behavior, not a missing package version or runtime rollback.
+
 ## Main Adoption Review: Awaiting Approval
 
 Requested scope: identify useful things in main that the current branch lacks;
