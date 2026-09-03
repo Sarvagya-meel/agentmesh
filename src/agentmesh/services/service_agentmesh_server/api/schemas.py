@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agentmesh.core.models import HumanDecisionType
+from agentmesh.core.models import Event, HumanDecisionType, SupervisorActionType
 
 
 class StartWorkflowRequest(BaseModel):
@@ -17,6 +17,7 @@ class StartWorkflowRequest(BaseModel):
     goal: str = Field(min_length=1)
     workflow_id: UUID | None = None
     preferred_agent_ids: list[str] = Field(default_factory=list)
+    approval_required: bool = True
     memory_user_id: str = ""
     memory_opt_in: bool = False
     memory_updates: dict[str, str] = Field(default_factory=dict)
@@ -89,12 +90,36 @@ class WorkerResultRequest(BaseModel):
     result: dict[str, Any] = Field(default_factory=dict)
 
 
+class SupervisorActionEnqueueRequest(BaseModel):
+    """Internal control-plane command destined for the supervisor queue."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    conversation_id: str = Field(min_length=1)
+    workflow_id: UUID
+    action_type: SupervisorActionType
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    action_event_id: UUID | None = None
+
+
+class SupervisorActionCompleteRequest(WorkerLeaseRenewRequest):
+    result: dict[str, Any] = Field(default_factory=dict)
+
+
+class SupervisorActionFailureRequest(WorkerLeaseRenewRequest):
+    error_code: str = Field(min_length=1)
+    error_message: str = Field(min_length=1)
+    retryable: bool = False
+    retry_after_seconds: float = Field(default=0, ge=0, le=3600)
+
+
 class DirectedAssignmentRequest(BaseModel):
     """One validated task submitted directly to a selected queue worker."""
 
     model_config = ConfigDict(extra="forbid")
 
     message: str = Field(min_length=1)
+    approval_required: bool = True
     conversation_id: str | None = None
     thread_id: str | None = None
     user_id: str | None = None
@@ -113,3 +138,45 @@ class WorkflowExecutionResponse(BaseModel):
     task_results: list[dict[str, Any]] = Field(default_factory=list)
     rerun_of_workflow_id: str | None = None
     rerun_of_task_id: str | None = None
+
+
+class WorkflowStepView(BaseModel):
+    task_id: str
+    position: int = 0
+    name: str = "Task"
+    agent_id: str = ""
+    required_capability: str = ""
+    dependencies: list[str] = Field(default_factory=list)
+    status: str = "PROPOSED"
+
+
+class WorkflowActivityResponse(BaseModel):
+    workflow: WorkflowExecutionResponse
+    steps: list[WorkflowStepView] = Field(default_factory=list)
+    events: list[Event] = Field(default_factory=list)
+    next_sequence: int = 0
+    has_more: bool = False
+    pending_interrupt: dict[str, Any] | None = None
+    terminal: bool = False
+
+
+class LangSmithTraceLinkResponse(BaseModel):
+    tracing_enabled: bool
+    available: bool
+    request_id: str
+    url: str | None = None
+    reason: str | None = None
+
+
+class WorkflowRecoveryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    checkpoint_id: str | None = None
+    new_workflow_id: UUID | None = None
+
+
+class WorkflowRecoveryResponse(BaseModel):
+    source_workflow_id: str
+    recovery_workflow_id: str
+    checkpoint_id: str | None = None
+    status: str = "QUEUED"

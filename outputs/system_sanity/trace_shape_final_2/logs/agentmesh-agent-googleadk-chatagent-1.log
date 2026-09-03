@@ -1,0 +1,169 @@
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8102 (Press CTRL+C to quit)
+INFO:     172.18.0.1:44536 - "GET /ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40172 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.1:44546 - "POST /invoke HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54602 - "GET /health HTTP/1.1" 200 OK
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+Node execution failed with exception
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/litellm/llms/custom_httpx/llm_http_handler.py", line 260, in _make_common_async_call
+    response = await async_httpx_client.post(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/litellm_core_utils/logging_utils.py", line 289, in async_wrapper
+    result: Final = await func(*args, **kwargs)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/llms/custom_httpx/http_handler.py", line 706, in post
+    await _raise_masked_async_error(e, stream)
+  File "/usr/local/lib/python3.11/site-packages/litellm/llms/custom_httpx/http_handler.py", line 472, in _raise_masked_async_error
+    raise MaskedHTTPStatusError(e, message=_text, text=_text) from None
+litellm.llms.custom_httpx.http_handler.MaskedHTTPStatusError: Client error '429 Too Many Requests' for url 'https://api.groq.com/openai/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/litellm/main.py", line 639, in acompletion
+    response = await init_response
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/llms/custom_httpx/llm_http_handler.py", line 374, in async_completion
+    response: Final = await self._make_common_async_call(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/llms/custom_httpx/llm_http_handler.py", line 277, in _make_common_async_call
+    raise self._handle_error(e=e, provider_config=provider_config)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/llms/custom_httpx/llm_http_handler.py", line 5740, in _handle_error
+    raise provider_config.get_error_class(
+litellm.llms.openai.common_utils.OpenAIError: {"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kg75pfzgf21s8rbp1rdfj8ke` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7603, Requested 671. Please try again in 2.055s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing","type":"tokens","code":"rate_limit_exceeded"}}
+
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/google/adk/workflow/_node_runner.py", line 136, in run
+    await self._execute_node(ctx, node_input)
+  File "/usr/local/lib/python3.11/site-packages/google/adk/workflow/_node_runner.py", line 274, in _execute_node
+    await self._run_node_loop(ctx, node_input)
+  File "/usr/local/lib/python3.11/site-packages/google/adk/workflow/_node_runner.py", line 288, in _run_node_loop
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/workflow/_base_node.py", line 166, in run
+    async for item in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/agents/llm_agent.py", line 614, in _run_impl
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/workflow/_llm_agent_wrapper.py", line 468, in run_llm_agent_as_node
+    async for event in run_iter:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/agents/base_agent.py", line 307, in run_async
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/agents/llm_agent.py", line 563, in _run_async_impl
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 1032, in run_async
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 1112, in _run_one_step_async
+    async for llm_response in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 1570, in _call_llm_async
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 1548, in _call_llm_with_tracing
+    async for llm_response in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 1631, in _run_and_handle_error
+    async for response in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 449, in _run_and_handle_error
+    raise model_error
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 426, in _run_and_handle_error
+    async for llm_response in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/models/lite_llm.py", line 3238, in generate_content_async
+    response = await self.llm_client.acompletion(**completion_args)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/google/adk/models/lite_llm.py", line 832, in acompletion
+    return await acompletion(
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/utils.py", line 1850, in wrapper_async
+    raise e
+  File "/usr/local/lib/python3.11/site-packages/litellm/utils.py", line 1667, in wrapper_async
+    result = await original_function(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/main.py", line 692, in acompletion
+    raise exception_type(
+          ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 2503, in exception_type
+    raise e  # it's already mapped
+    ^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 2272, in exception_type
+    _map_openai_exception(
+  File "/usr/local/lib/python3.11/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 284, in _map_openai_exception
+    raise RateLimitError(
+litellm.exceptions.RateLimitError: litellm.RateLimitError: RateLimitError: GroqException - {"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kg75pfzgf21s8rbp1rdfj8ke` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7603, Requested 671. Please try again in 2.055s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing","type":"tokens","code":"rate_limit_exceeded"}}
+
+Root node adk_spark_worker failed.
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/google/adk/runners.py", line 676, in _drive_root_node
+    await root_ctx._run_node_internal(
+  File "/usr/local/lib/python3.11/site-packages/google/adk/agents/context.py", line 608, in _run_node_internal
+    raise DynamicNodeFailError(
+google.adk.workflow._errors.DynamicNodeFailError: Dynamic node adk_spark_worker failed
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/google/adk/runners.py", line 975, in _cleanup_root_task
+    await task
+  File "/usr/local/lib/python3.11/site-packages/google/adk/runners.py", line 685, in _drive_root_node
+    raise e.error
+  File "/usr/local/lib/python3.11/site-packages/google/adk/workflow/_node_runner.py", line 136, in run
+    await self._execute_node(ctx, node_input)
+  File "/usr/local/lib/python3.11/site-packages/google/adk/workflow/_node_runner.py", line 274, in _execute_node
+    await self._run_node_loop(ctx, node_input)
+  File "/usr/local/lib/python3.11/site-packages/google/adk/workflow/_node_runner.py", line 288, in _run_node_loop
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/workflow/_base_node.py", line 166, in run
+    async for item in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/agents/llm_agent.py", line 614, in _run_impl
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/workflow/_llm_agent_wrapper.py", line 468, in run_llm_agent_as_node
+    async for event in run_iter:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/agents/base_agent.py", line 307, in run_async
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/agents/llm_agent.py", line 563, in _run_async_impl
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 1032, in run_async
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 1112, in _run_one_step_async
+    async for llm_response in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 1570, in _call_llm_async
+    async for event in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 1548, in _call_llm_with_tracing
+    async for llm_response in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 1631, in _run_and_handle_error
+    async for response in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 449, in _run_and_handle_error
+    raise model_error
+  File "/usr/local/lib/python3.11/site-packages/google/adk/flows/llm_flows/base_llm_flow.py", line 426, in _run_and_handle_error
+    async for llm_response in agen:
+  File "/usr/local/lib/python3.11/site-packages/google/adk/models/lite_llm.py", line 3238, in generate_content_async
+    response = await self.llm_client.acompletion(**completion_args)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/google/adk/models/lite_llm.py", line 832, in acompletion
+    return await acompletion(
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/utils.py", line 1850, in wrapper_async
+    raise e
+  File "/usr/local/lib/python3.11/site-packages/litellm/utils.py", line 1667, in wrapper_async
+    result = await original_function(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/main.py", line 692, in acompletion
+    raise exception_type(
+          ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 2503, in exception_type
+    raise e  # it's already mapped
+    ^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 2272, in exception_type
+    _map_openai_exception(
+  File "/usr/local/lib/python3.11/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 284, in _map_openai_exception
+    raise RateLimitError(
+litellm.exceptions.RateLimitError: litellm.RateLimitError: RateLimitError: GroqException - {"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kg75pfzgf21s8rbp1rdfj8ke` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7603, Requested 671. Please try again in 2.055s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing","type":"tokens","code":"rate_limit_exceeded"}}
+
+INFO:     127.0.0.1:39214 - "GET /health HTTP/1.1" 200 OK

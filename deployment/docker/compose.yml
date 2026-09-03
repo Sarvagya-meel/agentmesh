@@ -9,13 +9,28 @@ x-llm-config: &llm-config
   GROQ_TEMPERATURE: ${GROQ_TEMPERATURE:-0.1}
   GROQ_MAX_COMPLETION_TOKENS: ${GROQ_MAX_COMPLETION_TOKENS:-4096}
   GROQ_TIMEOUT_SECONDS: ${GROQ_TIMEOUT_SECONDS:-45}
+  LITELLM_ENABLED: ${LITELLM_ENABLED:-true}
+  LITELLM_API_BASE: http://litellm:4000/v1
+  LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-agentmesh-local}
+  LITELLM_MODEL: ${LITELLM_MODEL:-agentmesh-groq}
+  GOOGLE_ADK_MODEL: ${GOOGLE_ADK_MODEL:-qwen/qwen3.6-27b}
+  LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+  LANGCHAIN_TRACING_V2: ${LANGSMITH_TRACING:-false}
+  LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-agentmesh-local}
+  LANGCHAIN_PROJECT: ${LANGSMITH_PROJECT:-agentmesh-local}
+  LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+  LANGCHAIN_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+  LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+  LANGCHAIN_API_KEY: ${LANGSMITH_API_KEY:-}
+  LANGSMITH_WORKSPACE_ID: ${LANGSMITH_WORKSPACE_ID:-}
 
 x-agent-environment: &agent-environment
   <<: *llm-config
   APP_ENV: local
   DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
-  AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
-  AGENT_REGISTRY_URL: http://orchestrator-supervisor-agent:8000/registry/agents
+  AGENTMESH_API_URL: http://control-plane:8000
+  AGENT_REGISTRY_URL: http://control-plane:8000/registry/agents
+  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-agentmesh-local-service-token}
   AGENT_MAX_CONCURRENCY: ${AGENT_MAX_CONCURRENCY:-4}
   AGENT_SHUTDOWN_TIMEOUT_SECONDS: ${AGENT_SHUTDOWN_TIMEOUT_SECONDS:-30}
   POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-2}
@@ -23,7 +38,7 @@ x-agent-environment: &agent-environment
   WORKER_REQUEST_TIMEOUT_SECONDS: ${WORKER_REQUEST_TIMEOUT_SECONDS:-30}
 
 x-agent-dependencies: &agent-dependencies
-  orchestrator-supervisor-agent:
+  control-plane:
     condition: service_healthy
   migrate:
     condition: service_completed_successfully
@@ -31,7 +46,7 @@ x-agent-dependencies: &agent-dependencies
 x-langgraph-agent: &langgraph-agent
   build:
     context: ../..
-    dockerfile: deployment/docker/Dockerfile.Agent
+    dockerfile: deployment/docker/Dockerfile.agent
     args:
       AGENT_PACKAGE: agent_langgraph_copilot
       DEPENDENCY_GROUP: agent-langgraph
@@ -51,7 +66,7 @@ x-langgraph-agent: &langgraph-agent
 x-adk-agent: &adk-agent
   build:
     context: ../..
-    dockerfile: deployment/docker/Dockerfile.Agent
+    dockerfile: deployment/docker/Dockerfile.agent
     args:
       AGENT_PACKAGE: agent_adk_spark
       DEPENDENCY_GROUP: agent-adk
@@ -99,14 +114,38 @@ services:
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
     restart: "no"
 
-  orchestrator-supervisor-agent:
+  litellm:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.LiteLLM
+    image: agentmesh-litellm:1.97.0
+    container_name: agentmesh-litellm
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-agentmesh-local}
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        litellm --host 0.0.0.0 --port 4000 --num_workers 1
+        --model groq/$${GROQ_MODEL} --alias agentmesh-groq
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=2)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  control-plane:
     build:
       context: ../..
       dockerfile: deployment/docker/Dockerfile.Service
       args:
         DEPENDENCY_GROUP: control-plane
-    image: agentmesh-agent-orchestrator-supervisor
-    container_name: agentmesh-orchestrator-supervisor
+    image: agentmesh-control-plane
+    container_name: agentmesh-control-plane
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -114,16 +153,62 @@ services:
       <<: *llm-config
       APP_ENV: local
       DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
-      AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
+      AGENTMESH_API_URL: http://control-plane:8000
+      SUPERVISOR_API_URL: http://supervisor:8110
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-agentmesh-local-service-token}
       REGISTRY_BACKEND: postgres
       EVENT_STORE_BACKEND: postgres
-      LANGGRAPH_CHECKPOINT_BACKEND: postgres
-      LANGGRAPH_STORE_BACKEND: postgres
       AGENT_STALE_SECONDS: ${AGENT_STALE_SECONDS:-180}
+    command:
+      - uvicorn
+      - agentmesh.services.service_agentmesh_server.control_plane_app:app
+      - --host=0.0.0.0
+      - --port=8000
     ports:
       - "8000:8000"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  supervisor:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.Service
+      args:
+        DEPENDENCY_GROUP: supervisor
+    image: agentmesh-supervisor
+    container_name: agentmesh-supervisor
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      litellm:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *llm-config
+      APP_ENV: local
+      DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
+      AGENTMESH_API_URL: http://control-plane:8000
+      SUPERVISOR_API_URL: http://supervisor:8110
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-agentmesh-local-service-token}
+      REGISTRY_BACKEND: postgres
+      LANGGRAPH_CHECKPOINT_BACKEND: postgres
+      LANGGRAPH_STORE_BACKEND: postgres
+      AGENT_STALE_SECONDS: ${AGENT_STALE_SECONDS:-180}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-2}
+      WORKER_HEARTBEAT_SECONDS: ${WORKER_HEARTBEAT_SECONDS:-60}
+    command:
+      - uvicorn
+      - agentmesh.services.service_agentmesh_server.supervisor_app:app
+      - --host=0.0.0.0
+      - --port=8110
+    ports:
+      - "8110:8110"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8110/health', timeout=2)\""]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -201,13 +286,11 @@ services:
     image: agentmesh-service-ui
     container_name: agentmesh-streamlit
     depends_on:
-      orchestrator-supervisor-agent:
+      control-plane:
         condition: service_healthy
     environment:
       APP_ENV: local
-      DATABASE_URL: postgresql://agentmesh:agentmesh@postgres:5432/agentmesh
-      AGENTMESH_API_URL: http://orchestrator-supervisor-agent:8000
-      AGENT_REGISTRY_URL: http://orchestrator-supervisor-agent:8000/registry/agents
+      AGENTMESH_API_URL: http://control-plane:8000
       AUTO_REGISTER_AGENTS: "false"
       AGENT_STALE_SECONDS: ${AGENT_STALE_SECONDS:-180}
     ports:

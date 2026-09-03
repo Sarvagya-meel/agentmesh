@@ -90,9 +90,10 @@ function Wait-ForMigrate {
     throw "Timed out waiting for migrate service"
 }
 
-Write-Output "Starting registry (orchestrator-supervisor-agent)..."
-docker compose -f $compose up -d orchestrator-supervisor-agent
-Wait-ForHttp -Url "http://127.0.0.1:8000/health" -Label "orchestrator-supervisor-agent"
+Write-Output "Starting LiteLLM, control plane, and supervisor..."
+docker compose -f $compose up -d litellm control-plane supervisor
+Wait-ForHttp -Url "http://127.0.0.1:8000/health" -Label "control-plane"
+Wait-ForHttp -Url "http://127.0.0.1:8110/health" -Label "supervisor"
 
 Write-Output "Starting Streamlit (no-deps) ..."
 docker compose -f $compose up -d --no-deps streamlit

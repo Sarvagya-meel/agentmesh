@@ -1,4 +1,8 @@
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import pytest
 
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.services.service_agentmesh_server.registry.repository import (
@@ -63,6 +67,28 @@ def test_agent_heartbeat_records_runtime_telemetry() -> None:
     assert refreshed.last_seen is not None
 
 
+def test_heartbeat_and_get_agent_do_not_trace(monkeypatch: pytest.MonkeyPatch) -> None:
+    traced: list[str] = []
+
+    @contextmanager
+    def fake_span(name: str, **_kwargs: Any) -> Any:
+        traced.append(name)
+        yield None
+
+    monkeypatch.setattr(
+        "agentmesh.services.service_agentmesh_server.registry.service.agentmesh_span",
+        fake_span,
+    )
+    service = RegistryService(InMemoryRegistryRepository())
+    service.register_agent(AgentCard(agent_id="quiet-agent", name="Quiet Agent"))
+    traced.clear()
+
+    service.heartbeat("quiet-agent")
+    service.get_agent("quiet-agent")
+
+    assert traced == []
+
+
 def test_listing_agents_marks_expired_presence_stale() -> None:
     repository = InMemoryRegistryRepository()
     service = RegistryService(repository, stale_seconds=180)
@@ -79,3 +105,47 @@ def test_listing_agents_marks_expired_presence_stale() -> None:
 
     assert listed[0].status == "stale"
     assert repository.get("expired-agent").status == "stale"
+
+
+def test_multi_instance_agent_uses_ready_runtime_last_seen() -> None:
+    class FakeResourceRepository:
+        def mark_stale_runtime_instances(
+            self, *, stale_seconds: float, trace: bool = True
+        ) -> list[str]:
+            return []
+
+        def runtime_availability(self, agent_id: str, *, stale_seconds: float) -> dict[str, Any]:
+            return {
+                "direct_ready": True,
+                "assignment_ready": True,
+                "ready_runtime_count": 1,
+                "ready_runtime_roles": ["combined"],
+                "direct_endpoint": "http://runtime:8101",
+                "last_seen": runtime_last_seen,
+            }
+
+    runtime_last_seen = datetime.now(UTC)
+    parent_last_seen = runtime_last_seen - timedelta(minutes=10)
+    repository = InMemoryRegistryRepository()
+    repository.register(
+        AgentCard(
+            agent_id="langgraph-copilot",
+            name="langgraph-copilot",
+            status="online",
+            endpoint="http://parent:8101",
+            metadata={"runtime_model": "multi-instance"},
+            last_seen=parent_last_seen,
+        )
+    )
+    service = RegistryService(
+        repository,
+        stale_seconds=180,
+        resource_repository=FakeResourceRepository(),
+    )
+
+    listed = service.list_agents()
+
+    assert listed[0].status == "online"
+    assert listed[0].endpoint == "http://runtime:8101"
+    assert listed[0].last_seen == runtime_last_seen
+    assert repository.get("langgraph-copilot").last_seen == runtime_last_seen

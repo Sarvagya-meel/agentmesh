@@ -21,3 +21,5 @@ __all__ = [
     "create_claim_repository",
     "create_event_repository",
 ]
+
+# TODO: Remove this shim after callers import the core repository module directly.

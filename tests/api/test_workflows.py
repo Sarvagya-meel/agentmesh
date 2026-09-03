@@ -61,3 +61,32 @@ async def test_workflow_api_runs_both_approval_gates_and_completes() -> None:
             assert events.status_code == 200
             event_types = [event["event_type"] for event in events.json()]
             assert event_types[-1] == "WORKFLOW_COMPLETED"
+
+            first_activity = await client.get(
+                f"/workflows/{workflow_id}/activity",
+                params={"after_sequence": 0, "limit": 2},
+            )
+            assert first_activity.status_code == 200
+            activity = first_activity.json()
+            assert len(activity["events"]) == 2
+            assert activity["has_more"] is True
+
+            next_activity = await client.get(
+                f"/workflows/{workflow_id}/activity",
+                params={"after_sequence": activity["next_sequence"]},
+            )
+            assert all(
+                event["sequence_number"] > activity["next_sequence"]
+                for event in next_activity.json()["events"]
+            )
+            assert next_activity.json()["terminal"] is True
+            assert next_activity.json()["steps"][0]["status"] == "COMPLETED"
+
+            trace_link = await client.get(f"/workflows/{workflow_id}/trace-link")
+            assert trace_link.status_code == 200
+            assert trace_link.json()["available"] is False
+
+            resources = await client.get("/registry/resources")
+            audits = await client.get("/registry/audit-events")
+            assert resources.status_code == 200
+            assert audits.status_code == 200

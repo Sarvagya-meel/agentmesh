@@ -24,20 +24,28 @@ def create_workflow_planner(
         raise ValidationError("LLM_PROVIDER must be mock or groq for orchestration.")
 
     api_key = (
-        settings.groq_api_key.get_secret_value().strip()
-        if settings.groq_api_key is not None
-        else ""
+        settings.litellm_master_key.get_secret_value().strip()
+        if settings.litellm_enabled
+        else (
+            settings.groq_api_key.get_secret_value().strip()
+            if settings.groq_api_key is not None
+            else ""
+        )
     )
     if not api_key:
-        raise ValidationError("GROQ_API_KEY is required when LLM_PROVIDER=groq.")
+        raise ValidationError(
+            "GROQ_API_KEY or the configured LiteLLM gateway key is required "
+            "when LLM_PROVIDER=groq."
+        )
 
     client = GroqStructuredOutputClient(
         api_key=api_key,
-        model=settings.groq_model,
-        api_base=settings.groq_api_base,
+        model=settings.litellm_model if settings.litellm_enabled else settings.groq_model,
+        api_base=settings.litellm_api_base if settings.litellm_enabled else settings.groq_api_base,
         reasoning_effort=settings.groq_reasoning_effort,
         temperature=settings.groq_temperature,
         max_completion_tokens=settings.groq_max_completion_tokens,
         timeout_seconds=settings.groq_timeout_seconds,
     )
-    return GroqWorkflowPlanner(client, model_name=settings.groq_model), client.close
+    model_name = settings.litellm_model if settings.litellm_enabled else settings.groq_model
+    return GroqWorkflowPlanner(client, model_name=model_name), client.close

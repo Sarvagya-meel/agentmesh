@@ -8,7 +8,8 @@ No feature is complete unless its tests pass. Tests are not optional and are not
 
 ### Service Layer — Unit Tests
 
-Every service class must have unit tests covering:
+Every service class, control-plane queue component, and supervisor action handler
+must have tests covering:
 - Happy path for each public method
 - Error and edge-case behavior
 - Dependency injection with in-memory fakes or mocks
@@ -30,3 +31,6 @@ The state projection algorithm must be tested to verify determinism and replay s
 - Keep fixtures small and explicit
 - Run the full suite from the project root with `python -m pytest -q`
 - CI must also run `ruff check .` and `mypy src`
+- Validate both `control_plane_app:app` and `supervisor_app:app` as independent imports.
+- Compose acceptance must inspect control-plane, supervisor, LiteLLM, migration, and
+  worker logs, then repeat after project-scoped image and volume deletion.

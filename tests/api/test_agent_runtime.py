@@ -3,8 +3,10 @@ from typing import Any
 from httpx import ASGITransport, AsyncClient
 
 from agentmesh.agents.agent_langgraph_copilot.agent import ConversationAgent
+from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.runtime import create_agent_runtime_app
 from agentmesh.config import Settings
+from agentmesh.core.models.exceptions import ModelProviderError
 
 
 def conversation_factory(
@@ -12,6 +14,20 @@ def conversation_factory(
 ) -> tuple[ConversationAgent, Any]:
     del settings
     return ConversationAgent(auto_register=False), lambda: None
+
+
+class ProviderFailureAgent(BaseAgent):
+    def __init__(self) -> None:
+        super().__init__("provider-failure", auto_register=False)
+
+    def run_task(self, task_payload: dict[str, Any]) -> dict[str, Any]:
+        del task_payload
+        raise ModelProviderError("Model provider is unavailable.")
+
+
+def provider_failure_factory(settings: Settings) -> tuple[BaseAgent, Any]:
+    del settings
+    return ProviderFailureAgent(), lambda: None
 
 
 async def test_agent_runtime_exposes_health_card_and_invoke() -> None:
@@ -61,6 +77,37 @@ async def test_langgraph_runtime_resumes_approval_conversation() -> None:
     assert invoked.json()["status"] == "AWAITING_APPROVAL"
     assert resumed.json()["status"] == "COMPLETED"
     assert resumed.json()["final_reply"] == invoked.json()["draft_reply"]
+
+
+async def test_langgraph_runtime_revises_then_rejects_the_same_conversation() -> None:
+    app = create_agent_runtime_app(
+        kind="langgraph",
+        factory=conversation_factory,
+        worker_enabled=False,
+    )
+
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            invoked = await client.post(
+                "/invoke",
+                json={"message": "Plan Dubai", "approval_required": True},
+            )
+            thread_id = invoked.json()["thread_id"]
+            revised = await client.post(
+                f"/conversations/{thread_id}/resume",
+                json={"decision": "revise", "feedback": "Add a security review."},
+            )
+            rejected = await client.post(
+                f"/conversations/{thread_id}/resume",
+                json={"decision": "reject"},
+            )
+
+    assert revised.json()["status"] == "AWAITING_APPROVAL"
+    assert revised.json()["thread_id"] == thread_id
+    assert "security review" in revised.json()["draft_reply"].lower()
+    assert rejected.json()["status"] == "REJECTED"
+    assert rejected.json()["final_reply"] == "Approval rejected."
 
 
 async def test_agent_runtime_reports_ready_when_worker_mode_is_disabled() -> None:
@@ -125,3 +172,38 @@ async def test_api_role_keeps_direct_invoke_route() -> None:
             invoked = await client.post("/invoke", json={"message": "hello"})
 
     assert invoked.status_code == 200
+
+
+async def test_direct_invoke_maps_model_provider_failure_to_503() -> None:
+    app = create_agent_runtime_app(
+        kind="provider-failure",
+        factory=provider_failure_factory,
+        worker_enabled=False,
+    )
+
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            invoked = await client.post("/invoke", json={"message": "hello"})
+
+    assert invoked.status_code == 503
+    assert invoked.json() == {"detail": "Model provider is unavailable."}
+
+
+async def test_direct_resume_maps_model_provider_failure_to_503() -> None:
+    app = create_agent_runtime_app(
+        kind="provider-failure",
+        factory=provider_failure_factory,
+        worker_enabled=False,
+    )
+
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resumed = await client.post(
+                "/conversations/provider-failure-thread/resume",
+                json={"decision": "revise", "feedback": "Add evidence."},
+            )
+
+    assert resumed.status_code == 503
+    assert resumed.json() == {"detail": "Model provider is unavailable."}

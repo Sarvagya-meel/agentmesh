@@ -1,0 +1,60 @@
+{
+  "endpoint": "https://api.smith.langchain.com",
+  "project": "AgentMesh",
+  "api_key_present": true,
+  "project_matches": 1,
+  "recent_run_count_sample": 50,
+  "agentmesh_trace_shape": false,
+  "recent_runs": [
+    {
+      "name": "AgentMesh assignment queue list",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:57:28.307105+00:00"
+    },
+    {
+      "name": "AgentMesh worker list assignments: googleADK-Chatagent",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:57:28.292938+00:00"
+    },
+    {
+      "name": "AgentMesh assignment queue list",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:57:27.218513+00:00"
+    },
+    {
+      "name": "AgentMesh worker list assignments: langgraph-copilot",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:57:27.205574+00:00"
+    },
+    {
+      "name": "AgentMesh assignment queue list",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:57:26.286933+00:00"
+    },
+    {
+      "name": "AgentMesh worker list assignments: googleADK-Chatagent",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:57:26.265186+00:00"
+    },
+    {
+      "name": "AgentMesh assignment queue list",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:57:25.201092+00:00"
+    },
+    {
+      "name": "AgentMesh worker list assignments: langgraph-copilot",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:57:25.188344+00:00"
+    },
+    {
+      "name": "AgentMesh assignment queue list",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:57:24.254498+00:00"
+    },
+    {
+      "name": "AgentMesh worker list assignments: googleADK-Chatagent",
+      "run_type": "chain",
+      "start_time": "2026-08-30 04:57:24.241420+00:00"
+    }
+  ]
+}

@@ -5,3 +5,6 @@ from agentmesh.services.service_agentmesh_server.database.checkpoint import (
 )
 
 __all__ = ["create_orchestration_checkpointer"]
+
+
+# TODO: Remove this shim after callers import the core checkpoint module directly.

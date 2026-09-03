@@ -1,0 +1,305 @@
+The files belonging to this database system will be owned by user "postgres".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "en_US.utf8".
+The default database encoding has accordingly been set to "UTF8".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+fixing permissions on existing directory /var/lib/postgresql/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default max_connections ... 100
+selecting default shared_buffers ... 128MB
+selecting default time zone ... Etc/UTC
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+
+Success. You can now start the database server using:
+
+    pg_ctl -D /var/lib/postgresql/data -l logfile start
+
+initdb: warning: enabling "trust" authentication for local connections
+waiting for server to start....2026-08-30 03:58:47.631 UTC [48] LOG:  starting PostgreSQL 15.19 (Debian 15.19-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+2026-08-30 03:58:47.633 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-08-30 03:58:47.640 UTC [51] LOG:  database system was shut down at 2026-08-30 03:58:47 UTC
+2026-08-30 03:58:47.646 UTC [48] LOG:  database system is ready to accept connections
+ done
+server started
+CREATE DATABASE
+
+
+/usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/000_agentmesh_schema_migrations.sql
+CREATE TABLE
+
+
+/usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/001_agentmesh_events.sql
+CREATE TABLE
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:19: NOTICE:  column "conversation_id" of relation "agentmesh_events" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:20: NOTICE:  column "workflow_id" of relation "agentmesh_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:21: NOTICE:  column "timestamp" of relation "agentmesh_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:22: NOTICE:  column "event_type" of relation "agentmesh_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:23: NOTICE:  column "source_agent" of relation "agentmesh_events" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+UPDATE 0
+UPDATE 0
+UPDATE 0
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+DO
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+
+
+/usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+DO
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+
+
+/usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/003_agentmesh_agents.sql
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:24: NOTICE:  column "routing_mode" of relation "agentmesh_events" already exists, skipping
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:25: NOTICE:  column "target_agent" of relation "agentmesh_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:26: NOTICE:  column "payload" of relation "agentmesh_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:27: NOTICE:  column "causation_id" of relation "agentmesh_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:28: NOTICE:  column "causation_chain" of relation "agentmesh_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:29: NOTICE:  column "routing_weights" of relation "agentmesh_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:30: NOTICE:  column "metadata" of relation "agentmesh_events" already exists, skipping
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:31: NOTICE:  column "sequence_number" of relation "agentmesh_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:19: NOTICE:  column "agent_id" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:20: NOTICE:  column "worker_id" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:21: NOTICE:  column "claim_token" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:22: NOTICE:  column "claimed_at" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:23: NOTICE:  column "lease_expires_at" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:24: NOTICE:  column "completed_at" of relation "agentmesh_event_claims" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+UPDATE 0
+UPDATE 0
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:25: NOTICE:  column "attempt_number" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:26: NOTICE:  column "max_attempts" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:27: NOTICE:  column "next_attempt_at" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:28: NOTICE:  column "last_error_code" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:29: NOTICE:  column "last_error_message" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:30: NOTICE:  column "retryable" of relation "agentmesh_event_claims" already exists, skipping
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+ALTER TABLE
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:31: NOTICE:  column "dead_lettered_at" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:32: NOTICE:  column "idempotency_key" of relation "agentmesh_event_claims" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:19: NOTICE:  column "name" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:20: NOTICE:  column "version" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:21: NOTICE:  column "description" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:22: NOTICE:  column "endpoint" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:23: NOTICE:  column "capabilities" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:24: NOTICE:  column "skills" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:25: NOTICE:  column "owner" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:26: NOTICE:  column "status" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:27: NOTICE:  column "metadata" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:28: NOTICE:  column "registered_at" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:29: NOTICE:  column "last_seen" of relation "agentmesh_agents" already exists, skipping
+psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:30: NOTICE:  column "updated_at" of relation "agentmesh_agents" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+DO
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+
+
+/usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/004_agentmesh_resources.sql
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:20: NOTICE:  column "resource_type" of relation "agentmesh_resources" already exists, skipping
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:21: NOTICE:  column "name" of relation "agentmesh_resources" already exists, skipping
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:22: NOTICE:  column "status" of relation "agentmesh_resources" already exists, skipping
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:23: NOTICE:  column "endpoint" of relation "agentmesh_resources" already exists, skipping
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:24: NOTICE:  column "owner" of relation "agentmesh_resources" already exists, skipping
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:25: NOTICE:  column "capabilities" of relation "agentmesh_resources" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:26: NOTICE:  column "metadata" of relation "agentmesh_resources" already exists, skipping
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:27: NOTICE:  column "parent_resource_id" of relation "agentmesh_resources" already exists, skipping
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:28: NOTICE:  column "registered_at" of relation "agentmesh_resources" already exists, skipping
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:29: NOTICE:  column "last_seen" of relation "agentmesh_resources" already exists, skipping
+psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:30: NOTICE:  column "updated_at" of relation "agentmesh_resources" already exists, skipping
+ALTER TABLE
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:16: NOTICE:  column "resource_id" of relation "agentmesh_resource_audit_events" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+DO
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+
+
+/usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:17: NOTICE:  column "event_type" of relation "agentmesh_resource_audit_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:18: NOTICE:  column "severity" of relation "agentmesh_resource_audit_events" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:19: NOTICE:  column "actor" of relation "agentmesh_resource_audit_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:20: NOTICE:  column "message" of relation "agentmesh_resource_audit_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:21: NOTICE:  column "payload" of relation "agentmesh_resource_audit_events" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+UPDATE 0
+psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:22: NOTICE:  column "workflow_id" of relation "agentmesh_resource_audit_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:23: NOTICE:  column "event_id" of relation "agentmesh_resource_audit_events" already exists, skipping
+psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:24: NOTICE:  column "created_at" of relation "agentmesh_resource_audit_events" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+DO
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+
+
+/usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/006_agent_runtime_instances.sql
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+
+
+waiting for server to shut down...2026-08-30 03:58:48.416 UTC [48] LOG:  received fast shutdown request
+.2026-08-30 03:58:48.417 UTC [48] LOG:  aborting any active transactions
+2026-08-30 03:58:48.420 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+2026-08-30 03:58:48.420 UTC [49] LOG:  shutting down
+2026-08-30 03:58:48.422 UTC [49] LOG:  checkpoint starting: shutdown immediate
+2026-08-30 03:58:48.516 UTC [49] LOG:  checkpoint complete: wrote 946 buffers (5.8%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.027 s, sync=0.063 s, total=0.096 s; sync files=345, longest=0.019 s, average=0.001 s; distance=4466 kB, estimate=4466 kB
+2026-08-30 03:58:48.521 UTC [48] LOG:  database system is shut down
+ done
+2026-08-30 03:58:48.640 UTC [1] LOG:  starting PostgreSQL 15.19 (Debian 15.19-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+server stopped
+
+PostgreSQL init process complete; ready for start up.
+
+2026-08-30 03:58:48.640 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-08-30 03:58:48.640 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-08-30 03:58:48.644 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-08-30 03:58:48.650 UTC [78] LOG:  database system was shut down at 2026-08-30 03:58:48 UTC
+2026-08-30 03:58:48.656 UTC [1] LOG:  database system is ready to accept connections
+2026-08-30 04:03:48.680 UTC [76] LOG:  checkpoint starting: time
+2026-08-30 04:04:16.901 UTC [76] LOG:  checkpoint complete: wrote 285 buffers (1.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=28.193 s, sync=0.020 s, total=28.221 s; sync files=134, longest=0.002 s, average=0.001 s; distance=1508 kB, estimate=1508 kB
+2026-08-30 04:08:48.930 UTC [76] LOG:  checkpoint starting: time
+2026-08-30 04:08:53.563 UTC [76] LOG:  checkpoint complete: wrote 48 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=4.618 s, sync=0.007 s, total=4.634 s; sync files=30, longest=0.002 s, average=0.001 s; distance=474 kB, estimate=1404 kB

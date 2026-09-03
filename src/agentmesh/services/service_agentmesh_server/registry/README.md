@@ -1,49 +1,61 @@
 # Registry and Agent Dispatch
 
-This note records how the orchestrator coordinates registered agents. The
-orchestrator does not directly invoke the agent HTTP services during a workflow.
-It creates directed assignments that always-running workers discover and process.
+This note records how the durable registry/control plane coordinates registered
+agents. The orchestrator is an independent supervisor service: it does not own
+the queue and does not directly invoke agent HTTP services during a workflow. It
+claims planning, validation, replan, and summary actions from the control plane.
 
 ## Workflow Sequence
 
 ```mermaid
 sequenceDiagram
     participant UI as Streamlit
-    participant O as Supervisor Agent
-    participant DB as PostgreSQL Events
+    participant CP as Control Plane
+    participant S as Supervisor Service
+    participant DB as PostgreSQL Events/Queue
     participant W as Agent Worker
 
-    UI->>O: Start workflow
-    O->>O: Discover registered agents and create plan
-    O-->>UI: Request plan approval
-    UI->>O: Approve plan
-    O->>DB: Emit directed TASK_ASSIGNED event
-    W->>O: Poll for assignments
-    W->>O: Atomically claim assignment
-    W->>W: Execute shared executor.arun_task(task, context)
-    W->>O: Submit result with claim token
-    O->>DB: Record TASK_COMPLETED
-    O->>DB: Assign next task or complete workflow
+    UI->>CP: Start durable workflow
+    CP->>DB: Queue planning action
+    S->>CP: Poll and claim planning action
+    S->>CP: Submit validated plan version
+    CP-->>UI: Request plan approval
+    UI->>CP: Approve plan
+    CP->>DB: Queue step assignment
+    W->>CP: Poll for assignments
+    W->>CP: Atomically claim assignment
+    CP-->>W: Immutable per-step input manifest
+    W->>W: Execute synchronous /invoke through shared executor
+    W->>CP: Submit result with claim token
+    CP->>DB: Record step result and advance DAG state
+    S->>CP: Claim summary action
+    S->>CP: Submit workflow.result
 ```
 
 ## Dispatch Flow
 
-1. The supervisor discovers online agents from the registry by capability.
-2. After plan approval, it emits `TASK_ASSIGNED` with a `target_agent`.
-3. Each `AssignmentWorker` polls `GET /workers/{agent_id}/assignments`.
-4. The selected worker claims the task through
+1. The control plane stores Agent Cards, runtime presence, workflow state, and
+   queue state in PostgreSQL.
+2. The supervisor claims planning work and proposes a validated plan version.
+3. After plan approval, the control plane queues step assignments with a target
+   agent and immutable input manifest.
+4. Each `AssignmentWorker` polls `GET /workers/{agent_id}/assignments`.
+5. The selected worker claims the task through
    `POST /workers/{agent_id}/assignments/{event_id}/claim`.
-5. The worker submits the task to the process's shared `AgentExecutor`, which calls
-   `agent.arun_task(task, context)` under concurrency and thread-serialization limits.
-6. The worker submits the result and claim token through
+6. The worker submits the manifest to the process's shared `AgentExecutor`, which
+   calls `agent.arun_task(task, context)` under concurrency and thread-serialization
+   limits.
+7. The worker submits the result and claim token through
    `POST /workers/{agent_id}/assignments/{event_id}/result`.
-7. `WorkerService` validates the claim and resumes the supervisor's LangGraph
-   workflow.
-8. The supervisor assigns the next planned task or completes the workflow.
+8. `WorkerService` validates the claim, records the result, handles retry/dead-letter
+   state, and advances DAG-ready work.
+9. The supervisor later claims replan or summary work when semantic review or final
+   synthesis is needed.
 
-PostgreSQL stores the event timeline, assignment claims, registry cards, and
-LangGraph checkpoints. This allows workers to restart and recover unfinished
-assignments without direct agent-to-agent calls.
+PostgreSQL stores the event timeline, assignment claims, registry cards, DAG state,
+retry state, and LangGraph checkpoint mappings. This allows workers and the
+supervisor to restart and recover unfinished work without direct agent-to-agent
+calls.
 
 `agentmesh_agents` holds stable identity and Agent Card data. Every `api`, `worker`,
 or `combined` process has a separate `agent_runtime` row in `agentmesh_resources`.
@@ -51,12 +63,24 @@ The registry aggregates those rows: direct readiness requires a ready API-capabl
 instance, while assignment readiness requires a ready worker-capable instance.
 Staleness is evaluated per process rather than against one shared timestamp.
 
+Step dependencies are resolved by `workflow_id`, `plan_version`, stable `step_id`,
+and named input bindings. The supervisor may inspect authorized workflow outputs,
+but the control plane only includes the fields the supervisor selected in each
+downstream worker manifest.
+
 ## Direct Invocation
 
-The agent `/invoke` endpoints on ports `8101` and `8102` are used by the Agent
-Playground and independent agent tests. Normal orchestration uses registry
-discovery, directed assignment events, polling, and atomic leases instead.
-In split mode, API ports remain inside the Compose network so replicas can scale.
+The agent `/invoke` endpoints on ports `8101` and `8102` are used by Agent
+Playground direct mode and independent agent tests. Agent Playground can also
+submit durable direct work through the control plane. Normal workflows use
+control-plane queueing, supervisor planning, directed assignment events, polling,
+and atomic leases instead. In split mode, API ports remain inside the Compose
+network so replicas can scale.
+
+Transient worker failures such as 429, timeouts, and 502-504 responses are retried
+by the control plane without waking the supervisor. Semantic failures create
+checkpoint review or replan work. Long planning pauses use
+`planning.input_requested` and `planning.input_provided`.
 
 ## Future MCP Boundary
 

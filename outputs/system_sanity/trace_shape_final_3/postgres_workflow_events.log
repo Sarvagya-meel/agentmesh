@@ -1,0 +1,20 @@
+ sequence_number |        event_type        |         source_agent          |    target_agent     
+-----------------+--------------------------+-------------------------------+---------------------
+               1 | WORKFLOW_STARTED         | orchestrator-supervisor-agent | 
+               2 | AGENT_SNAPSHOT_CAPTURED  | orchestrator-supervisor-agent | 
+               3 | PLAN_CREATED             | orchestrator-supervisor-agent | 
+               4 | PLAN_APPROVAL_REQUESTED  | orchestrator-supervisor-agent | 
+               5 | PLAN_APPROVED            | orchestrator-supervisor-agent | 
+               6 | TASK_PROPOSED            | orchestrator-supervisor-agent | 
+               7 | TASK_ASSIGNED            | orchestrator-supervisor-agent | langgraph-copilot
+               8 | AGENT_OUTPUT_PROPOSED    | langgraph-copilot             | 
+               9 | AGENT_APPROVAL_REQUESTED | orchestrator-supervisor-agent | 
+              10 | AGENT_OUTPUT_APPROVED    | orchestrator-supervisor-agent | 
+              11 | TASK_ASSIGNED            | orchestrator-supervisor-agent | langgraph-copilot
+              12 | TASK_COMPLETED           | langgraph-copilot             | 
+              13 | TASK_PROPOSED            | orchestrator-supervisor-agent | 
+              14 | TASK_ASSIGNED            | orchestrator-supervisor-agent | googleADK-Chatagent
+              15 | TASK_FAILED              | googleADK-Chatagent           | 
+              16 | WORKFLOW_FAILED          | orchestrator-supervisor-agent | 
+(16 rows)
+

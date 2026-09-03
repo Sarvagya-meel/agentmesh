@@ -38,6 +38,9 @@ Current DDLs:
 004_agentmesh_resources.sql
 005_agentmesh_resource_audit_events.sql
 006_agent_runtime_instances.sql
+007_supervisor_control_plane.sql
+008_agentmesh_uat_cases.sql
+009_live_uat_automation.sql
 ```
 
 ## Core Tables
@@ -56,10 +59,16 @@ start time, last heartbeat, and last successful model call.
 Audit and progress trail for any row in `agentmesh_resources`.
 
 `agentmesh_events`
-Workflow timeline and orchestration event log.
+Workflow timeline, planning actions, dispatch events, checkpoint mapping facts, and
+final `workflow.result` delivery records.
 
 `agentmesh_event_claims`
-Worker lease table for safely claiming directed assignments.
+Lease table for safely claiming worker assignments and supervisor actions.
+
+`agentmesh_uat_cases`
+Database-owned acceptance catalog seeded by DDL. These rows define repeatable
+smoke, unit, validation, Streamlit behavior, retry, replay, checkpoint,
+PostgreSQL, and LangSmith cases for every fresh environment.
 
 `agentmesh_schema_migrations`
 Tracks applied DDL files by checksum.
@@ -85,11 +94,11 @@ Both commands read `DATABASE_URL` from the environment or root `.env`.
 When using Docker Compose, the `migrate` service is automatically managed:
 
 ```powershell
-# Start services - migrate rebuilds and applies new/changed DDLs
-docker compose --env-file .env -f deployment/docker/compose.yml up -d migrate
+# Rebuild and recreate migrate after adding a DDL.
+docker compose --env-file .env -f deployment/docker/compose.yml up -d --build --force-recreate migrate
 
 # The migrate service:
-# - Rebuilds on each start/restart to pick up code changes
+# - Is rebuilt by restart to pick up DDL changes
 # - Applies only new or changed DDLs (idempotent - checksum tracked)
 # - Exits with status 0 after completion
 # - Orchestrator waits for service_completed_successfully before starting
@@ -131,6 +140,20 @@ agentmesh_events
 ```
 
 This keeps the dashboard generic instead of hardcoding only agents. Agents, orchestrators, MCP servers, and tools can all appear as resources and emit audit events.
+
+## Control-Plane Runtime State
+
+The local runtime treats PostgreSQL as the durable control-plane store. The
+application repositories own queueing, leased dispatch, retry scheduling,
+dead-lettering, workflow DAG state, deterministic validation records, event
+append/query, and LangGraph checkpoint mappings.
+
+All durable direct and workflow requests should enter through the control plane
+asynchronous path. Workers expose synchronous `/invoke` behind leased dispatch and
+receive immutable manifests keyed by `workflow_id`, `plan_version`, stable
+`step_id`, and named input bindings. The supervisor service claims planning,
+validation, replan, and summary work; transient worker failures such as 429,
+timeouts, and 502-504 responses are retried here without disturbing the supervisor.
 
 ## Future: Postgres MCP Server
 

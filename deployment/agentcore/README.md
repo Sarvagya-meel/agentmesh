@@ -8,11 +8,17 @@ The local Docker runtime remains the reference implementation until that adapter
 
 ## Portability Contract
 
-An AgentCore adapter should call the same `BaseAgent.arun_task(payload, context)` contract
-used by FastAPI and the assignment worker. Agent code must not import Docker, Compose,
-Streamlit, or AgentCore lifecycle APIs. Environment-backed provider configuration,
-stable thread/workflow IDs, JSON-safe results, and externally managed PostgreSQL remain
-the boundary.
+An AgentCore adapter should preserve the same worker contract used locally: a
+synchronous `/invoke` receives an immutable per-step input manifest and the adapter
+returns a structured result to the control plane. Agent code must not import Docker,
+Compose, Streamlit, supervisor, or AgentCore lifecycle APIs. Environment-backed
+provider configuration, stable thread/workflow IDs, JSON-safe results, and
+externally managed PostgreSQL remain the boundary.
+
+The durable control plane remains responsible for registry data, queueing, leased
+dispatch, retries, DAG state, deterministic validation, events, and LangGraph
+checkpoint mappings. LiteLLM Gateway is required for supervisor model calls only,
+not as an AgentCore worker dependency.
 
 The selective agent image is also built for `linux/arm64` as an early portability
 check. AgentCore-specific request translation, identity, session mapping, and managed

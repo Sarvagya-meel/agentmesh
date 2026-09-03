@@ -1,0 +1,12 @@
+[
+  {
+    "container": "agentmesh-orchestrator-supervisor",
+    "line": 1391,
+    "text": "INFO:     172.18.0.5:34164 - \"POST /workers/langgraph-copilot/assignments/2b72de33-3411-4a6c-b8ea-c3e296a79492/claim HTTP/1.1\" 409 Conflict"
+  },
+  {
+    "container": "agentmesh-orchestrator-supervisor",
+    "line": 1394,
+    "text": "INFO:     172.18.0.5:34164 - \"POST /workers/langgraph-copilot/assignments/2b72de33-3411-4a6c-b8ea-c3e296a79492/claim HTTP/1.1\" 409 Conflict"
+  }
+]

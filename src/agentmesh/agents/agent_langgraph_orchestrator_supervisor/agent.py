@@ -40,6 +40,13 @@ from agentmesh.core.models.exceptions import (
     ValidationError,
     WorkflowConflictError,
 )
+from agentmesh.core.observability import (
+    agentmesh_metadata,
+    agentmesh_run_name,
+    agentmesh_span,
+    resolve_trace_author,
+    trace_author_metadata,
+)
 from agentmesh.services.service_agentmesh_server.events.service import EventService
 from agentmesh.services.service_agentmesh_server.events.state import StateService
 from agentmesh.services.service_agentmesh_server.registry.service import RegistryService
@@ -70,6 +77,7 @@ class MasterWorkflowState(MessagesState, total=False):
     workflow_id: str
     goal: str
     preferred_agent_ids: list[str]
+    approval_required: bool
     agent_snapshot: list[dict[str, Any]]
     plan: dict[str, Any]
     plan_version: int
@@ -245,7 +253,11 @@ class MasterOrchestratorAgent(BaseAgent):
         builder.add_conditional_edges(
             "evaluate_plan",
             self._plan_evaluation_route,
-            {"revise": "create_plan", "complete": "request_plan_approval"},
+            {
+                "revise": "create_plan",
+                "approval": "request_plan_approval",
+                "continue": "prepare_task",
+            },
         )
         builder.add_edge("request_plan_approval", "review_plan")
         builder.add_conditional_edges(
@@ -302,6 +314,7 @@ class MasterOrchestratorAgent(BaseAgent):
         preferred_agent_ids: list[str] | None = None,
         rerun_of_workflow_id: UUID | None = None,
         rerun_of_task_id: UUID | None = None,
+        approval_required: bool = True,
         memory_user_id: str = "",
         memory_opt_in: bool = False,
         memory_updates: dict[str, str] | None = None,
@@ -310,7 +323,10 @@ class MasterOrchestratorAgent(BaseAgent):
         """Start planning and run until the plan approval checkpoint."""
 
         resolved_workflow_id = workflow_id or uuid4()
-        if self.event_service.replay(resolved_workflow_id):
+        if any(
+            event.event_type == "WORKFLOW_STARTED"
+            for event in self.event_service.replay(resolved_workflow_id)
+        ):
             raise WorkflowConflictError(f"Workflow {resolved_workflow_id} already exists.")
         self._emit_raw(
             conversation_id=conversation_id,
@@ -322,6 +338,7 @@ class MasterOrchestratorAgent(BaseAgent):
                     str(rerun_of_workflow_id) if rerun_of_workflow_id else None
                 ),
                 "rerun_of_task_id": str(rerun_of_task_id) if rerun_of_task_id else None,
+                "approval_required": approval_required,
             },
         )
         try:
@@ -332,6 +349,7 @@ class MasterOrchestratorAgent(BaseAgent):
                     "workflow_id": str(resolved_workflow_id),
                     "goal": goal,
                     "preferred_agent_ids": preferred_agent_ids or [],
+                    "approval_required": approval_required,
                     "plan_version": 0,
                     "task_index": 0,
                     "task_results": [],
@@ -367,6 +385,8 @@ class MasterOrchestratorAgent(BaseAgent):
         preferred_agent_ids: list[str] | None = None,
         rerun_of_workflow_id: UUID | None = None,
         rerun_of_task_id: UUID | None = None,
+        approval_required: bool = True,
+        start_event_persisted: bool = False,
         memory_user_id: str = "",
         memory_opt_in: bool = False,
         memory_updates: dict[str, str] | None = None,
@@ -374,57 +394,128 @@ class MasterOrchestratorAgent(BaseAgent):
         trace_metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         resolved_workflow_id = workflow_id or uuid4()
-        if self.event_service.replay(resolved_workflow_id):
-            raise WorkflowConflictError(f"Workflow {resolved_workflow_id} already exists.")
-        self._emit_raw(
-            conversation_id=conversation_id,
-            workflow_id=resolved_workflow_id,
-            event_type="WORKFLOW_STARTED",
-            payload={
-                "goal": goal,
-                "rerun_of_workflow_id": (
-                    str(rerun_of_workflow_id) if rerun_of_workflow_id else None
-                ),
-                "rerun_of_task_id": str(rerun_of_task_id) if rerun_of_task_id else None,
-            },
+        raw_metadata: dict[str, Any] = {
+            "agent_id": self.agent_name,
+            "execution_mode": "workflow",
+            "operation": "start_workflow",
+            "workflow_id": resolved_workflow_id,
+            "conversation_id": conversation_id,
+            "preferred_agent_ids": ",".join(preferred_agent_ids or []),
+            "rerun_of_workflow_id": rerun_of_workflow_id,
+            "rerun_of_task_id": rerun_of_task_id,
+            "approval_required": approval_required,
+            "memory_opt_in": memory_opt_in,
+        }
+        raw_metadata.update(trace_metadata or {})
+        author = resolve_trace_author(
+            raw_metadata.get("trigger_source") or self.agent_name,
+            agent_card=None if raw_metadata.get("trigger_source") else self.agent_card(),
         )
-        try:
-            result = await self.graph.ainvoke(
+        metadata = agentmesh_metadata(**raw_metadata, **trace_author_metadata(author))
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                resolved_workflow_id,
+                goal,
+                author.author_name,
+            ),
+            inputs={"goal": goal, "preferred_agent_ids": preferred_agent_ids or []},
+            metadata=metadata,
+            tags=["workflow", "orchestrator", self.agent_name],
+        ) as run:
+            config = self._config(
+                resolved_workflow_id,
                 {
-                    "messages": [HumanMessage(content=goal)],
-                    "conversation_id": conversation_id,
-                    "workflow_id": str(resolved_workflow_id),
-                    "goal": goal,
-                    "preferred_agent_ids": preferred_agent_ids or [],
-                    "plan_version": 0,
-                    "task_index": 0,
-                    "task_results": [],
-                    "feedback": "",
-                    "plan_evaluation_attempts": 0,
-                    "max_plan_evaluation_attempts": 3,
-                    "memory_user_id": memory_user_id,
-                    "memory_opt_in": memory_opt_in,
-                    "memory_updates": memory_updates or {},
-                    "memory_delete_keys": memory_delete_keys or [],
+                    "run_id": str(uuid4()),
+                    "operation": "start_workflow",
+                    "execution_mode": "workflow",
+                    **(trace_metadata or {}),
                 },
-                config=self._config(
-                    resolved_workflow_id,
-                    {
-                        "run_id": str(uuid4()),
-                        "operation": "start_workflow",
-                        **(trace_metadata or {}),
+            )
+            resume_checkpoint = False
+            existing_events = self.event_service.replay(resolved_workflow_id)
+            workflow_started = any(
+                event.event_type == "WORKFLOW_STARTED" for event in existing_events
+            )
+            if start_event_persisted:
+                snapshot = await self.graph.aget_state(config)
+                resume_checkpoint = bool(snapshot.values and snapshot.next) and not any(
+                    task.interrupts for task in snapshot.tasks
+                )
+                allowed_event_types = {
+                    "WORKFLOW_STARTED",
+                    "SUPERVISOR_ACTION_REQUESTED",
+                    "SUPERVISOR_ACTION_RETRY_SCHEDULED",
+                }
+                if (
+                    not workflow_started
+                    or self.state_service.get_current(resolved_workflow_id).status
+                    in {WorkflowStatus.FAILED, WorkflowStatus.CANCELLED, WorkflowStatus.COMPLETED}
+                    or (
+                        not resume_checkpoint
+                        and any(
+                            event.event_type not in allowed_event_types
+                            for event in existing_events
+                        )
+                    )
+                ):
+                    raise WorkflowConflictError(
+                        f"Workflow {resolved_workflow_id} has already been processed."
+                    )
+            elif workflow_started:
+                raise WorkflowConflictError(f"Workflow {resolved_workflow_id} already exists.")
+            else:
+                self._emit_raw(
+                    conversation_id=conversation_id,
+                    workflow_id=resolved_workflow_id,
+                    event_type="WORKFLOW_STARTED",
+                    payload={
+                        "goal": goal,
+                        "rerun_of_workflow_id": (
+                            str(rerun_of_workflow_id) if rerun_of_workflow_id else None
+                        ),
+                        "rerun_of_task_id": (
+                            str(rerun_of_task_id) if rerun_of_task_id else None
+                        ),
+                        "approval_required": approval_required,
                     },
-                ),
-            )
-        except Exception as exc:
-            self._emit_raw(
-                conversation_id=conversation_id,
-                workflow_id=resolved_workflow_id,
-                event_type="WORKFLOW_FAILED",
-                payload={"stage": "planning", "error_type": type(exc).__name__},
-            )
-            raise
-        return self._format_result(resolved_workflow_id, dict(result))
+                )
+            try:
+                result = await self.graph.ainvoke(
+                    None if resume_checkpoint else {
+                        "messages": [HumanMessage(content=goal)],
+                        "conversation_id": conversation_id,
+                        "workflow_id": str(resolved_workflow_id),
+                        "goal": goal,
+                        "preferred_agent_ids": preferred_agent_ids or [],
+                        "approval_required": approval_required,
+                        "plan_version": 0,
+                        "task_index": 0,
+                        "task_results": [],
+                        "feedback": "",
+                        "plan_evaluation_attempts": 0,
+                        "max_plan_evaluation_attempts": 3,
+                        "memory_user_id": memory_user_id,
+                        "memory_opt_in": memory_opt_in,
+                        "memory_updates": memory_updates or {},
+                        "memory_delete_keys": memory_delete_keys or [],
+                    },
+                    config=config,
+                )
+            except Exception as exc:
+                # Queued actions remain resumable until the control plane exhausts retries.
+                if not start_event_persisted:
+                    self._emit_raw(
+                        conversation_id=conversation_id,
+                        workflow_id=resolved_workflow_id,
+                        event_type="WORKFLOW_FAILED",
+                        payload={"stage": "planning", "error_type": type(exc).__name__},
+                    )
+                raise
+            response = self._format_result(resolved_workflow_id, dict(result))
+            if run is not None:
+                run.end(outputs={"workflow_status": response["status"]})
+            return response
 
     async def arun_task(
         self,
@@ -458,6 +549,11 @@ class MasterOrchestratorAgent(BaseAgent):
             goal,
             workflow_id=UUID(str(raw_workflow_id)) if raw_workflow_id else None,
             preferred_agent_ids=[str(item) for item in raw_preferred_agents],
+            approval_required=bool(
+                task_payload.get(
+                    "approval_required", nested_payload.get("approval_required", True)
+                )
+            ),
             memory_user_id=str(
                 task_payload.get("memory_user_id") or nested_payload.get("memory_user_id") or ""
             ),
@@ -538,25 +634,56 @@ class MasterOrchestratorAgent(BaseAgent):
         }:
             raise ValidationError(f"Workflow {workflow_id} is not waiting for human approval.")
         pending = ApprovalRequest.model_validate(current.metadata["pending_approval"])
-        human_decision = HumanDecision(
-            approval_id=pending.approval_id,
+        author = resolve_trace_author(actor, author_type="human")
+        metadata = agentmesh_metadata(
+            agent_id=self.agent_name,
+            execution_mode="workflow",
+            operation="submit_approval",
             workflow_id=workflow_id,
+            conversation_id=current.conversation_id,
+            approval_id=pending.approval_id,
+            approval_type=pending.approval_type,
+            subject_id=pending.subject_id,
             decision=decision,
-            feedback=feedback,
             actor=actor,
-            edits=edits or {},
+            **trace_author_metadata(author),
         )
-        result = await self.graph.ainvoke(
-            Command(resume=human_decision.model_dump(mode="json")),
-            config=self._config(
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
                 workflow_id,
-                {
-                    "run_id": str(uuid4()),
-                    "operation": "submit_approval",
-                },
+                f"approval resume {pending.approval_type}",
+                author.author_name,
             ),
-        )
-        return self._format_result(workflow_id, dict(result))
+            inputs={"decision": str(decision), "feedback_present": bool(feedback)},
+            metadata=metadata,
+            tags=["workflow", "approval", "interrupt", self.agent_name],
+        ) as run:
+            human_decision = HumanDecision(
+                approval_id=pending.approval_id,
+                workflow_id=workflow_id,
+                decision=decision,
+                feedback=feedback,
+                actor=actor,
+                edits=edits or {},
+            )
+            result = await self.graph.ainvoke(
+                Command(resume=human_decision.model_dump(mode="json")),
+                config=self._config(
+                    workflow_id,
+                    {
+                        "run_id": str(uuid4()),
+                        "operation": "submit_approval",
+                        "execution_mode": "workflow",
+                        "approval_id": str(pending.approval_id),
+                        "approval_type": str(pending.approval_type),
+                    },
+                ),
+            )
+            response = self._format_result(workflow_id, dict(result))
+            if run is not None:
+                run.end(outputs={"workflow_status": response["status"]})
+            return response
 
     def submit_task_result(
         self,
@@ -608,39 +735,70 @@ class MasterOrchestratorAgent(BaseAgent):
         """Resume an assigned task through the native async graph API."""
 
         current = self.state_service.get_current(workflow_id)
-        if current.status != WorkflowStatus.WAITING_FOR_AGENT:
-            raise ValidationError(f"Workflow {workflow_id} is not waiting for an agent result.")
         normalized_status = status.strip().upper()
-        if normalized_status not in {
-            "COMPLETED",
-            "FAILED",
-            "AWAITING_APPROVAL",
-            "REJECTED",
-        }:
-            raise ValidationError(
-                "Task result status must be COMPLETED, FAILED, AWAITING_APPROVAL, or REJECTED."
-            )
-        payload = {
-            "task_id": str(task_id),
-            "assignment_event_id": str(
-                assignment_event_id or current.metadata.get("assignment_event_id", "")
-            ),
-            "status": normalized_status,
-            "result": result or {},
-        }
-        graph_result = await self.graph.ainvoke(
-            Command(resume=payload),
-            config=self._config(
-                workflow_id,
-                {
-                    "run_id": str(uuid4()),
-                    "operation": "submit_task_result",
-                    "task_id": str(task_id),
-                    "assignment_id": str(assignment_event_id or ""),
-                },
-            ),
+        resolved_assignment_id = assignment_event_id or current.metadata.get(
+            "assignment_event_id", ""
         )
-        return self._format_result(workflow_id, dict(graph_result))
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        metadata = agentmesh_metadata(
+            agent_id=self.agent_name,
+            agent_name=author.author_name,
+            execution_mode="workflow",
+            operation="submit_task_result",
+            workflow_id=workflow_id,
+            conversation_id=current.conversation_id,
+            task_id=task_id,
+            assignment_event_id=resolved_assignment_id,
+            assignment_id=resolved_assignment_id,
+            task_result_status=normalized_status,
+            **trace_author_metadata(author),
+        )
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                workflow_id,
+                f"task result {normalized_status}",
+                author.author_name,
+            ),
+            inputs={"status": normalized_status, "result_keys": sorted(result or {})},
+            metadata=metadata,
+            tags=["workflow", "task-result", "interrupt", self.agent_name],
+        ) as run:
+            if current.status != WorkflowStatus.WAITING_FOR_AGENT:
+                raise ValidationError(f"Workflow {workflow_id} is not waiting for an agent result.")
+            if normalized_status not in {
+                "COMPLETED",
+                "FAILED",
+                "AWAITING_APPROVAL",
+                "REJECTED",
+            }:
+                raise ValidationError(
+                    "Task result status must be COMPLETED, FAILED, AWAITING_APPROVAL, or REJECTED."
+                )
+            payload = {
+                "task_id": str(task_id),
+                "assignment_event_id": str(resolved_assignment_id),
+                "status": normalized_status,
+                "result": result or {},
+            }
+            graph_result = await self.graph.ainvoke(
+                Command(resume=payload),
+                config=self._config(
+                    workflow_id,
+                    {
+                        "run_id": str(uuid4()),
+                        "operation": "submit_task_result",
+                        "execution_mode": "workflow",
+                        "task_id": str(task_id),
+                        "assignment_event_id": str(resolved_assignment_id),
+                        "assignment_id": str(resolved_assignment_id),
+                    },
+                ),
+            )
+            response = self._format_result(workflow_id, dict(graph_result))
+            if run is not None:
+                run.end(outputs={"workflow_status": response["status"]})
+            return response
 
     def get_workflow(self, workflow_id: UUID) -> dict[str, Any]:
         """Return event-projected workflow status without mutating execution."""
@@ -813,7 +971,31 @@ class MasterOrchestratorAgent(BaseAgent):
             context={"plan": plan.model_dump(mode="json")},
         )
         payload = approval.model_dump(mode="json")
-        self._emit(state, "PLAN_APPROVAL_REQUESTED", {"approval": payload})
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                state["workflow_id"],
+                "plan approval requested",
+                author.author_name,
+            ),
+            inputs={"approval": payload},
+            metadata=agentmesh_metadata(
+                agent_id=self.agent_name,
+                agent_name=author.author_name,
+                workflow_id=state["workflow_id"],
+                conversation_id=state["conversation_id"],
+                plan_id=plan.plan_id,
+                plan_version=plan.version,
+                approval_id=approval.approval_id,
+                approval_type=approval.approval_type,
+                execution_mode="workflow",
+                interrupt_type="human_approval",
+                **trace_author_metadata(author),
+            ),
+            tags=["workflow", "approval", "interrupt", self.agent_name],
+        ):
+            self._emit(state, "PLAN_APPROVAL_REQUESTED", {"approval": payload})
         return {"pending_approval": payload}
 
     @staticmethod
@@ -840,7 +1022,7 @@ class MasterOrchestratorAgent(BaseAgent):
             "plan_evaluation_attempts", 0
         ) < state.get("max_plan_evaluation_attempts", 3):
             return "revise"
-        return "complete"
+        return "approval" if state.get("approval_required", True) else "continue"
 
     def _review_plan(self, state: MasterWorkflowState) -> dict[str, Any]:
         decision = self._interrupt_for_decision(state)
@@ -867,6 +1049,32 @@ class MasterOrchestratorAgent(BaseAgent):
         plan = WorkflowPlan.model_validate(state["plan"])
         task = plan.tasks[state.get("task_index", 0)]
         task_payload = task.model_dump(mode="json")
+        results_by_task = {
+            str(item.get("task_id")): item.get("result", {})
+            for item in state.get("task_results", [])
+            if item.get("task_id")
+        }
+        tasks_by_id = {str(item.task_id): item for item in plan.tasks}
+        resolved_inputs: dict[str, Any] = {}
+        for dependency_id in task.dependencies:
+            dependency_key = str(dependency_id)
+            dependency = tasks_by_id[dependency_key]
+            if dependency_key not in results_by_task:
+                raise ValidationError(
+                    f"Task {task.task_id} is blocked by unvalidated dependency {dependency_id}."
+                )
+            resolved_inputs[f"step_{dependency.position}"] = results_by_task[dependency_key]
+        task_payload["payload"] = {
+            **task_payload.get("payload", {}),
+            "workflow_context": {
+                "workflow_id": state["workflow_id"],
+                "plan_id": str(plan.plan_id),
+                "plan_version": plan.version,
+                "position": task.position,
+                "dependency_ids": [str(item) for item in task.dependencies],
+                "resolved_inputs": resolved_inputs,
+            },
+        }
         self._emit(state, "TASK_PROPOSED", {"task": task_payload, "plan_id": str(plan.plan_id)})
         return {"current_task": task_payload, "pending_approval": {}}
 
@@ -890,13 +1098,45 @@ class MasterOrchestratorAgent(BaseAgent):
 
     def _dispatch_task(self, state: MasterWorkflowState) -> dict[str, Any]:
         task = PlanTask.model_validate(state["current_task"])
-        assignment = self._emit(
-            state,
-            "TASK_ASSIGNED",
-            {"task": task.model_dump(mode="json"), "task_type": task.required_capability},
-            routing_mode=RoutingMode.DIRECTED,
-            target_agent=task.agent_id,
+        assignment_task = task.model_dump(mode="json")
+        assignment_task["approval_required"] = bool(state.get("approval_required", True))
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        target_author = resolve_trace_author(
+            task.agent_id,
+            agent_card=self.registry_service.get_agent(task.agent_id),
         )
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                state["workflow_id"],
+                f"assignment {task.name}",
+                author.author_name,
+            ),
+            inputs={"task": task.model_dump(mode="json")},
+            metadata=agentmesh_metadata(
+                agent_id=self.agent_name,
+                agent_name=author.author_name,
+                target_agent=task.agent_id,
+                target_agent_name=target_author.author_name,
+                workflow_id=state["workflow_id"],
+                conversation_id=state["conversation_id"],
+                task_id=task.task_id,
+                task_name=task.name,
+                required_capability=task.required_capability,
+                execution_mode="workflow",
+                **trace_author_metadata(author),
+            ),
+            tags=["workflow", "dispatch", task.agent_id],
+        ) as run:
+            assignment = self._emit(
+                state,
+                "TASK_ASSIGNED",
+                {"task": assignment_task, "task_type": task.required_capability},
+                routing_mode=RoutingMode.DIRECTED,
+                target_agent=task.agent_id,
+            )
+            if run is not None:
+                run.end(outputs={"assignment_event_id": str(assignment.event_id)})
         return {
             "current_task": task.model_dump(mode="json"),
             "assignment_event_id": str(assignment.event_id),
@@ -977,7 +1217,37 @@ class MasterOrchestratorAgent(BaseAgent):
             },
         )
         payload = approval.model_dump(mode="json")
-        self._emit(state, "AGENT_APPROVAL_REQUESTED", {"approval": payload})
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        target_author = resolve_trace_author(
+            task.agent_id,
+            agent_card=self.registry_service.get_agent(task.agent_id),
+        )
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                state["workflow_id"],
+                "agent-output approval requested",
+                author.author_name,
+            ),
+            inputs={"approval": payload},
+            metadata=agentmesh_metadata(
+                agent_id=self.agent_name,
+                agent_name=author.author_name,
+                target_agent=task.agent_id,
+                target_agent_name=target_author.author_name,
+                workflow_id=state["workflow_id"],
+                conversation_id=state["conversation_id"],
+                task_id=task.task_id,
+                approval_id=approval.approval_id,
+                approval_type=approval.approval_type,
+                thread_id=agent_result.get("thread_id"),
+                execution_mode="workflow",
+                interrupt_type="human_approval",
+                **trace_author_metadata(author),
+            ),
+            tags=["workflow", "approval", "interrupt", task.agent_id],
+        ):
+            self._emit(state, "AGENT_APPROVAL_REQUESTED", {"approval": payload})
         return {"pending_approval": payload}
 
     def _review_agent_output(self, state: MasterWorkflowState) -> dict[str, Any]:
@@ -1036,17 +1306,43 @@ class MasterOrchestratorAgent(BaseAgent):
 
     def _interrupt_for_decision(self, state: MasterWorkflowState) -> HumanDecision:
         approval = ApprovalRequest.model_validate(state["pending_approval"])
-        response = interrupt(
-            {
-                "type": "human_approval",
-                "approval": approval.model_dump(mode="json"),
-                "prompt": approval.prompt,
-                "options": [
-                    {"label": option.title(), "value": str(option)} for option in approval.options
-                ],
-                **approval.context,
-            }
-        )
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        interrupt_payload = {
+            "type": "human_approval",
+            "approval": approval.model_dump(mode="json"),
+            "prompt": approval.prompt,
+            "options": [
+                {"label": option.title(), "value": str(option)} for option in approval.options
+            ],
+            **approval.context,
+        }
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                state["workflow_id"],
+                f"human approval interrupt {approval.approval_type}",
+                author.author_name,
+            ),
+            inputs={
+                "approval_id": str(approval.approval_id),
+                "approval_type": str(approval.approval_type),
+                "option_count": len(approval.options),
+            },
+            metadata=agentmesh_metadata(
+                agent_id=self.agent_name,
+                agent_name=author.author_name,
+                workflow_id=state["workflow_id"],
+                conversation_id=state["conversation_id"],
+                approval_id=approval.approval_id,
+                approval_type=approval.approval_type,
+                subject_id=approval.subject_id,
+                execution_mode="workflow",
+                interrupt_type="human_approval",
+                **trace_author_metadata(author),
+            ),
+            tags=["workflow", "approval", "interrupt", self.agent_name],
+        ):
+            response = interrupt(interrupt_payload)
         decision = HumanDecision.model_validate(response)
         if decision.approval_id != approval.approval_id:
             raise ValidationError("Human decision does not match the pending approval request.")
@@ -1158,11 +1454,23 @@ class MasterOrchestratorAgent(BaseAgent):
         workflow_id: UUID,
         metadata: dict[str, Any] | None = None,
     ) -> RunnableConfig:
+        author = resolve_trace_author(ORCHESTRATOR_AGENT_ID)
         return {
             "configurable": {"thread_id": str(workflow_id)},
+            "run_name": agentmesh_run_name(
+                "WorkFlow",
+                workflow_id,
+                str(metadata.get("operation", "graph") if metadata else "graph"),
+                author.author_name,
+            ),
+            "tags": ["agentmesh", "workflow", ORCHESTRATOR_AGENT_ID],
             "metadata": {
                 "agent_id": ORCHESTRATOR_AGENT_ID,
+                "agent_name": author.author_name,
+                "execution_mode": "workflow",
                 "workflow_id": str(workflow_id),
+                "checkpoint_thread_id": str(workflow_id),
+                **trace_author_metadata(author),
                 **(metadata or {}),
             },
         }
@@ -1173,6 +1481,11 @@ class MasterOrchestratorAgent(BaseAgent):
         config["configurable"] = {
             "thread_id": str(workflow_id),
             "checkpoint_id": checkpoint_id,
+        }
+        config["metadata"] = {
+            **dict(config.get("metadata", {})),
+            "checkpoint_id": checkpoint_id,
+            "checkpoint_operation": "replay",
         }
         return config
 
@@ -1244,17 +1557,40 @@ class MasterOrchestratorAgent(BaseAgent):
         }
 
     async def checkpoint_history(self, workflow_id: UUID) -> list[dict[str, Any]]:
-        history = []
-        async for snapshot in self.graph.aget_state_history(self._config(workflow_id)):
-            history.append(
-                {
-                    "checkpoint_id": snapshot.config.get("configurable", {}).get("checkpoint_id"),
-                    "created_at": snapshot.created_at,
-                    "next": list(snapshot.next),
-                    "metadata": dict(snapshot.metadata or {}),
-                }
-            )
-        return history
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                workflow_id,
+                "checkpoint history",
+                author.author_name,
+            ),
+            inputs={"workflow_id": str(workflow_id)},
+            metadata=agentmesh_metadata(
+                agent_id=self.agent_name,
+                agent_name=author.author_name,
+                workflow_id=workflow_id,
+                checkpoint_thread_id=workflow_id,
+                checkpoint_operation="history",
+                **trace_author_metadata(author),
+            ),
+            tags=["workflow", "checkpoint", self.agent_name],
+        ) as run:
+            history = []
+            async for snapshot in self.graph.aget_state_history(self._config(workflow_id)):
+                history.append(
+                    {
+                        "checkpoint_id": snapshot.config.get("configurable", {}).get(
+                            "checkpoint_id"
+                        ),
+                        "created_at": snapshot.created_at,
+                        "next": list(snapshot.next),
+                        "metadata": dict(snapshot.metadata or {}),
+                    }
+                )
+            if run is not None:
+                run.end(outputs={"checkpoint_count": len(history)})
+            return history
 
     async def replay_checkpoint(
         self,
@@ -1263,18 +1599,188 @@ class MasterOrchestratorAgent(BaseAgent):
     ) -> dict[str, Any]:
         """Inspect a historical state without re-emitting event side effects."""
 
-        snapshot = await self.graph.aget_state(self._checkpoint_config(workflow_id, checkpoint_id))
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                workflow_id,
+                f"checkpoint replay {checkpoint_id}",
+                author.author_name,
+            ),
+            inputs={"workflow_id": str(workflow_id), "checkpoint_id": checkpoint_id},
+            metadata=agentmesh_metadata(
+                agent_id=self.agent_name,
+                agent_name=author.author_name,
+                workflow_id=workflow_id,
+                checkpoint_thread_id=workflow_id,
+                checkpoint_id=checkpoint_id,
+                checkpoint_operation="replay",
+                **trace_author_metadata(author),
+            ),
+            tags=["workflow", "checkpoint", "replay", self.agent_name],
+        ) as run:
+            snapshot = await self.graph.aget_state(
+                self._checkpoint_config(workflow_id, checkpoint_id)
+            )
+            if not snapshot.values:
+                raise ValueError(f"Checkpoint {checkpoint_id!r} was not found.")
+            response = {
+                "mode": "read_only_replay",
+                "workflow_id": str(workflow_id),
+                "checkpoint_id": checkpoint_id,
+                "next": list(snapshot.next),
+                "state": {
+                    key: value
+                    for key, value in dict(snapshot.values).items()
+                    if key != "messages"
+                },
+                "metadata": dict(snapshot.metadata or {}),
+            }
+            if run is not None:
+                run.end(outputs={"next": response["next"]})
+            return response
+
+    async def arecover_checkpoint(
+        self,
+        workflow_id: UUID,
+        *,
+        checkpoint_id: str | None = None,
+        new_workflow_id: UUID | None = None,
+        start_event_persisted: bool = False,
+    ) -> dict[str, Any]:
+        """Continue a historical checkpoint in a new immutable workflow history."""
+
+        recovery_workflow_id = new_workflow_id or uuid4()
+        recovery_events = self.event_service.replay(recovery_workflow_id)
+        prior_recovery = next(
+            (
+                event
+                for event in recovery_events
+                if event.event_type == "WORKFLOW_RECOVERY_STARTED"
+            ),
+            None,
+        )
+        if prior_recovery is not None:
+            prior_payload = (
+                prior_recovery.payload
+                if isinstance(prior_recovery.payload, dict)
+                else {}
+            )
+            recovered = self._format_result(recovery_workflow_id, None)
+            return {
+                "source_workflow_id": str(workflow_id),
+                "recovery_workflow_id": str(recovery_workflow_id),
+                "checkpoint_id": str(prior_payload.get("checkpoint_id", "")),
+                "status": recovered["status"],
+            }
+        workflow_started = any(
+            event.event_type == "WORKFLOW_STARTED" for event in recovery_events
+        )
+        if workflow_started and not start_event_persisted:
+            raise WorkflowConflictError(
+                f"Recovery workflow {recovery_workflow_id} already exists."
+            )
+        if start_event_persisted and not workflow_started:
+            raise WorkflowConflictError(
+                f"Recovery workflow {recovery_workflow_id} has no start event."
+            )
+        source_config = (
+            self._checkpoint_config(workflow_id, checkpoint_id)
+            if checkpoint_id
+            else self._config(workflow_id)
+        )
+        snapshot = await self.graph.aget_state(source_config)
+        if checkpoint_id is None and snapshot.values and not snapshot.next:
+            async for candidate in self.graph.aget_state_history(
+                self._config(workflow_id)
+            ):
+                if candidate.next:
+                    snapshot = candidate
+                    break
         if not snapshot.values:
-            raise ValueError(f"Checkpoint {checkpoint_id!r} was not found.")
-        return {
-            "mode": "read_only_replay",
-            "workflow_id": str(workflow_id),
-            "checkpoint_id": checkpoint_id,
-            "next": list(snapshot.next),
-            "state": {
-                key: value for key, value in dict(snapshot.values).items() if key != "messages"
+            raise ValueError(f"Checkpoint {checkpoint_id or 'latest'!r} was not found.")
+        if not snapshot.next:
+            raise ValidationError(
+                "The selected checkpoint is terminal and has no executable continuation."
+            )
+
+        resolved_checkpoint_id = str(
+            snapshot.config.get("configurable", {}).get("checkpoint_id", "")
+        )
+        values = {
+            **dict(snapshot.values),
+            "workflow_id": str(recovery_workflow_id),
+        }
+        conversation_id = str(values.get("conversation_id") or f"recovery-{workflow_id}")
+        goal = str(values.get("goal", ""))
+        if not start_event_persisted:
+            self._emit_raw(
+                conversation_id=conversation_id,
+                workflow_id=recovery_workflow_id,
+                event_type="WORKFLOW_STARTED",
+                payload={
+                    "goal": goal,
+                    "rerun_of_workflow_id": str(workflow_id),
+                    "rerun_of_task_id": None,
+                    "approval_required": bool(values.get("approval_required", True)),
+                },
+            )
+        self._emit_raw(
+            conversation_id=conversation_id,
+            workflow_id=recovery_workflow_id,
+            event_type="WORKFLOW_RECOVERY_STARTED",
+            payload={
+                "source_workflow_id": str(workflow_id),
+                "checkpoint_id": resolved_checkpoint_id,
             },
-            "metadata": dict(snapshot.metadata or {}),
+        )
+        plan = values.get("plan")
+        if isinstance(plan, dict):
+            self._emit_raw(
+                conversation_id=conversation_id,
+                workflow_id=recovery_workflow_id,
+                event_type="PLAN_CREATED",
+                payload={"plan": plan},
+            )
+        for task_result in values.get("task_results", []):
+            if isinstance(task_result, dict) and task_result.get("task_id"):
+                self._emit_raw(
+                    conversation_id=conversation_id,
+                    workflow_id=recovery_workflow_id,
+                    event_type="TASK_COMPLETED",
+                    payload=task_result,
+                )
+
+        await self.graph.aupdate_state(
+            self._config(
+                recovery_workflow_id,
+                {
+                    "source_workflow_id": str(workflow_id),
+                    "source_checkpoint_id": resolved_checkpoint_id,
+                    "recovery_mode": "executable",
+                },
+            ),
+            values,
+            as_node=self._snapshot_node(snapshot.metadata),
+        )
+        await self.graph.ainvoke(
+            None,
+            config=self._config(
+                recovery_workflow_id,
+                {
+                    "run_id": str(uuid4()),
+                    "operation": "recover_checkpoint",
+                    "source_workflow_id": str(workflow_id),
+                    "source_checkpoint_id": resolved_checkpoint_id,
+                },
+            ),
+        )
+        recovered = self._format_result(recovery_workflow_id, None)
+        return {
+            "source_workflow_id": str(workflow_id),
+            "recovery_workflow_id": str(recovery_workflow_id),
+            "checkpoint_id": resolved_checkpoint_id,
+            "status": recovered["status"],
         }
 
     async def fork_checkpoint(
@@ -1287,33 +1793,64 @@ class MasterOrchestratorAgent(BaseAgent):
     ) -> dict[str, Any]:
         """Copy a checkpoint into an isolated diagnostic namespace."""
 
-        snapshot = await self.graph.aget_state(self._checkpoint_config(workflow_id, checkpoint_id))
-        if not snapshot.values:
-            raise ValueError(f"Checkpoint {checkpoint_id!r} was not found.")
-        values = {
-            **dict(snapshot.values),
-            "workflow_id": str(new_workflow_id),
-            **(state_updates or {}),
-        }
-        fork_config = await self.graph.aupdate_state(
-            self._config(
-                new_workflow_id,
-                {
-                    "source_workflow_id": str(workflow_id),
-                    "source_checkpoint_id": checkpoint_id,
-                    "fork_mode": "diagnostic",
-                },
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        with agentmesh_span(
+            agentmesh_run_name(
+                "WorkFlow",
+                workflow_id,
+                f"checkpoint fork {checkpoint_id}",
+                author.author_name,
             ),
-            values,
-            as_node=self._snapshot_node(snapshot.metadata),
-        )
-        return {
-            "mode": "diagnostic_fork",
-            "source_workflow_id": str(workflow_id),
-            "source_checkpoint_id": checkpoint_id,
-            "workflow_id": str(new_workflow_id),
-            "checkpoint_id": fork_config.get("configurable", {}).get("checkpoint_id"),
-        }
+            inputs={
+                "workflow_id": str(workflow_id),
+                "checkpoint_id": checkpoint_id,
+                "new_workflow_id": str(new_workflow_id),
+                "state_update_keys": sorted(state_updates or {}),
+            },
+            metadata=agentmesh_metadata(
+                agent_id=self.agent_name,
+                agent_name=author.author_name,
+                workflow_id=workflow_id,
+                checkpoint_thread_id=workflow_id,
+                checkpoint_id=checkpoint_id,
+                checkpoint_operation="fork",
+                new_workflow_id=new_workflow_id,
+                **trace_author_metadata(author),
+            ),
+            tags=["workflow", "checkpoint", "fork", self.agent_name],
+        ) as run:
+            snapshot = await self.graph.aget_state(
+                self._checkpoint_config(workflow_id, checkpoint_id)
+            )
+            if not snapshot.values:
+                raise ValueError(f"Checkpoint {checkpoint_id!r} was not found.")
+            values = {
+                **dict(snapshot.values),
+                "workflow_id": str(new_workflow_id),
+                **(state_updates or {}),
+            }
+            fork_config = await self.graph.aupdate_state(
+                self._config(
+                    new_workflow_id,
+                    {
+                        "source_workflow_id": str(workflow_id),
+                        "source_checkpoint_id": checkpoint_id,
+                        "fork_mode": "diagnostic",
+                    },
+                ),
+                values,
+                as_node=self._snapshot_node(snapshot.metadata),
+            )
+            response = {
+                "mode": "diagnostic_fork",
+                "source_workflow_id": str(workflow_id),
+                "source_checkpoint_id": checkpoint_id,
+                "workflow_id": str(new_workflow_id),
+                "checkpoint_id": fork_config.get("configurable", {}).get("checkpoint_id"),
+            }
+            if run is not None:
+                run.end(outputs={"checkpoint_id": response["checkpoint_id"]})
+            return response
 
     @staticmethod
     def _snapshot_node(metadata: Mapping[str, Any] | None) -> str | None:

@@ -67,6 +67,17 @@ class HumanDecisionType(StrEnum):
     REJECT = "REJECT"
 
 
+class SupervisorActionType(StrEnum):
+    """Commands executed only by the independently running supervisor."""
+
+    START_WORKFLOW = "START_WORKFLOW"
+    HUMAN_DECISION = "HUMAN_DECISION"
+    TASK_RESULT = "TASK_RESULT"
+    RERUN_WORKFLOW = "RERUN_WORKFLOW"
+    RERUN_TASK = "RERUN_TASK"
+    RECOVER_CHECKPOINT = "RECOVER_CHECKPOINT"
+
+
 class TaskExecutionStatus(StrEnum):
     """Lifecycle states for a planned unit of work."""
 
@@ -551,6 +562,30 @@ class AssignmentClaim(BaseModel):
         if self.attempt_number > self.max_attempts:
             raise ValidationError("Claim attempt_number cannot exceed max_attempts.")
         return self
+
+
+class SupervisorAction(BaseModel):
+    """Validated command payload stored in a supervisor action event."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, use_enum_values=True)
+
+    action_type: SupervisorActionType
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class ValidationDecision(BaseModel):
+    """Immutable deterministic decision for one worker output."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    workflow_id: UUID
+    task_id: UUID
+    assignment_event_id: UUID
+    output_hash: str = Field(min_length=64, max_length=64)
+    valid: bool
+    checks: dict[str, bool] = Field(default_factory=dict)
+    reasons: list[str] = Field(default_factory=list)
+    plan_version: int = Field(default=1, ge=1)
 
 
 def validate_event(event: Event, *, known_agents: set[str] | None = None) -> Event:

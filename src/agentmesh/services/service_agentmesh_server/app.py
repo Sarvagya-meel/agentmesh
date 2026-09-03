@@ -29,8 +29,10 @@ from agentmesh.core.models.exceptions import (
 from agentmesh.core.observability import configure_langsmith
 from agentmesh.services.service_agentmesh_server.api.routes import (
     events,
+    internal,
     registry,
     state,
+    supervisors,
     workers,
     workflows,
 )
@@ -40,6 +42,7 @@ from agentmesh.services.service_agentmesh_server.registry.repository import (
     create_registry_repository,
 )
 from agentmesh.services.service_agentmesh_server.registry.service import RegistryService
+from agentmesh.services.service_agentmesh_server.supervisor.service import SupervisorActionService
 from agentmesh.services.service_agentmesh_server.workers.service import WorkerService
 
 
@@ -62,6 +65,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         stale_seconds=settings.agent_stale_seconds,
         resource_repository=resource_repository,
     )
+    event_service.set_agent_resolver(registry_service.get_agent)
     checkpointer, close_checkpointer = await create_async_langgraph_checkpointer(settings)
     store, close_store = create_langgraph_store(settings)
     planner, close_planner = create_workflow_planner(settings)
@@ -89,6 +93,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         registry_service=registry_service,
         orchestrator=master_orchestrator,
         lease_seconds=settings.worker_lease_seconds,
+    )
+    app.state.supervisor_action_service = SupervisorActionService(
+        event_service=event_service,
+        claim_repository=claim_repository,
+        lease_seconds=settings.supervisor_action_lease_seconds,
     )
     try:
         yield
@@ -151,7 +160,9 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
     app.include_router(events.router)
+    app.include_router(internal.router)
     app.include_router(state.router)
+    app.include_router(supervisors.router)
     app.include_router(workflows.router)
     app.include_router(registry.router)
     app.include_router(workers.router)

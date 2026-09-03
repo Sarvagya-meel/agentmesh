@@ -1,0 +1,6 @@
+NAME                                    IMAGE                                     COMMAND                  SERVICE                         CREATED              STATUS                    PORTS
+agentmesh-agent-googleadk-chatagent-1   agentmesh-agent-googleadk-chatagent       "uvicorn agentmesh.a…"   agent-googleadk-chatagent       36 seconds ago       Up 17 seconds (healthy)   0.0.0.0:8102->8102/tcp, [::]:8102->8102/tcp
+agentmesh-agent-langgraph-copilot-1     agentmesh-agent-langgraph-copilot         "uvicorn agentmesh.a…"   agent-langgraph-copilot         36 seconds ago       Up 17 seconds (healthy)   0.0.0.0:8101->8101/tcp, [::]:8101->8101/tcp
+agentmesh-orchestrator-supervisor       agentmesh-agent-orchestrator-supervisor   "uvicorn agentmesh.s…"   orchestrator-supervisor-agent   37 seconds ago       Up 28 seconds (healthy)   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+agentmesh-postgres                      postgres:15                               "docker-entrypoint.s…"   postgres                        10 minutes ago       Up 10 minutes (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+agentmesh-streamlit                     agentmesh-service-ui                      "streamlit run src/a…"   streamlit                       About a minute ago   Up About a minute         0.0.0.0:8501->8501/tcp, [::]:8501->8501/tcp

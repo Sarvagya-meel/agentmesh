@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+ARG LITELLM_VERSION=1.97.0
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN pip install --upgrade "pip>=25.1" \
+    && pip install "litellm[proxy]==${LITELLM_VERSION}" "fastapi==0.136.3"
+
+EXPOSE 4000
+
+CMD ["litellm", "--host", "0.0.0.0", "--port", "4000", "--num_workers", "1"]

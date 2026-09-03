@@ -15,8 +15,9 @@ from the AgentMesh control plane.
 - renew an assignment lease during long-running work
 - preserve retry attempts and dead-letter exhausted assignments
 
-The agent does not own workflow planning, cross-agent routing, or workflow-plan
-approval. Those remain responsibilities of the orchestrator supervisor.
+The agent does not own workflow planning, cross-agent routing, workflow-plan
+approval, retry policy, or DAG advancement. Those remain responsibilities of the
+control plane and the independent supervisor service.
 
 ## Task Classification
 
@@ -34,14 +35,18 @@ the registry marks an instance stale after 180 seconds without a successful upda
 Normal heartbeats update presence without adding audit events. Registration, recovery,
 degradation, stale detection, and shutdown remain visible transitions.
 
-Each assignment is claimed with a renewable lease and a stable idempotency key. A
-transient failure is scheduled for another attempt with backoff. Exhausted or permanent
-failures are dead-lettered instead of being retried forever.
+Each durable assignment is claimed with a renewable lease and a stable idempotency
+key. The control plane schedules transient failures such as 429, timeouts, and
+502-504 responses for another attempt with backoff. Exhausted or permanent failures
+are dead-lettered instead of being retried forever.
 
 Each process creates one agent and one shared executor. `combined` mode serves direct
 requests and consumes assignments through that executor. `api` serves direct requests
-only, while `worker` consumes assignments and deliberately has no `/invoke` route.
+only, while `worker` consumes assignments through the control-plane dispatch path
+and deliberately has no public Agent Playground `/invoke` route.
 The executor bounds process concurrency and serializes calls sharing a `thread_id`.
+
+The important point is that role selection happens before runtime startup, but agent creation happens inside the FastAPI lifespan.
 
 ## Graph
 
@@ -93,9 +98,9 @@ Runtime features are metadata rather than routable capabilities:
 - `POST /conversations/{thread_id}/fork`: create an isolated checkpoint fork
 - `GET /graph/mermaid`: return the offline-renderable graph source
 
-Direct invocation is automatic unless `approval_required` is true. Orchestrated
-tasks require output approval by default and use a stable thread derived from the
-workflow and task IDs.
+Direct invocation is automatic unless `approval_required` is true. Durable
+orchestrated tasks arrive as immutable per-step input manifests and use stable
+threading derived from `workflow_id`, `plan_version`, and `step_id`.
 
 ## Configuration
 

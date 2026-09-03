@@ -1,8 +1,9 @@
 # AgentMesh
 
 AgentMesh is a durable multi-agent runtime. FastAPI agent processes register with a
-control plane, PostgreSQL stores assignments and workflow history, and Streamlit stays
-a thin client. The UI never creates agents, runs workers, or writes workflow events.
+durable registry/control-plane service, PostgreSQL stores workflow state and queues,
+and Streamlit stays a thin client. The UI never creates agents, runs workers, or
+writes workflow events.
 
 > Authentication is deferred. Published ports are for local development or trusted
 > networks only; do not expose this stack directly to the public internet.
@@ -11,21 +12,28 @@ a thin client. The UI never creates agents, runs workers, or writes workflow eve
 
 ```text
 Streamlit
-  |-- Direct --> ready API/combined agent --> shared agent executor
-  `-- Queued --> control plane --> PostgreSQL assignment --> worker/combined agent
-                                      |
-                                      `--> result event --> supervisor LangGraph
+  |-- Agent Playground direct --> ready API/combined agent --> /invoke
+  |-- Agent Playground async --> control plane queue --> worker /invoke manifest
+  `-- Workflow Playground ----> control plane queue --> supervisor service
+                                                   |--> worker /invoke manifest
+                                                   `--> workflow.result to user
 
 agentmesh_agents       stable Agent Card identity and compatibility
 agentmesh_resources    one row per runtime instance and other platform resource
-agentmesh_events       append-only workflow and task timeline
-agentmesh_event_claims renewable assignment leases, retries, and dead letters
-LangGraph tables       checkpoints, pending interrupts, replay, and Store memory
+agentmesh_events       append-only workflow, planning, dispatch, and result timeline
+agentmesh_event_claims renewable control-plane leases, retries, and dead letters
+LangGraph tables       checkpoint IDs mapped to workflow checkpoints by control plane
 ```
 
-Each process creates exactly one concrete agent and one concurrency-limited executor.
-Direct HTTP requests and queued assignments share that executor in `combined` mode.
-Executions with the same `thread_id` are serialized; unrelated threads can overlap.
+All durable direct and workflow requests enter the control plane asynchronously. The
+orchestrator is an independent supervisor service that polls and claims planning,
+validation, replan, and summary actions. LiteLLM Gateway is required only for
+supervisor model calls; worker model configuration remains owned by each worker.
+
+Workers expose synchronous `/invoke` and receive immutable per-step input manifests.
+Sequential and parallel dependencies are linked by `workflow_id`, `plan_version`,
+stable `step_id`, and named input bindings. The supervisor may inspect all authorized
+workflow outputs, but it must plan exactly which fields each downstream worker sees.
 
 ## Repository Layout
 
@@ -61,18 +69,24 @@ python scripts/run_local.py
 
 `pyproject.toml` owns the install sets:
 
-- `control-plane`: FastAPI supervisor, PostgreSQL, and LangGraph
+- `control-plane`: FastAPI registry/control plane, PostgreSQL, and queue ownership
+- `supervisor`: LangGraph supervisor process and PostgreSQL checkpoints
+- `model-gateway`: pinned LiteLLM proxy dependency
 - `agent-langgraph`: selective Copilot runtime
 - `agent-adk`: selective Google ADK runtime
-- `ui`: thin Streamlit service
+- `ui`: HTTP-only Streamlit service with live event and plan progress
 - `local`: all runtime and development dependencies
+
+Streamlit receives no database credential. Registry resources, audit events,
+workflow activity, checkpoints, recovery, and conditional LangSmith trace links
+are read through public control-plane APIs.
 
 ## Docker Quick Start
 
 The easiest way to manage the stack is using the PowerShell helper scripts:
 
 ```powershell
-# Start all services (postgres, migrate, orchestrator, agents, streamlit)
+# Start all services (Postgres, LiteLLM, control plane, supervisor, agents, UI)
 pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
 
 # Check health
@@ -88,45 +102,18 @@ pwsh -File scripts\docker_component_manager.ps1 -Action stop -Service all
 The scripts automatically:
 - Detect your `COMPOSE_PROFILES` setting from `.env`
 - Apply the correct service set (combined or split profile)
-- Rebuild the `migrate` service on each start/restart to apply any new/changed DDLs
+- Use current images for `start`, rebuild/recreate for `restart`, and perform a
+  destructive full-stack scratch build for `rebuild`
 - Wait for services to be healthy before returning
 
 See [`docs/docker-operations.md`](docs/docker-operations.md) for the complete runbook.
-
-## Docker Quick Start
-
-Copy `.env.example` to the ignored `.env` file and set `COMPOSE_PROFILES`:
-
-```dotenv
-COMPOSE_PROFILES=combined
-```
-
-The easiest way to manage the stack is using the PowerShell helper scripts:
-
-```powershell
-# Start all services (postgres, migrate, orchestrator, agents, streamlit)
-pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
-
-# The migrate service rebuilds on each start to apply any new/changed DDLs
-# It only applies new or modified DDLs (idempotent - checksum tracked)
-# Orchestrator waits for migrate to complete before starting
-```
-
-See [`docs/docker-operations.md`](docs/docker-operations.md) for:
-- Complete runbook with health checks, logs, and troubleshooting
-- Direct Docker Compose commands for advanced use
-- Split profile configuration and scaling
-
-**Note:** The `migrate` service runs once and exits. When you run `start` or `restart`:
-- It rebuilds to pick up any new/changed DDL files
-- It applies only new or changed DDLs (checksum-tracked and idempotent)
-- It exits with status 0 after completion
 
 ## Runtime Roles
 
 - `combined`: `/invoke`, health/readiness, Agent Card, and assignment consumption
 - `api`: `/invoke`, health/readiness, and Agent Card; never polls assignments
-- `worker`: health/readiness and assignment consumption; never exposes `/invoke`
+- `worker`: health/readiness and assignment consumption through the synchronous
+  worker invoke contract; no public Agent Playground `/invoke` route
 
 Every instance publishes its agent ID, runtime instance ID, role, lifecycle status,
 endpoint, active count, start time, last model success, and heartbeat. Direct readiness
@@ -135,7 +122,9 @@ requires an `api` or `combined` instance; assignment readiness requires a `worke
 
 ## Agent Playground Contracts
 
-Direct mode waits on the selected agent API:
+Direct mode waits on the selected agent API and does not create durable workflow
+state. Human approval is required by default for approval-capable agents; send
+`"approval_required": false` only when that request may complete without review:
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri http://localhost:8101/invoke `
@@ -143,8 +132,9 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8101/invoke `
   -Body '{"message":"Make Dubai travel plans","approval_required":false}'
 ```
 
-Queued mode creates a directed assignment through the control plane and follows its
-PostgreSQL event timeline:
+Control-plane mode submits durable direct work asynchronously and also requires
+human approval by default. The control plane owns queueing, leased dispatch,
+retries, deterministic validation, and result events:
 
 ```powershell
 Invoke-RestMethod -Method Post `
@@ -153,8 +143,15 @@ Invoke-RestMethod -Method Post `
   -Body '{"message":"Make Dubai travel plans"}'
 ```
 
-Normal workflows always use supervisor planning, plan approval, directed assignment,
-worker leasing, and a separate agent-output approval when policy requires it.
+Normal workflows always enter the control plane first. `WORKFLOW_STARTED` is event
+1 and `SUPERVISOR_ACTION_REQUESTED` is event 2. Supervisor plan approval defaults
+to required and can be disabled per start request with
+`"approval_required": false`. The supervisor claims
+planning actions, can pause on `planning.input_requested` until
+`planning.input_provided`, and returns the final `workflow.result` with
+`source=supervisor` and `destination=user`. Transient worker failures such as 429,
+timeouts, and 502-504 responses are retried by the control plane without disturbing
+the supervisor; semantic failures trigger checkpoint review or replan.
 
 ## Validation
 
@@ -162,6 +159,8 @@ worker leasing, and a separate agent-output approval when policy requires it.
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\ruff.exe check src tests
 .\.venv\Scripts\mypy.exe --strict src
+.\.venv\Scripts\python.exe scripts\clear_langsmith_traces.py
+.\.venv\Scripts\python.exe scripts\system_sanity.py
 $env:COMPOSE_PROFILES = "combined"
 docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
 $env:COMPOSE_PROFILES = "split"
@@ -169,5 +168,14 @@ docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
 Remove-Item Env:COMPOSE_PROFILES
 ```
 
+UAT case definitions are seeded into PostgreSQL by
+`deployment/postgres/ddls/008_agentmesh_uat_cases.sql`, so smoke, unit,
+validation, Streamlit behavior, retry, replay, checkpoint, Postgres, and LangSmith
+coverage survives code refactors and fresh Docker volumes.
+
 The active LangGraph delivery status is in
 [`src/agentmesh/agents/ROADMAP.md`](src/agentmesh/agents/ROADMAP.md).
+The local agent-runtime design is split into
+[`functional`](docs/agent-runtime-functional.md) and
+[`non-functional`](docs/agent-runtime-non-functional.md) notes, with roadmap
+tracking in [`docs/agent-runtime-roadmap.md`](docs/agent-runtime-roadmap.md).

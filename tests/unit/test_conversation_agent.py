@@ -69,6 +69,17 @@ def test_conversation_agent_revises_the_same_checkpoint_with_feedback() -> None:
     assert "security review" in revised["draft_reply"].lower()
 
 
+def test_conversation_agent_rejects_with_an_explicit_terminal_result() -> None:
+    agent = ConversationAgent(auto_register=False)
+    started = agent.start_conversation("Draft a launch plan.", thread_id="reject-thread")
+
+    rejected = agent.resume_conversation(started["thread_id"], "reject")
+
+    assert rejected["status"] == "REJECTED"
+    assert rejected["rejected"] is True
+    assert rejected["final_reply"] == "Approval rejected."
+
+
 def test_conversation_agent_advertises_work_capabilities_and_runtime_features() -> None:
     card = ConversationAgent(auto_register=False).agent_card()
 
@@ -88,6 +99,26 @@ def test_conversation_agent_accepts_the_platform_text_completion_contract() -> N
     assert result["status"] == "COMPLETED"
     assert result["llm_model"] == "fake-platform-model"
     assert "Explain dependency inversion." in result["final_reply"]
+
+
+def test_conversation_agent_includes_validated_dependency_outputs_in_prompt() -> None:
+    prompt = ConversationAgent._task_prompt(
+        {
+            "description": "Review the earlier result.",
+            "payload": {
+                "goal": "Produce a final answer.",
+                "workflow_context": {
+                    "resolved_inputs": {
+                        "step_0": {"final_reply": "Dependency result"}
+                    }
+                },
+            },
+        }
+    )
+
+    assert "Validated dependency outputs:" in prompt
+    assert '"final_reply": "Dependency result"' in prompt
+    assert "Use these dependency outputs as input" in prompt
 
 
 def test_add_messages_updates_an_existing_message_by_id() -> None:
@@ -257,13 +288,60 @@ def test_mermaid_export_contains_every_copilot_node() -> None:
 
 
 def test_langsmith_is_disabled_by_default() -> None:
-    previous = os.environ.get("LANGSMITH_TRACING")
+    previous_langsmith = os.environ.get("LANGSMITH_TRACING")
+    previous_langchain = os.environ.get("LANGCHAIN_TRACING_V2")
     try:
         os.environ["LANGSMITH_TRACING"] = "true"
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
         configure_langsmith(Settings(langsmith_tracing=False))
         assert os.environ["LANGSMITH_TRACING"] == "false"
+        assert os.environ["LANGCHAIN_TRACING_V2"] == "false"
     finally:
-        if previous is None:
+        if previous_langsmith is None:
             os.environ.pop("LANGSMITH_TRACING", None)
         else:
-            os.environ["LANGSMITH_TRACING"] = previous
+            os.environ["LANGSMITH_TRACING"] = previous_langsmith
+        if previous_langchain is None:
+            os.environ.pop("LANGCHAIN_TRACING_V2", None)
+        else:
+            os.environ["LANGCHAIN_TRACING_V2"] = previous_langchain
+
+
+def test_langsmith_env_file_values_are_exported_for_sdk() -> None:
+    previous = {
+        key: os.environ.get(key)
+        for key in (
+            "LANGSMITH_TRACING",
+            "LANGCHAIN_TRACING_V2",
+            "LANGSMITH_PROJECT",
+            "LANGCHAIN_PROJECT",
+            "LANGSMITH_ENDPOINT",
+            "LANGCHAIN_ENDPOINT",
+            "LANGSMITH_API_KEY",
+            "LANGCHAIN_API_KEY",
+        )
+    }
+    try:
+        configure_langsmith(
+            Settings(
+                langsmith_tracing=True,
+                langsmith_project="test-project",
+                langsmith_endpoint="https://example.test",
+                langsmith_api_key="test-key",
+            )
+        )
+
+        assert os.environ["LANGSMITH_TRACING"] == "true"
+        assert os.environ["LANGCHAIN_TRACING_V2"] == "true"
+        assert os.environ["LANGSMITH_PROJECT"] == "test-project"
+        assert os.environ["LANGCHAIN_PROJECT"] == "test-project"
+        assert os.environ["LANGSMITH_ENDPOINT"] == "https://example.test"
+        assert os.environ["LANGCHAIN_ENDPOINT"] == "https://example.test"
+        assert os.environ["LANGSMITH_API_KEY"] == "test-key"
+        assert os.environ["LANGCHAIN_API_KEY"] == "test-key"
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value

@@ -1,0 +1,301 @@
+2026-08-30T03:58:46.493462732Z The files belonging to this database system will be owned by user "postgres".
+2026-08-30T03:58:46.493495134Z This user must also own the server process.
+2026-08-30T03:58:46.493499034Z 
+2026-08-30T03:58:46.493503634Z The database cluster will be initialized with locale "en_US.utf8".
+2026-08-30T03:58:46.493506034Z The default database encoding has accordingly been set to "UTF8".
+2026-08-30T03:58:46.493508534Z The default text search configuration will be set to "english".
+2026-08-30T03:58:46.493510934Z 
+2026-08-30T03:58:46.493513235Z Data page checksums are disabled.
+2026-08-30T03:58:46.493659343Z 
+2026-08-30T03:58:46.493668143Z fixing permissions on existing directory /var/lib/postgresql/data ... ok
+2026-08-30T03:58:46.500663523Z creating subdirectories ... ok
+2026-08-30T03:58:46.500679424Z selecting dynamic shared memory implementation ... posix
+2026-08-30T03:58:46.518575595Z selecting default max_connections ... 100
+2026-08-30T03:58:46.557329799Z selecting default shared_buffers ... 128MB
+2026-08-30T03:58:46.585885049Z selecting default time zone ... Etc/UTC
+2026-08-30T03:58:47.586824487Z initdb: warning: enabling "trust" authentication for local connections
+2026-08-30T03:58:46.587598142Z creating configuration files ... ok
+2026-08-30T03:58:46.773511335Z running bootstrap script ... ok
+2026-08-30T03:58:47.217552841Z performing post-bootstrap initialization ... ok
+2026-08-30T03:58:47.586804586Z syncing data to disk ... ok
+2026-08-30T03:58:47.586837688Z 
+2026-08-30T03:58:47.586842188Z 
+2026-08-30T03:58:47.586845488Z Success. You can now start the database server using:
+2026-08-30T03:58:47.586848589Z 
+2026-08-30T03:58:47.586851489Z     pg_ctl -D /var/lib/postgresql/data -l logfile start
+2026-08-30T03:58:47.586854589Z 
+2026-08-30T03:58:47.631322703Z waiting for server to start....2026-08-30 03:58:47.631 UTC [48] LOG:  starting PostgreSQL 15.19 (Debian 15.19-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-08-30T03:58:47.633325412Z 2026-08-30 03:58:47.633 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-08-30T03:58:47.586862489Z initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+2026-08-30T03:58:47.979171887Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:19: NOTICE:  column "conversation_id" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.979967730Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:20: NOTICE:  column "workflow_id" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.980783274Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:21: NOTICE:  column "timestamp" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.981480612Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:22: NOTICE:  column "event_type" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.640817118Z 2026-08-30 03:58:47.640 UTC [51] LOG:  database system was shut down at 2026-08-30 03:58:47 UTC
+2026-08-30T03:58:47.646254214Z 2026-08-30 03:58:47.646 UTC [48] LOG:  database system is ready to accept connections
+2026-08-30T03:58:47.709755661Z  done
+2026-08-30T03:58:47.709772062Z server started
+2026-08-30T03:58:47.860122824Z CREATE DATABASE
+2026-08-30T03:58:47.860725257Z 
+2026-08-30T03:58:47.863956032Z 
+2026-08-30T03:58:47.863999434Z /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/000_agentmesh_schema_migrations.sql
+2026-08-30T03:58:47.921033631Z CREATE TABLE
+2026-08-30T03:58:47.922441207Z 
+2026-08-30T03:58:47.922450607Z 
+2026-08-30T03:58:47.922453008Z /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/001_agentmesh_events.sql
+2026-08-30T03:58:47.978820768Z CREATE TABLE
+2026-08-30T03:58:47.979763719Z ALTER TABLE
+2026-08-30T03:58:47.980610865Z ALTER TABLE
+2026-08-30T03:58:47.981221798Z ALTER TABLE
+2026-08-30T03:58:47.981941937Z ALTER TABLE
+2026-08-30T03:58:47.982845986Z ALTER TABLE
+2026-08-30T03:58:47.983748735Z ALTER TABLE
+2026-08-30T03:58:47.982266755Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:23: NOTICE:  column "source_agent" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.983120001Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:24: NOTICE:  column "routing_mode" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.984478275Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:25: NOTICE:  column "target_agent" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.985119510Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:26: NOTICE:  column "payload" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.985933554Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:27: NOTICE:  column "causation_id" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.986836303Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:28: NOTICE:  column "causation_chain" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.987632046Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:29: NOTICE:  column "routing_weights" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.988309183Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:30: NOTICE:  column "metadata" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:47.989098926Z psql:/docker-entrypoint-initdb.d/001_agentmesh_events.sql:31: NOTICE:  column "sequence_number" of relation "agentmesh_events" already exists, skipping
+2026-08-30T03:58:48.067342773Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:19: NOTICE:  column "agent_id" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.068137616Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:20: NOTICE:  column "worker_id" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.068871956Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:21: NOTICE:  column "claim_token" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.069961115Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:22: NOTICE:  column "claimed_at" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.070786660Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:23: NOTICE:  column "lease_expires_at" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.071655207Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:24: NOTICE:  column "completed_at" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.072340245Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:25: NOTICE:  column "attempt_number" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.073317698Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:26: NOTICE:  column "max_attempts" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:47.984939500Z ALTER TABLE
+2026-08-30T03:58:47.985766845Z ALTER TABLE
+2026-08-30T03:58:47.986545587Z ALTER TABLE
+2026-08-30T03:58:47.987401533Z ALTER TABLE
+2026-08-30T03:58:47.988155574Z ALTER TABLE
+2026-08-30T03:58:47.988909815Z ALTER TABLE
+2026-08-30T03:58:47.989541750Z ALTER TABLE
+2026-08-30T03:58:47.990539904Z UPDATE 0
+2026-08-30T03:58:47.990860021Z UPDATE 0
+2026-08-30T03:58:47.991209940Z UPDATE 0
+2026-08-30T03:58:47.992070187Z ALTER TABLE
+2026-08-30T03:58:47.992928033Z ALTER TABLE
+2026-08-30T03:58:47.993642772Z ALTER TABLE
+2026-08-30T03:58:47.994269706Z ALTER TABLE
+2026-08-30T03:58:47.995368966Z ALTER TABLE
+2026-08-30T03:58:47.995990000Z ALTER TABLE
+2026-08-30T03:58:47.996787143Z ALTER TABLE
+2026-08-30T03:58:47.997624688Z ALTER TABLE
+2026-08-30T03:58:47.998458134Z ALTER TABLE
+2026-08-30T03:58:47.999107369Z ALTER TABLE
+2026-08-30T03:58:48.001279387Z DO
+2026-08-30T03:58:48.005375209Z CREATE INDEX
+2026-08-30T03:58:48.007925148Z CREATE INDEX
+2026-08-30T03:58:48.012003669Z CREATE INDEX
+2026-08-30T03:58:48.013280138Z 
+2026-08-30T03:58:48.074260449Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:27: NOTICE:  column "next_attempt_at" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.075119495Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:28: NOTICE:  column "last_error_code" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.076191054Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:29: NOTICE:  column "last_error_message" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.076697181Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:30: NOTICE:  column "retryable" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.077574829Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:31: NOTICE:  column "dead_lettered_at" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.013287939Z 
+2026-08-30T03:58:48.013290439Z /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql
+2026-08-30T03:58:48.067255869Z CREATE TABLE
+2026-08-30T03:58:48.067940406Z ALTER TABLE
+2026-08-30T03:58:48.068857555Z ALTER TABLE
+2026-08-30T03:58:48.069640798Z ALTER TABLE
+2026-08-30T03:58:48.070371938Z ALTER TABLE
+2026-08-30T03:58:48.071388493Z ALTER TABLE
+2026-08-30T03:58:48.072222938Z ALTER TABLE
+2026-08-30T03:58:48.073043783Z ALTER TABLE
+2026-08-30T03:58:48.074074039Z ALTER TABLE
+2026-08-30T03:58:48.074841180Z ALTER TABLE
+2026-08-30T03:58:48.075629923Z ALTER TABLE
+2026-08-30T03:58:48.076652779Z ALTER TABLE
+2026-08-30T03:58:48.077351817Z ALTER TABLE
+2026-08-30T03:58:48.078016553Z ALTER TABLE
+2026-08-30T03:58:48.078579883Z ALTER TABLE
+2026-08-30T03:58:48.079067010Z UPDATE 0
+2026-08-30T03:58:48.079103512Z UPDATE 0
+2026-08-30T03:58:48.079996160Z UPDATE 0
+2026-08-30T03:58:48.080337979Z UPDATE 0
+2026-08-30T03:58:48.081326132Z ALTER TABLE
+2026-08-30T03:58:48.078190762Z psql:/docker-entrypoint-initdb.d/002_agentmesh_event_claims.sql:32: NOTICE:  column "idempotency_key" of relation "agentmesh_event_claims" already exists, skipping
+2026-08-30T03:58:48.176984125Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:19: NOTICE:  column "name" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.178169990Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:20: NOTICE:  column "version" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.178792224Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:21: NOTICE:  column "description" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.180147097Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:22: NOTICE:  column "endpoint" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.181253057Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:23: NOTICE:  column "capabilities" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.082149077Z ALTER TABLE
+2026-08-30T03:58:48.082789112Z ALTER TABLE
+2026-08-30T03:58:48.083577155Z ALTER TABLE
+2026-08-30T03:58:48.084956729Z ALTER TABLE
+2026-08-30T03:58:48.085737172Z ALTER TABLE
+2026-08-30T03:58:48.086568117Z ALTER TABLE
+2026-08-30T03:58:48.087366260Z ALTER TABLE
+2026-08-30T03:58:48.088162003Z ALTER TABLE
+2026-08-30T03:58:48.090372023Z DO
+2026-08-30T03:58:48.095322292Z CREATE INDEX
+2026-08-30T03:58:48.100144054Z CREATE INDEX
+2026-08-30T03:58:48.104079368Z CREATE INDEX
+2026-08-30T03:58:48.107841472Z CREATE INDEX
+2026-08-30T03:58:48.109464360Z 
+2026-08-30T03:58:48.109477161Z 
+2026-08-30T03:58:48.109480661Z /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/003_agentmesh_agents.sql
+2026-08-30T03:58:48.176607005Z CREATE TABLE
+2026-08-30T03:58:48.177638261Z ALTER TABLE
+2026-08-30T03:58:48.178784423Z ALTER TABLE
+2026-08-30T03:58:48.179422258Z ALTER TABLE
+2026-08-30T03:58:48.180812633Z ALTER TABLE
+2026-08-30T03:58:48.181836789Z ALTER TABLE
+2026-08-30T03:58:48.182185208Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:24: NOTICE:  column "skills" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.183182662Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:25: NOTICE:  column "owner" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.182842743Z ALTER TABLE
+2026-08-30T03:58:48.183960104Z ALTER TABLE
+2026-08-30T03:58:48.185206972Z ALTER TABLE
+2026-08-30T03:58:48.186178825Z ALTER TABLE
+2026-08-30T03:58:48.187508697Z ALTER TABLE
+2026-08-30T03:58:48.188494950Z ALTER TABLE
+2026-08-30T03:58:48.189359697Z ALTER TABLE
+2026-08-30T03:58:48.189984431Z UPDATE 0
+2026-08-30T03:58:48.190238145Z UPDATE 0
+2026-08-30T03:58:48.184266421Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:26: NOTICE:  column "status" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.185420683Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:27: NOTICE:  column "metadata" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.186773457Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:28: NOTICE:  column "registered_at" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.188069827Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:29: NOTICE:  column "last_seen" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.191315103Z UPDATE 0
+2026-08-30T03:58:48.188802567Z psql:/docker-entrypoint-initdb.d/003_agentmesh_agents.sql:30: NOTICE:  column "updated_at" of relation "agentmesh_agents" already exists, skipping
+2026-08-30T03:58:48.191516014Z UPDATE 0
+2026-08-30T03:58:48.191777928Z UPDATE 0
+2026-08-30T03:58:48.192043443Z UPDATE 0
+2026-08-30T03:58:48.192334959Z UPDATE 0
+2026-08-30T03:58:48.192472166Z UPDATE 0
+2026-08-30T03:58:48.192775683Z UPDATE 0
+2026-08-30T03:58:48.193460720Z UPDATE 0
+2026-08-30T03:58:48.194321367Z ALTER TABLE
+2026-08-30T03:58:48.195092008Z ALTER TABLE
+2026-08-30T03:58:48.195862450Z ALTER TABLE
+2026-08-30T03:58:48.196457583Z ALTER TABLE
+2026-08-30T03:58:48.197085517Z ALTER TABLE
+2026-08-30T03:58:48.197716951Z ALTER TABLE
+2026-08-30T03:58:48.198742907Z ALTER TABLE
+2026-08-30T03:58:48.199970573Z ALTER TABLE
+2026-08-30T03:58:48.200594207Z ALTER TABLE
+2026-08-30T03:58:48.201328947Z ALTER TABLE
+2026-08-30T03:58:48.201990383Z ALTER TABLE
+2026-08-30T03:58:48.205148254Z DO
+2026-08-30T03:58:48.209942315Z CREATE INDEX
+2026-08-30T03:58:48.211163081Z CREATE INDEX
+2026-08-30T03:58:48.212967779Z CREATE INDEX
+2026-08-30T03:58:48.215102995Z 
+2026-08-30T03:58:48.215131196Z 
+2026-08-30T03:58:48.215136797Z /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/004_agentmesh_resources.sql
+2026-08-30T03:58:48.262920891Z CREATE TABLE
+2026-08-30T03:58:48.263169904Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:20: NOTICE:  column "resource_type" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.263726334Z ALTER TABLE
+2026-08-30T03:58:48.264777691Z ALTER TABLE
+2026-08-30T03:58:48.265519832Z ALTER TABLE
+2026-08-30T03:58:48.266228870Z ALTER TABLE
+2026-08-30T03:58:48.266910507Z ALTER TABLE
+2026-08-30T03:58:48.264304966Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:21: NOTICE:  column "name" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.264999603Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:22: NOTICE:  column "status" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.265565034Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:23: NOTICE:  column "endpoint" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.266269772Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:24: NOTICE:  column "owner" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.266965110Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:25: NOTICE:  column "capabilities" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.267803256Z ALTER TABLE
+2026-08-30T03:58:48.267978365Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:26: NOTICE:  column "metadata" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.268514894Z ALTER TABLE
+2026-08-30T03:58:48.268950618Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:27: NOTICE:  column "parent_resource_id" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.269406943Z ALTER TABLE
+2026-08-30T03:58:48.270002675Z ALTER TABLE
+2026-08-30T03:58:48.270617508Z ALTER TABLE
+2026-08-30T03:58:48.271121836Z ALTER TABLE
+2026-08-30T03:58:48.271485456Z UPDATE 0
+2026-08-30T03:58:48.271900278Z UPDATE 0
+2026-08-30T03:58:48.272083488Z UPDATE 0
+2026-08-30T03:58:48.269484447Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:28: NOTICE:  column "registered_at" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.270123582Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:29: NOTICE:  column "last_seen" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.270654210Z psql:/docker-entrypoint-initdb.d/004_agentmesh_resources.sql:30: NOTICE:  column "updated_at" of relation "agentmesh_resources" already exists, skipping
+2026-08-30T03:58:48.272268898Z UPDATE 0
+2026-08-30T03:58:48.272389605Z UPDATE 0
+2026-08-30T03:58:48.272602016Z UPDATE 0
+2026-08-30T03:58:48.272720223Z UPDATE 0
+2026-08-30T03:58:48.273489864Z ALTER TABLE
+2026-08-30T03:58:48.274050695Z ALTER TABLE
+2026-08-30T03:58:48.274731132Z ALTER TABLE
+2026-08-30T03:58:48.275299463Z ALTER TABLE
+2026-08-30T03:58:48.275901595Z ALTER TABLE
+2026-08-30T03:58:48.276446525Z ALTER TABLE
+2026-08-30T03:58:48.277159964Z ALTER TABLE
+2026-08-30T03:58:48.277610888Z ALTER TABLE
+2026-08-30T03:58:48.278346828Z ALTER TABLE
+2026-08-30T03:58:48.280582449Z DO
+2026-08-30T03:58:48.283065184Z CREATE INDEX
+2026-08-30T03:58:48.285307606Z CREATE INDEX
+2026-08-30T03:58:48.287490524Z CREATE INDEX
+2026-08-30T03:58:48.289424629Z CREATE INDEX
+2026-08-30T03:58:48.290544090Z 
+2026-08-30T03:58:48.290551491Z 
+2026-08-30T03:58:48.290553891Z /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql
+2026-08-30T03:58:48.335842449Z CREATE TABLE
+2026-08-30T03:58:48.336669494Z ALTER TABLE
+2026-08-30T03:58:48.337506240Z ALTER TABLE
+2026-08-30T03:58:48.338387087Z ALTER TABLE
+2026-08-30T03:58:48.339458746Z ALTER TABLE
+2026-08-30T03:58:48.340076279Z ALTER TABLE
+2026-08-30T03:58:48.340781317Z ALTER TABLE
+2026-08-30T03:58:48.335904853Z psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:16: NOTICE:  column "resource_id" of relation "agentmesh_resource_audit_events" already exists, skipping
+2026-08-30T03:58:48.341399051Z ALTER TABLE
+2026-08-30T03:58:48.341907479Z ALTER TABLE
+2026-08-30T03:58:48.342720923Z ALTER TABLE
+2026-08-30T03:58:48.343100543Z UPDATE 0
+2026-08-30T03:58:48.336813502Z psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:17: NOTICE:  column "event_type" of relation "agentmesh_resource_audit_events" already exists, skipping
+2026-08-30T03:58:48.337831157Z psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:18: NOTICE:  column "severity" of relation "agentmesh_resource_audit_events" already exists, skipping
+2026-08-30T03:58:48.338908816Z psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:19: NOTICE:  column "actor" of relation "agentmesh_resource_audit_events" already exists, skipping
+2026-08-30T03:58:48.339604254Z psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:20: NOTICE:  column "message" of relation "agentmesh_resource_audit_events" already exists, skipping
+2026-08-30T03:58:48.343233851Z UPDATE 0
+2026-08-30T03:58:48.343472964Z UPDATE 0
+2026-08-30T03:58:48.343580069Z UPDATE 0
+2026-08-30T03:58:48.343927588Z UPDATE 0
+2026-08-30T03:58:48.345129053Z ALTER TABLE
+2026-08-30T03:58:48.345647682Z ALTER TABLE
+2026-08-30T03:58:48.346279916Z ALTER TABLE
+2026-08-30T03:58:48.347053958Z ALTER TABLE
+2026-08-30T03:58:48.347599788Z ALTER TABLE
+2026-08-30T03:58:48.340136782Z psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:21: NOTICE:  column "payload" of relation "agentmesh_resource_audit_events" already exists, skipping
+2026-08-30T03:58:48.340972628Z psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:22: NOTICE:  column "workflow_id" of relation "agentmesh_resource_audit_events" already exists, skipping
+2026-08-30T03:58:48.341429653Z psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:23: NOTICE:  column "event_id" of relation "agentmesh_resource_audit_events" already exists, skipping
+2026-08-30T03:58:48.342358303Z psql:/docker-entrypoint-initdb.d/005_agentmesh_resource_audit_events.sql:24: NOTICE:  column "created_at" of relation "agentmesh_resource_audit_events" already exists, skipping
+2026-08-30T03:58:48.348034411Z ALTER TABLE
+2026-08-30T03:58:48.348534738Z ALTER TABLE
+2026-08-30T03:58:48.350709356Z DO
+2026-08-30T03:58:48.353874428Z CREATE INDEX
+2026-08-30T03:58:48.355797633Z CREATE INDEX
+2026-08-30T03:58:48.358711391Z CREATE INDEX
+2026-08-30T03:58:48.360218473Z 
+2026-08-30T03:58:48.360227073Z 
+2026-08-30T03:58:48.360236774Z /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/006_agent_runtime_instances.sql
+2026-08-30T03:58:48.402805785Z ALTER TABLE
+2026-08-30T03:58:48.404115556Z ALTER TABLE
+2026-08-30T03:58:48.405128911Z ALTER TABLE
+2026-08-30T03:58:48.406905907Z ALTER TABLE
+2026-08-30T03:58:48.412895432Z CREATE INDEX
+2026-08-30T03:58:48.415103852Z 
+2026-08-30T03:58:48.415126453Z 
+2026-08-30T03:58:48.416225413Z waiting for server to shut down...2026-08-30 03:58:48.416 UTC [48] LOG:  received fast shutdown request
+2026-08-30T03:58:48.418086114Z .2026-08-30 03:58:48.417 UTC [48] LOG:  aborting any active transactions
+2026-08-30T03:58:48.420412640Z 2026-08-30 03:58:48.420 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+2026-08-30T03:58:48.420998672Z 2026-08-30 03:58:48.420 UTC [49] LOG:  shutting down
+2026-08-30T03:58:48.423032683Z 2026-08-30 03:58:48.422 UTC [49] LOG:  checkpoint starting: shutdown immediate
+2026-08-30T03:58:48.516573461Z 2026-08-30 03:58:48.516 UTC [49] LOG:  checkpoint complete: wrote 946 buffers (5.8%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.027 s, sync=0.063 s, total=0.096 s; sync files=345, longest=0.019 s, average=0.001 s; distance=4466 kB, estimate=4466 kB
+2026-08-30T03:58:48.640878709Z 2026-08-30 03:58:48.640 UTC [1] LOG:  starting PostgreSQL 15.19 (Debian 15.19-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-08-30T03:58:48.521854147Z 2026-08-30 03:58:48.521 UTC [48] LOG:  database system is shut down
+2026-08-30T03:58:48.616779201Z  done
+2026-08-30T03:58:48.616805902Z server stopped
+2026-08-30T03:58:48.619198932Z 
+2026-08-30T03:58:48.619212533Z PostgreSQL init process complete; ready for start up.
+2026-08-30T03:58:48.619215133Z 
+2026-08-30T03:58:48.640974514Z 2026-08-30 03:58:48.640 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-08-30T03:58:48.640982014Z 2026-08-30 03:58:48.640 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-08-30T03:58:48.645021434Z 2026-08-30 03:58:48.644 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-08-30T03:58:48.650743844Z 2026-08-30 03:58:48.650 UTC [78] LOG:  database system was shut down at 2026-08-30 03:58:48 UTC
+2026-08-30T03:58:48.656399251Z 2026-08-30 03:58:48.656 UTC [1] LOG:  database system is ready to accept connections

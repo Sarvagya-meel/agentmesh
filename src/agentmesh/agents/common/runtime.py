@@ -19,7 +19,15 @@ from agentmesh.agents.common.execution import AgentExecutor, ExecutionContext
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
 from agentmesh.agents.common.worker import AssignmentWorker
 from agentmesh.config import Settings, get_settings
-from agentmesh.core.observability import configure_langsmith
+from agentmesh.core.models.exceptions import ModelProviderError
+from agentmesh.core.observability import (
+    agentmesh_metadata,
+    agentmesh_run_name,
+    agentmesh_span,
+    configure_langsmith,
+    resolve_trace_author,
+    trace_author_metadata,
+)
 
 Cleanup = Callable[[], None | Awaitable[None]]
 FactoryResult = tuple[BaseAgent, Cleanup]
@@ -220,11 +228,39 @@ def create_agent_runtime_app(
             if body.user_id:
                 payload["user_id"] = body.user_id
             try:
-                result = await _executor_from(request).execute(
-                    payload,
-                    ExecutionContext(source="direct", thread_id=thread_id),
+                agent = _agent_from(request)
+                agent_card = agent.agent_card()
+                author = resolve_trace_author(
+                    body.user_id or agent.agent_name,
+                    agent_card=None if body.user_id else agent_card,
+                    author_type="user" if body.user_id else None,
                 )
-            except RuntimeError as exc:
+                with agentmesh_span(
+                    agentmesh_run_name(
+                        "Direct",
+                        thread_id,
+                        body.message,
+                        author.author_name,
+                    ),
+                    inputs={"message_present": True, "approval_required": body.approval_required},
+                    metadata=agentmesh_metadata(
+                        agent_id=agent.agent_name,
+                        agent_name=agent_card.name,
+                        execution_mode="direct",
+                        source="direct",
+                        thread_id=thread_id,
+                        user_id=body.user_id,
+                        **trace_author_metadata(author),
+                    ),
+                    tags=["direct", agent.agent_name],
+                ) as run:
+                    result = await _executor_from(request).execute(
+                        payload,
+                        ExecutionContext(source="direct", thread_id=thread_id),
+                    )
+                    if run is not None:
+                        run.end(outputs={"status": result.get("status"), "thread_id": thread_id})
+            except (ModelProviderError, RuntimeError) as exc:
                 raise HTTPException(status_code=503, detail=str(exc)) from exc
             result.setdefault("status", "completed")
             return result
@@ -236,17 +272,40 @@ def create_agent_runtime_app(
             request: Request,
         ) -> dict[str, Any]:
             try:
-                return await _executor_from(request).execute(
-                    {
-                        "resume_thread_id": thread_id,
-                        "approval_decision": body.decision,
-                        "approval_feedback": body.feedback,
-                    },
-                    ExecutionContext(source="direct_resume", thread_id=thread_id),
-                )
+                agent = _agent_from(request)
+                author = resolve_trace_author(agent.agent_name, agent_card=agent.agent_card())
+                with agentmesh_span(
+                    agentmesh_run_name(
+                        "Direct",
+                        thread_id,
+                        f"resume approval {body.decision}",
+                        author.author_name,
+                    ),
+                    inputs={"decision": body.decision, "feedback_present": bool(body.feedback)},
+                    metadata=agentmesh_metadata(
+                        agent_id=agent.agent_name,
+                        agent_name=author.author_name,
+                        execution_mode="direct_resume",
+                        source="direct_resume",
+                        thread_id=thread_id,
+                        **trace_author_metadata(author),
+                    ),
+                    tags=["direct", "resume", agent.agent_name],
+                ) as run:
+                    result = await _executor_from(request).execute(
+                        {
+                            "resume_thread_id": thread_id,
+                            "approval_decision": body.decision,
+                            "approval_feedback": body.feedback,
+                        },
+                        ExecutionContext(source="direct_resume", thread_id=thread_id),
+                    )
+                    if run is not None:
+                        run.end(outputs={"status": result.get("status"), "thread_id": thread_id})
+                    return result
             except ValueError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
-            except RuntimeError as exc:
+            except (ModelProviderError, RuntimeError) as exc:
                 raise HTTPException(status_code=503, detail=str(exc)) from exc
 
         @app.get("/conversations/{thread_id}/checkpoints", tags=["langgraph"])
@@ -255,7 +314,29 @@ def create_agent_runtime_app(
             method = getattr(agent, "checkpoint_history", None)
             if method is None:
                 raise HTTPException(status_code=404, detail="Checkpoint history is unavailable.")
-            return cast(list[dict[str, Any]], await method(thread_id))
+            author = resolve_trace_author(agent.agent_name, agent_card=agent.agent_card())
+            with agentmesh_span(
+                agentmesh_run_name(
+                    "Direct",
+                    thread_id,
+                    "checkpoint history",
+                    author.author_name,
+                ),
+                inputs={"thread_id": thread_id},
+                metadata=agentmesh_metadata(
+                    agent_id=agent.agent_name,
+                    agent_name=author.author_name,
+                    execution_mode="checkpoint_api",
+                    thread_id=thread_id,
+                    checkpoint_operation="history",
+                    **trace_author_metadata(author),
+                ),
+                tags=["checkpoint", agent.agent_name],
+            ) as run:
+                history = cast(list[dict[str, Any]], await method(thread_id))
+                if run is not None:
+                    run.end(outputs={"checkpoint_count": len(history)})
+                return history
 
         @app.post("/conversations/{thread_id}/replay", tags=["langgraph"])
         async def replay_checkpoint(
@@ -267,7 +348,30 @@ def create_agent_runtime_app(
             method = getattr(agent, "replay_checkpoint", None)
             if method is None:
                 raise HTTPException(status_code=404, detail="Checkpoint replay is unavailable.")
-            return cast(dict[str, Any], await method(thread_id, body.checkpoint_id))
+            author = resolve_trace_author(agent.agent_name, agent_card=agent.agent_card())
+            with agentmesh_span(
+                agentmesh_run_name(
+                    "Direct",
+                    thread_id,
+                    f"checkpoint replay {body.checkpoint_id}",
+                    author.author_name,
+                ),
+                inputs={"thread_id": thread_id, "checkpoint_id": body.checkpoint_id},
+                metadata=agentmesh_metadata(
+                    agent_id=agent.agent_name,
+                    agent_name=author.author_name,
+                    execution_mode="checkpoint_api",
+                    thread_id=thread_id,
+                    checkpoint_id=body.checkpoint_id,
+                    checkpoint_operation="replay",
+                    **trace_author_metadata(author),
+                ),
+                tags=["checkpoint", "replay", agent.agent_name],
+            ) as run:
+                result = cast(dict[str, Any], await method(thread_id, body.checkpoint_id))
+                if run is not None:
+                    run.end(outputs={"result_keys": sorted(result)})
+                return result
 
         @app.post("/conversations/{thread_id}/fork", tags=["langgraph"])
         async def fork_checkpoint(
@@ -279,15 +383,44 @@ def create_agent_runtime_app(
             method = getattr(agent, "fork_checkpoint", None)
             if method is None:
                 raise HTTPException(status_code=404, detail="Checkpoint fork is unavailable.")
-            return cast(
-                dict[str, Any],
-                await method(
+            author = resolve_trace_author(agent.agent_name, agent_card=agent.agent_card())
+            with agentmesh_span(
+                agentmesh_run_name(
+                    "Direct",
                     thread_id,
-                    body.checkpoint_id,
-                    new_thread_id=body.new_thread_id,
-                    state_updates=body.state_updates,
+                    f"checkpoint fork {body.checkpoint_id}",
+                    author.author_name,
                 ),
-            )
+                inputs={
+                    "thread_id": thread_id,
+                    "checkpoint_id": body.checkpoint_id,
+                    "new_thread_id": body.new_thread_id,
+                    "state_update_keys": sorted(body.state_updates),
+                },
+                metadata=agentmesh_metadata(
+                    agent_id=agent.agent_name,
+                    agent_name=author.author_name,
+                    execution_mode="checkpoint_api",
+                    thread_id=thread_id,
+                    checkpoint_id=body.checkpoint_id,
+                    checkpoint_operation="fork",
+                    new_thread_id=body.new_thread_id,
+                    **trace_author_metadata(author),
+                ),
+                tags=["checkpoint", "fork", agent.agent_name],
+            ) as run:
+                result = cast(
+                    dict[str, Any],
+                    await method(
+                        thread_id,
+                        body.checkpoint_id,
+                        new_thread_id=body.new_thread_id,
+                        state_updates=body.state_updates,
+                    ),
+                )
+                if run is not None:
+                    run.end(outputs={"checkpoint_id": result.get("checkpoint_id")})
+                return result
 
         @app.get("/graph/mermaid", tags=["langgraph"], response_class=PlainTextResponse)
         async def graph_mermaid(request: Request) -> str:

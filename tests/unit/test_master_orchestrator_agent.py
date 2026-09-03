@@ -9,8 +9,13 @@ from agentmesh.agents.agent_langgraph_orchestrator_supervisor import MasterOrche
 from agentmesh.agents.agent_langgraph_orchestrator_supervisor.agent import merge_task_results
 from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.execution import ExecutionContext
+from agentmesh.core.models import Event, RoutingMode
 from agentmesh.core.models.agent_card import AgentCard
-from agentmesh.core.models.exceptions import ValidationError
+from agentmesh.core.models.exceptions import (
+    ModelProviderError,
+    ValidationError,
+    WorkflowConflictError,
+)
 from agentmesh.services.service_agentmesh_server.database.repository import InMemoryEventRepository
 from agentmesh.services.service_agentmesh_server.events.service import EventService
 from agentmesh.services.service_agentmesh_server.events.state import StateService
@@ -85,6 +90,69 @@ def test_master_agent_requires_only_plan_approval_before_dispatch() -> None:
     ]
 
 
+def test_master_agent_skips_plan_approval_only_when_explicitly_disabled() -> None:
+    master, event_service = build_master_agent()
+
+    started = master.start_workflow(
+        "conversation-no-approval",
+        "Research an architecture proposal",
+        preferred_agent_ids=["research-agent"],
+        approval_required=False,
+    )
+    events = event_service.replay(UUID(started["workflow_id"]))
+
+    assert started["status"] == "WAITING_FOR_AGENT"
+    assert started["pending_input"]["type"] == "agent_result"
+    assert "PLAN_APPROVAL_REQUESTED" not in [event.event_type for event in events]
+    assert "TASK_ASSIGNED" in [event.event_type for event in events]
+    assert events[0].payload["approval_required"] is False
+    assignment = next(event for event in events if event.event_type == "TASK_ASSIGNED")
+    assert assignment.payload["task"]["approval_required"] is False
+
+
+async def test_master_agent_consumes_control_plane_start_without_duplicate_event() -> None:
+    master, event_service = build_master_agent()
+    workflow_id = uuid4()
+    event_service.append(
+        Event(
+            conversation_id="queued-conversation",
+            workflow_id=workflow_id,
+            event_type="WORKFLOW_STARTED",
+            source_agent="agentmesh-control-plane",
+            routing_mode=RoutingMode.DIRECTED,
+            target_agent="orchestrator-supervisor-agent",
+            payload={"goal": "Research a proposal", "approval_required": True},
+        )
+    )
+    event_service.append(
+        Event(
+            conversation_id="queued-conversation",
+            workflow_id=workflow_id,
+            event_type="SUPERVISOR_ACTION_REQUESTED",
+            source_agent="agentmesh-control-plane",
+            routing_mode=RoutingMode.DIRECTED,
+            target_agent="orchestrator-supervisor-agent",
+            payload={"action_type": "START_WORKFLOW", "arguments": {}},
+        )
+    )
+
+    started = await master.astart_workflow(
+        "queued-conversation",
+        "Research a proposal",
+        workflow_id=workflow_id,
+        preferred_agent_ids=["research-agent"],
+        start_event_persisted=True,
+    )
+    events = event_service.replay(workflow_id)
+
+    assert started["status"] == "AWAITING_PLAN_APPROVAL"
+    assert [event.event_type for event in events[:2]] == [
+        "WORKFLOW_STARTED",
+        "SUPERVISOR_ACTION_REQUESTED",
+    ]
+    assert sum(event.event_type == "WORKFLOW_STARTED" for event in events) == 1
+
+
 def test_master_agent_uses_the_shared_agent_contract() -> None:
     master, _event_service = build_master_agent()
 
@@ -101,6 +169,68 @@ def test_master_agent_uses_the_shared_agent_contract() -> None:
     )
 
     assert started["status"] == "AWAITING_PLAN_APPROVAL"
+
+
+async def test_queued_planning_retry_resumes_checkpoint_without_duplicate_events(monkeypatch):
+    master, events = build_master_agent()
+    workflow_id = uuid4()
+    events.append(Event(
+        conversation_id="retry-conversation", workflow_id=workflow_id,
+        event_type="WORKFLOW_STARTED", source_agent="agentmesh-control-plane",
+        payload={"goal": "Research an architecture proposal"},
+    ))
+    original = master.planner.create_plan
+    attempts = 0
+
+    def transient_plan(**kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 2:
+            raise ModelProviderError("HTTP 429", retryable=True, status_code=429)
+        return original(**kwargs)
+
+    monkeypatch.setattr(master.planner, "create_plan", transient_plan)
+    arguments = {
+        "workflow_id": workflow_id, "start_event_persisted": True,
+        "preferred_agent_ids": ["research-agent"],
+    }
+    for _ in range(2):
+        with pytest.raises(ModelProviderError):
+            await master.astart_workflow(
+                "retry-conversation", "Research an architecture proposal", **arguments
+            )
+        assert master.state_service.get_current(workflow_id).status == "RUNNING"
+        snapshot = await master.graph.aget_state(master._config(workflow_id))
+        assert snapshot.next == ("create_plan",)
+    result = await master.astart_workflow(
+        "retry-conversation", "Research an architecture proposal", **arguments
+    )
+    assert result["status"] == "AWAITING_PLAN_APPROVAL"
+    assert attempts == 3
+    event_types = [event.event_type for event in events.replay(workflow_id)]
+    for event_type in ["WORKFLOW_STARTED", "AGENT_SNAPSHOT_CAPTURED", "PLAN_CREATED"]:
+        assert event_types.count(event_type) == 1
+    assert "WORKFLOW_FAILED" not in event_types
+    before = events.replay(workflow_id)
+    with pytest.raises(WorkflowConflictError):
+        await master.astart_workflow(
+            "retry-conversation", "Research an architecture proposal", **arguments
+        )
+    assert events.replay(workflow_id) == before
+
+
+async def test_unqueued_planning_failure_remains_terminal(monkeypatch):
+    master, events = build_master_agent()
+    workflow_id = uuid4()
+
+    def failed_plan(**kwargs):
+        raise ModelProviderError("HTTP 429", retryable=True)
+
+    monkeypatch.setattr(master.planner, "create_plan", failed_plan)
+    with pytest.raises(ModelProviderError):
+        await master.astart_workflow("conversation", "Research a proposal", workflow_id=workflow_id)
+    assert events.replay(workflow_id)[-1].event_type == "WORKFLOW_FAILED"
+    assert master.state_service.get_current(workflow_id).status == "FAILED"
 
 
 def test_master_agent_completes_all_approved_tasks() -> None:
@@ -425,6 +555,53 @@ async def test_supervisor_replay_and_fork_do_not_mutate_source() -> None:
     assert source_after.config == source_before.config
     assert source_after.values == source_before.values
     assert len(event_service.replay(workflow_id)) == source_event_count
+
+
+async def test_checkpoint_recovery_creates_new_executable_history() -> None:
+    master, event_service = build_master_agent()
+    started = await master.astart_workflow(
+        "checkpoint-recovery",
+        "Review an architecture proposal",
+        preferred_agent_ids=["review-agent"],
+    )
+    source_id = UUID(started["workflow_id"])
+    history = await master.checkpoint_history(source_id)
+    recoverable = next(item for item in history if item["next"])
+    source_event_count = len(event_service.replay(source_id))
+    recovery_id = uuid4()
+    event_service.append(
+        Event(
+            conversation_id="checkpoint-recovery",
+            workflow_id=recovery_id,
+            event_type="SUPERVISOR_ACTION_REQUESTED",
+            source_agent="agentmesh-control-plane",
+            routing_mode="DIRECTED",
+            target_agent="orchestrator-supervisor-agent",
+            payload={
+                "action_type": "RECOVER_CHECKPOINT",
+                "arguments": {"source_workflow_id": str(source_id)},
+            },
+        )
+    )
+
+    recovered = await master.arecover_checkpoint(
+        source_id,
+        checkpoint_id=str(recoverable["checkpoint_id"]),
+        new_workflow_id=recovery_id,
+    )
+
+    assert recovered["source_workflow_id"] == str(source_id)
+    assert recovered["recovery_workflow_id"] == str(recovery_id)
+    assert len(event_service.replay(source_id)) == source_event_count
+    recovery_events = [event.event_type for event in event_service.replay(recovery_id)]
+    assert "WORKFLOW_RECOVERY_STARTED" in recovery_events
+
+    repeated = await master.arecover_checkpoint(
+        source_id,
+        checkpoint_id=str(recoverable["checkpoint_id"]),
+        new_workflow_id=recovery_id,
+    )
+    assert repeated == recovered
 
 
 async def test_supervisor_checkpoints_capture_execution_metadata() -> None:

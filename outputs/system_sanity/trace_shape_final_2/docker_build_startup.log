@@ -1,0 +1,317 @@
+ Image agentmesh-service-ui Building 
+ Image agentmesh-agent-googleadk-chatagent Building 
+ Image agentmesh-agent-langgraph-copilot Building 
+ Image agentmesh-migrate Building 
+ Image agentmesh-agent-orchestrator-supervisor Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 3.31kB done
+#1 DONE 0.0s
+
+#2 [streamlit internal] load build definition from Dockerfile.Service
+#2 transferring dockerfile: 2.04kB 0.0s done
+#2 DONE 0.0s
+
+#3 [agent-langgraph-copilot internal] load build definition from Dockerfile.Agent
+#3 transferring dockerfile: 2.20kB 0.0s done
+#3 DONE 0.1s
+
+#4 [migrate internal] load build definition from Dockerfile.Migrate
+#4 transferring dockerfile: 1.20kB 0.0s done
+#4 DONE 0.1s
+
+#5 [migrate internal] load metadata for docker.io/library/python:3.11-slim
+#5 ...
+
+#6 [auth] library/python:pull token for registry-1.docker.io
+#6 DONE 0.0s
+
+#5 [migrate internal] load metadata for docker.io/library/python:3.11-slim
+#5 DONE 2.5s
+
+#7 [orchestrator-supervisor-agent internal] load .dockerignore
+#7 transferring context: 126B 0.0s done
+#7 DONE 0.0s
+
+#8 [migrate internal] load build context
+#8 transferring context: 748B 0.0s done
+#8 DONE 0.0s
+
+#9 [streamlit 1/5] FROM docker.io/library/python:3.11-slim@sha256:1042b61448fef4ba92d16a8c7eb4996d027568ce64792a7877fd88511e0af7c6
+#9 resolve docker.io/library/python:3.11-slim@sha256:1042b61448fef4ba92d16a8c7eb4996d027568ce64792a7877fd88511e0af7c6 0.0s done
+#9 DONE 0.0s
+
+#10 [migrate 2/5] WORKDIR /app
+#10 CACHED
+
+#11 [migrate 3/5] RUN pip install --upgrade "pip>=25.1"     && pip install "psycopg[binary]" python-dotenv
+#11 CACHED
+
+#12 [migrate 4/5] COPY deployment/postgres/ddls   ./deployment/postgres/ddls
+#12 CACHED
+
+#13 [migrate 5/5] COPY deployment/postgres/scripts/apply_ddls.py ./deployment/postgres/scripts/apply_ddls.py
+#13 CACHED
+
+#14 [migrate] exporting to image
+#14 exporting layers
+#14 exporting layers 0.0s done
+#14 exporting manifest sha256:25a2f247151f076edb5bb826457be22023d993337c41266825b3b8fc8c57e46f done
+#14 exporting config sha256:19ad39d1b64db71034d72d9b169c8108530f679253b89c3ed1ba2ff8aa7fd3d9 done
+#14 exporting attestation manifest sha256:eb701adc2af2ad27fa3898283d7c9f71e67b24d1aa17ba73d3e0b804caddfa2c 0.0s done
+#14 exporting manifest list sha256:354bce6f55dc84bcc18f30526d0340e803b29fb37045a8a1a1756546f6f772bc
+#14 exporting manifest list sha256:354bce6f55dc84bcc18f30526d0340e803b29fb37045a8a1a1756546f6f772bc 0.0s done
+#14 naming to docker.io/library/agentmesh-migrate:latest done
+#14 unpacking to docker.io/library/agentmesh-migrate:latest 0.0s done
+#14 DONE 0.2s
+
+#15 [agent-langgraph-copilot internal] load build context
+#15 transferring context: 191.24kB 0.1s done
+#15 DONE 0.2s
+
+#16 [agent-googleadk-chatagent internal] load build context
+#16 transferring context: 141.60kB 0.1s done
+#16 DONE 0.2s
+
+#10 [agent-langgraph-copilot 2/5] WORKDIR /app
+#10 CACHED
+
+#17 [agent-langgraph-copilot  4/11] RUN pip install --upgrade "pip>=25.1"     && pip install --group "agent-langgraph"
+#17 CACHED
+
+#18 [agent-langgraph-copilot  5/11] COPY src/agentmesh/__init__.py ./src/agentmesh/__init__.py
+#18 CACHED
+
+#19 [agent-langgraph-copilot  3/11] COPY pyproject.toml ./
+#19 CACHED
+
+#20 [agent-langgraph-copilot  6/11] COPY src/agentmesh/config.py ./src/agentmesh/config.py
+#20 CACHED
+
+#10 [agent-googleadk-chatagent 2/5] WORKDIR /app
+#10 CACHED
+
+#21 [agent-googleadk-chatagent  3/11] COPY pyproject.toml ./
+#21 CACHED
+
+#22 [agent-googleadk-chatagent  5/11] COPY src/agentmesh/__init__.py ./src/agentmesh/__init__.py
+#22 CACHED
+
+#23 [agent-googleadk-chatagent  4/11] RUN pip install --upgrade "pip>=25.1"     && pip install --group "agent-adk"
+#23 CACHED
+
+#24 [agent-googleadk-chatagent  6/11] COPY src/agentmesh/config.py ./src/agentmesh/config.py
+#24 CACHED
+
+#25 [orchestrator-supervisor-agent internal] load build context
+#25 transferring context: 708.65kB 0.3s done
+#25 transferring context: 708.65kB 0.3s done
+#25 DONE 0.4s
+
+#26 [orchestrator-supervisor-agent 3/6] COPY pyproject.toml ./
+#26 CACHED
+
+#10 [orchestrator-supervisor-agent 2/5] WORKDIR /app
+#10 CACHED
+
+#27 [streamlit 4/6] RUN pip install --upgrade "pip>=25.1"     && pip install --group "ui"
+#27 CACHED
+
+#28 [orchestrator-supervisor-agent 4/6] RUN pip install --upgrade "pip>=25.1"     && pip install --group "control-plane"
+#28 CACHED
+
+#29 [agent-googleadk-chatagent  7/11] COPY src/agentmesh/core ./src/agentmesh/core
+#29 DONE 0.2s
+
+#30 [agent-langgraph-copilot  7/11] COPY src/agentmesh/core ./src/agentmesh/core
+#30 DONE 0.2s
+
+#31 [migrate] resolving provenance for metadata file
+#31 DONE 0.0s
+
+#32 [agent-langgraph-copilot  8/11] COPY src/agentmesh/agents/__init__.py ./src/agentmesh/agents/__init__.py
+#32 DONE 0.1s
+
+#33 [agent-googleadk-chatagent  8/11] COPY src/agentmesh/agents/__init__.py ./src/agentmesh/agents/__init__.py
+#33 DONE 0.1s
+
+#34 [orchestrator-supervisor-agent 5/6] COPY src ./src
+#34 DONE 0.2s
+
+#35 [streamlit 5/6] COPY src ./src
+#35 DONE 0.2s
+
+#36 [agent-langgraph-copilot  9/11] COPY src/agentmesh/agents/common ./src/agentmesh/agents/common
+#36 DONE 0.1s
+
+#37 [orchestrator-supervisor-agent 6/6] RUN pip install --no-deps --no-build-isolation .
+#37 ...
+
+#38 [agent-googleadk-chatagent  9/11] COPY src/agentmesh/agents/common ./src/agentmesh/agents/common
+#38 DONE 0.1s
+
+#39 [agent-langgraph-copilot 10/11] COPY src/agentmesh/agents/agent_langgraph_copilot ./src/agentmesh/agents/agent_langgraph_copilot
+#39 DONE 0.1s
+
+#40 [agent-googleadk-chatagent 10/11] COPY src/agentmesh/agents/agent_adk_spark ./src/agentmesh/agents/agent_adk_spark
+#40 DONE 0.1s
+
+#41 [agent-googleadk-chatagent 11/11] RUN pip install --no-deps --no-build-isolation .
+#41 1.748 Processing ./.
+#41 1.751   Preparing metadata (pyproject.toml): started
+#41 3.183   Preparing metadata (pyproject.toml): finished with status 'done'
+#41 3.187 Building wheels for collected packages: agentmesh
+#41 3.193   Building wheel for agentmesh (pyproject.toml): started
+#41 ...
+
+#42 [agent-langgraph-copilot 11/11] RUN pip install --no-deps --no-build-isolation .
+#42 1.703 Processing ./.
+#42 1.709   Preparing metadata (pyproject.toml): started
+#42 3.091   Preparing metadata (pyproject.toml): finished with status 'done'
+#42 3.096 Building wheels for collected packages: agentmesh
+#42 3.101   Building wheel for agentmesh (pyproject.toml): started
+#42 4.525   Building wheel for agentmesh (pyproject.toml): finished with status 'done'
+#42 4.526   Created wheel for agentmesh: filename=agentmesh-0.1.0-py3-none-any.whl size=52075 sha256=2404cf642d075a2484722a1963a9d3eb2df15b2270eb61322937f450a325dea8
+#42 4.527   Stored in directory: /tmp/pip-ephem-wheel-cache-_r5n86of/wheels/57/0f/98/bb57b2b57b95807699b822a35c022f139d38a02c27922f27ce
+#42 4.533 Successfully built agentmesh
+#42 4.590 Installing collected packages: agentmesh
+#42 4.674 Successfully installed agentmesh-0.1.0
+#42 4.675 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#42 DONE 4.8s
+
+#41 [agent-googleadk-chatagent 11/11] RUN pip install --no-deps --no-build-isolation .
+#41 4.728   Building wheel for agentmesh (pyproject.toml): finished with status 'done'
+#41 4.729   Created wheel for agentmesh: filename=agentmesh-0.1.0-py3-none-any.whl size=48221 sha256=7af0959787ca934dcb38038e021f24bfd4057de3fcac5fbc2d0f4028c56a6971
+#41 4.729   Stored in directory: /tmp/pip-ephem-wheel-cache-aty24wxy/wheels/57/0f/98/bb57b2b57b95807699b822a35c022f139d38a02c27922f27ce
+#41 4.736 Successfully built agentmesh
+#41 4.790 Installing collected packages: agentmesh
+#41 4.915 Successfully installed agentmesh-0.1.0
+#41 4.916 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#41 DONE 5.0s
+
+#43 [streamlit 6/6] RUN pip install --no-deps --no-build-isolation .
+#43 1.840 Processing ./.
+#43 1.845   Preparing metadata (pyproject.toml): started
+#43 3.224   Preparing metadata (pyproject.toml): finished with status 'done'
+#43 3.229 Building wheels for collected packages: agentmesh
+#43 3.234   Building wheel for agentmesh (pyproject.toml): started
+#43 4.680   Building wheel for agentmesh (pyproject.toml): finished with status 'done'
+#43 4.682   Created wheel for agentmesh: filename=agentmesh-0.1.0-py3-none-any.whl size=105012 sha256=13316943d2d2783b03ac84bb23b1b9e55c9bebcf2bc37dd9d3807428c50480d0
+#43 4.682   Stored in directory: /tmp/pip-ephem-wheel-cache-af6j6nvd/wheels/57/0f/98/bb57b2b57b95807699b822a35c022f139d38a02c27922f27ce
+#43 4.687 Successfully built agentmesh
+#43 4.736 Installing collected packages: agentmesh
+#43 4.939 Successfully installed agentmesh-0.1.0
+#43 4.939 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#43 DONE 5.1s
+
+#44 [streamlit] exporting to image
+#44 exporting layers
+#44 ...
+
+#37 [orchestrator-supervisor-agent 6/6] RUN pip install --no-deps --no-build-isolation .
+#37 1.834 Processing ./.
+#37 1.839   Preparing metadata (pyproject.toml): started
+#37 3.216   Preparing metadata (pyproject.toml): finished with status 'done'
+#37 3.220 Building wheels for collected packages: agentmesh
+#37 3.225   Building wheel for agentmesh (pyproject.toml): started
+#37 4.823   Building wheel for agentmesh (pyproject.toml): finished with status 'done'
+#37 4.825   Created wheel for agentmesh: filename=agentmesh-0.1.0-py3-none-any.whl size=105012 sha256=13316943d2d2783b03ac84bb23b1b9e55c9bebcf2bc37dd9d3807428c50480d0
+#37 4.825   Stored in directory: /tmp/pip-ephem-wheel-cache-dd6v4xyk/wheels/57/0f/98/bb57b2b57b95807699b822a35c022f139d38a02c27922f27ce
+#37 4.831 Successfully built agentmesh
+#37 4.875 Installing collected packages: agentmesh
+#37 5.134 Successfully installed agentmesh-0.1.0
+#37 5.135 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#37 DONE 5.3s
+
+#45 [agent-langgraph-copilot] exporting to image
+#45 exporting layers 0.3s done
+#45 exporting manifest sha256:dd3d37834e75be366b8f70658a035d5e57256d3d30a017d3b5ce2cfe9232a8bb 0.0s done
+#45 exporting config sha256:041ac51fb0a4a12c92b9c5d99da6ee486376840121ec38f1a802e6acfaf14786 0.0s done
+#45 exporting attestation manifest sha256:8bc14739bac8f94b4331f50a6a2f9bb9a34d9051e13378efef989b930ec8dce7 0.1s done
+#45 exporting manifest list sha256:05e8e67eb23684817c5dbac793e3ce40667a29b1844383a4f0f54eba8fc618ff 0.0s done
+#45 naming to docker.io/library/agentmesh-agent-langgraph-copilot:latest 0.0s done
+#45 unpacking to docker.io/library/agentmesh-agent-langgraph-copilot:latest
+#45 unpacking to docker.io/library/agentmesh-agent-langgraph-copilot:latest 0.3s done
+#45 DONE 0.9s
+
+#44 [streamlit] exporting to image
+#44 exporting layers 0.3s done
+#44 exporting manifest sha256:330f766e9a6146d503de0b697c0162a99a7d7b1251bce84fef11621f15b36217 0.0s done
+#44 exporting config sha256:337ec29a8183b86aea641805c453161c39321a8d79b5e7553c3d53a16eb4a56a 0.0s done
+#44 exporting attestation manifest sha256:dc40c852d20c00cea0d94542fbcdb37ea6109df826ae6150feb88e740f46fe5d 0.0s done
+#44 exporting manifest list sha256:ea682f9007691c75680f47648ea73ed3f2ccdf778a785ff17211f829b8ba33d4 0.0s done
+#44 naming to docker.io/library/agentmesh-service-ui:latest done
+#44 unpacking to docker.io/library/agentmesh-service-ui:latest 0.4s done
+#44 DONE 0.9s
+
+#46 [agent-langgraph-copilot] resolving provenance for metadata file
+#46 DONE 0.0s
+
+#47 [agent-googleadk-chatagent] exporting to image
+#47 exporting layers 0.3s done
+#47 exporting manifest sha256:9854f8785191c96330aafeee8c5132515b513915d9d1142f46c52c47f028e83a 0.0s done
+#47 exporting config sha256:2142617ec1ca850b3ee03f8eb73c17f8f6f68f657d8e8cb2ba1293ad5fc97f8a 0.0s done
+#47 exporting attestation manifest sha256:3b7dcd601d47e4500f51a57dc6928523df865c4850f9fc9a8f32828dc9b6e050 0.0s done
+#47 exporting manifest list sha256:3de8a5cd7891e21a3daf4395d87959ac58d43772d4eba38dfe1e1851709c24e6 0.0s done
+#47 naming to docker.io/library/agentmesh-agent-googleadk-chatagent:latest done
+#47 unpacking to docker.io/library/agentmesh-agent-googleadk-chatagent:latest 0.3s done
+#47 DONE 0.9s
+
+#48 [orchestrator-supervisor-agent] exporting to image
+#48 exporting layers 0.3s done
+#48 exporting manifest sha256:3f048f093bff52d04338b67e391b119caaa6cd6c042a8f8bfefd2a0db344c20d 0.0s done
+#48 exporting config sha256:236f44f1391696bba4d50ef9636dcc1c7aff29faaba2f5883d35f844263e8137 0.0s done
+#48 exporting attestation manifest sha256:df9ca3c3ec6da292b84e33753f444530c68d7a5323a61c779a553e4df4c6b42c 0.0s done
+#48 exporting manifest list sha256:0ab8ed4ef87707132565a89ad31330a6bf0ebcc0e12c38876f247d31b2353fd0 0.0s done
+#48 naming to docker.io/library/agentmesh-agent-orchestrator-supervisor:latest done
+#48 unpacking to docker.io/library/agentmesh-agent-orchestrator-supervisor:latest 0.4s done
+#48 DONE 0.8s
+
+#49 [streamlit] resolving provenance for metadata file
+#49 DONE 0.0s
+
+#50 [orchestrator-supervisor-agent] resolving provenance for metadata file
+#50 DONE 0.0s
+
+#51 [agent-googleadk-chatagent] resolving provenance for metadata file
+#51 DONE 0.1s
+ Image agentmesh-migrate Built 
+ Image agentmesh-agent-orchestrator-supervisor Built 
+ Image agentmesh-service-ui Built 
+ Image agentmesh-agent-googleadk-chatagent Built 
+ Image agentmesh-agent-langgraph-copilot Built 
+ Container agentmesh-migrate Recreate 
+ Container agentmesh-migrate Recreated 
+ Container agentmesh-orchestrator-supervisor Recreate 
+ Container agentmesh-orchestrator-supervisor Recreated 
+ Container agentmesh-streamlit Recreate 
+ Container agentmesh-agent-langgraph-copilot-1 Recreate 
+ Container agentmesh-agent-googleadk-chatagent-1 Recreate 
+ Container agentmesh-streamlit Recreated 
+ Container agentmesh-agent-googleadk-chatagent-1 Recreated 
+ Container agentmesh-agent-langgraph-copilot-1 Recreated 
+ Container agentmesh-postgres Starting 
+ Container agentmesh-postgres Started 
+ Container agentmesh-postgres Waiting 
+ Container agentmesh-postgres Healthy 
+ Container agentmesh-migrate Starting 
+ Container agentmesh-migrate Started 
+ Container agentmesh-migrate Waiting 
+ Container agentmesh-migrate Exited 
+ Container agentmesh-orchestrator-supervisor Starting 
+ Container agentmesh-orchestrator-supervisor Started 
+ Container agentmesh-migrate Waiting 
+ Container agentmesh-orchestrator-supervisor Waiting 
+ Container agentmesh-migrate Waiting 
+ Container agentmesh-orchestrator-supervisor Waiting 
+ Container agentmesh-orchestrator-supervisor Waiting 
+ Container agentmesh-migrate Exited 
+ Container agentmesh-migrate Exited 
+ Container agentmesh-orchestrator-supervisor Healthy 
+ Container agentmesh-agent-googleadk-chatagent-1 Starting 
+ Container agentmesh-orchestrator-supervisor Healthy 
+ Container agentmesh-streamlit Starting 
+ Container agentmesh-orchestrator-supervisor Healthy 
+ Container agentmesh-agent-langgraph-copilot-1 Starting 
+ Container agentmesh-agent-langgraph-copilot-1 Started 
+ Container agentmesh-streamlit Started 
+ Container agentmesh-agent-googleadk-chatagent-1 Started 

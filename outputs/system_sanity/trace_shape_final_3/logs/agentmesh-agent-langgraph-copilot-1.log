@@ -1,0 +1,18 @@
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8101 (Press CTRL+C to quit)
+INFO:     172.18.0.1:55264 - "GET /ready HTTP/1.1" 200 OK
+INFO:     172.18.0.1:55266 - "POST /invoke HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38684 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43090 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50812 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43916 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50326 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55478 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52574 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43126 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60824 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49120 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42480 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50686 - "GET /health HTTP/1.1" 200 OK

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from collections.abc import Callable
 from threading import Event as ThreadEvent
@@ -15,6 +16,14 @@ from google.adk.sessions import BaseSessionService, DatabaseSessionService
 from google.genai import types
 
 from agentmesh.agents.common.base_agent import BaseAgent
+from agentmesh.core.models.exceptions import ModelProviderError
+from agentmesh.core.observability import (
+    agentmesh_metadata,
+    agentmesh_run_name,
+    agentmesh_span,
+    resolve_trace_author,
+    trace_author_metadata,
+)
 
 
 class GoogleADKAgent(BaseAgent):
@@ -59,28 +68,55 @@ class GoogleADKAgent(BaseAgent):
     def run_task(self, task_payload: dict[str, Any]) -> dict[str, Any]:
         prompt = self._task_prompt(task_payload)
         user_id, session_id = self._session_identity(task_payload)
-        if self._executor is not None:
-            reply = self._executor(prompt)
-        elif self._adk_runner is not None and self._event_loop is not None:
-            with self._runner_lock:
-                reply = asyncio.run_coroutine_threadsafe(
-                    self._execute_adk(prompt, user_id=user_id, session_id=session_id),
-                    self._event_loop,
-                ).result()
-        else:
-            reply = f"Local ADK fallback response for: {prompt}"
-        return {
-            "status": "success",
-            "agent": self.agent_name,
-            "model": self.model_name,
-            "final_reply": reply,
-            "source": (
-                "google_adk_llm"
-                if self._executor is not None or self._adk_runner is not None
-                else "local_fallback"
+        nested_payload = task_payload.get("payload")
+        nested = nested_payload if isinstance(nested_payload, dict) else {}
+        workflow_id = str(task_payload.get("workflow_id") or nested.get("workflow_id") or "")
+        task_id = str(task_payload.get("task_id") or nested.get("task_id") or "")
+        mode = "WorkFlow" if workflow_id or task_id else "Direct"
+        unique_id = workflow_id or session_id
+        author = resolve_trace_author(self.agent_name, agent_card=self.agent_card())
+        with agentmesh_span(
+            agentmesh_run_name(mode, unique_id, prompt, author.author_name),
+            inputs={"prompt": prompt},
+            metadata=agentmesh_metadata(
+                agent_id=self.agent_name,
+                agent_name=author.author_name,
+                execution_mode="workflow" if mode == "WorkFlow" else "direct",
+                workflow_id=workflow_id,
+                task_id=task_id,
+                session_id=session_id,
+                user_id=user_id,
+                model=self.model_name,
+                framework="google_adk",
+                **trace_author_metadata(author),
             ),
-            "session_id": session_id,
-        }
+            tags=["google-adk", self.agent_name],
+        ) as run:
+            if self._executor is not None:
+                reply = self._executor(prompt)
+            elif self._adk_runner is not None and self._event_loop is not None:
+                with self._runner_lock:
+                    reply = asyncio.run_coroutine_threadsafe(
+                        self._execute_adk(prompt, user_id=user_id, session_id=session_id),
+                        self._event_loop,
+                    ).result()
+            else:
+                raise ModelProviderError(
+                    "Google ADK has no configured model runtime. Set LLM_PROVIDER=groq, "
+                    "provide GROQ_API_KEY, and configure a compatible GOOGLE_ADK_MODEL."
+                )
+            source = "google_adk_llm"
+            response = {
+                "status": "success",
+                "agent": self.agent_name,
+                "model": self.model_name,
+                "final_reply": reply,
+                "source": source,
+                "session_id": session_id,
+            }
+            if run is not None:
+                run.end(outputs={"status": response["status"], "source": source})
+            return response
 
     def run_conversation(self, user_message: str) -> dict[str, Any]:
         return self.run_task({"messages": [user_message]})
@@ -94,9 +130,12 @@ class GoogleADKAgent(BaseAgent):
         os.environ["GROQ_API_KEY"] = api_key
         os.environ.setdefault("PYTHONUTF8", "1")
         provider_model = model_name if model_name.startswith("groq/") else f"groq/{model_name}"
+        model_options: dict[str, Any] = {"include_reasoning": False}
+        if "qwen/qwen3" in provider_model.lower():
+            model_options["reasoning_effort"] = "none"
         root_agent = LlmAgent(
             name="adk_spark_worker",
-            model=LiteLlm(model=provider_model, include_reasoning=False),
+            model=LiteLlm(model=provider_model, **model_options),
             description="AgentMesh Google ADK worker",
             instruction=(
                 "Complete the assigned AgentMesh task concisely. Return only useful task output, "
@@ -180,13 +219,29 @@ class GoogleADKAgent(BaseAgent):
     def _task_prompt(task_payload: dict[str, Any]) -> str:
         messages = task_payload.get("messages")
         if isinstance(messages, list) and messages:
-            return str(messages[-1])
+            prompt = str(messages[-1])
+        else:
+            nested_payload = task_payload.get("payload")
+            goal = (
+                str(nested_payload.get("goal", ""))
+                if isinstance(nested_payload, dict)
+                else ""
+            )
+            description = str(task_payload.get("description", "")).strip()
+            prompt = "\n\n".join(part for part in [description, goal] if part)
         nested_payload = task_payload.get("payload")
-        goal = str(nested_payload.get("goal", "")) if isinstance(nested_payload, dict) else ""
-        description = str(task_payload.get("description", "")).strip()
-        prompt = "\n\n".join(part for part in [description, goal] if part)
         if not prompt:
             raise ValueError("A Google ADK task requires messages, a goal, or a description.")
+        if isinstance(nested_payload, dict):
+            workflow_context = nested_payload.get("workflow_context", {})
+            if isinstance(workflow_context, dict):
+                resolved_inputs = workflow_context.get("resolved_inputs", {})
+                if isinstance(resolved_inputs, dict) and resolved_inputs:
+                    prompt = (
+                        f"{prompt}\n\nValidated dependency outputs:\n"
+                        f"{json.dumps(resolved_inputs, indent=2, sort_keys=True, default=str)}"
+                        "\n\nUse these dependency outputs as input to this task."
+                    )
         return prompt
 
     @staticmethod

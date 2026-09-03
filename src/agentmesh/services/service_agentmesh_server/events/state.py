@@ -49,6 +49,13 @@ class StateService:
                 metadata["goal"] = payload.get("goal", "")
                 metadata["rerun_of_workflow_id"] = payload.get("rerun_of_workflow_id")
                 metadata["rerun_of_task_id"] = payload.get("rerun_of_task_id")
+                metadata["approval_required"] = bool(
+                    payload.get("approval_required", True)
+                )
+            elif event.event_type == "WORKFLOW_RECOVERY_STARTED":
+                status = WorkflowStatus.RUNNING
+                metadata["recovery_of_workflow_id"] = payload.get("source_workflow_id")
+                metadata["source_checkpoint_id"] = payload.get("checkpoint_id")
             elif event.event_type in {"WORKFLOW_RERUN_REQUESTED", "TASK_RERUN_REQUESTED"}:
                 reruns = list(metadata.get("reruns", []))
                 reruns.append(payload)
@@ -97,6 +104,17 @@ class StateService:
                 if event.target_agent and event.target_agent not in assigned_agents:
                     assigned_agents.append(event.target_agent)
                 pending = ["TASK_COMPLETED", "TASK_FAILED", "AGENT_APPROVAL_REQUESTED"]
+            elif event.event_type == "TASK_OUTPUT_RECEIVED":
+                status = WorkflowStatus.WAITING_FOR_AGENT
+                metadata["received_output"] = payload
+                pending = ["TASK_VALIDATION_COMPLETED"]
+            elif event.event_type == "TASK_VALIDATION_REQUESTED":
+                status = WorkflowStatus.WAITING_FOR_AGENT
+                pending = ["TASK_VALIDATION_COMPLETED"]
+            elif event.event_type == "TASK_VALIDATION_COMPLETED":
+                decision = payload.get("decision", {})
+                metadata["validation_decision"] = decision
+                pending = ["TASK_COMPLETED", "TASK_FAILED"]
             elif event.event_type == "AGENT_OUTPUT_PROPOSED":
                 metadata["proposed_agent_output"] = payload.get("result", {})
             elif event.event_type == "AGENT_APPROVAL_REQUESTED":
@@ -125,10 +143,13 @@ class StateService:
                 results = list(metadata.get("task_results", []))
                 results.append(payload)
                 metadata["task_results"] = results
-            elif event.event_type in {"TASK_FAILED", "WORKFLOW_FAILED"}:
+            elif event.event_type in {
+                "TASK_FAILED", "WORKFLOW_FAILED", "SUPERVISOR_ACTION_FAILED"
+            }:
                 status = WorkflowStatus.FAILED
                 pending = []
                 metadata.pop("assignment_event_id", None)
+                metadata.pop("pending_approval", None)
                 metadata["failure"] = payload
             elif event.event_type == "WORKFLOW_COMPLETED":
                 status = WorkflowStatus.COMPLETED

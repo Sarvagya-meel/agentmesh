@@ -1,0 +1,851 @@
+[
+  {
+    "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+    "conversation_id": "sanity-workflow-0abab2be-756e-454b-8b51-3a95d740db23",
+    "status": "AWAITING_PLAN_APPROVAL",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+          "dependencies": [],
+          "expected_output": "A single short sanity check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Use googleADK-Chatagent to answer the drafted sanity check in one sentence.",
+          "dependencies": [
+            "a1033c9c-2291-4003-a013-2ba433368bbf"
+          ],
+          "expected_output": "A one-sentence answer to the sanity check.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "46b66d20-74e9-4aec-aba0-364417a8592f",
+      "version": 1,
+      "rationale": "We first create a tiny sanity check using the drafting capability of langgraph\u2011copilot, then have googleADK\u2011Chatagent answer it in a single sentence using its chat capability.",
+      "created_at": "2026-08-30T14:34:03.132392Z",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": null,
+    "pending_input": {
+      "type": "human_approval",
+      "approval": {
+        "approval_id": "415af7c1-7169-42c9-987d-7f54e36fad6d",
+        "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+        "approval_type": "PLAN",
+        "subject_id": "46b66d20-74e9-4aec-aba0-364417a8592f",
+        "prompt": "Approve workflow plan version 1 before tasks are prepared?",
+        "options": [
+          "APPROVE",
+          "REVISE",
+          "REJECT"
+        ],
+        "context": {
+          "plan": {
+            "plan_id": "46b66d20-74e9-4aec-aba0-364417a8592f",
+            "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "version": 1,
+            "tasks": [
+              {
+                "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+                "position": 0,
+                "name": "Draft sanity check",
+                "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+                "required_capability": "DRAFT",
+                "agent_id": "langgraph-copilot",
+                "payload": {
+                  "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+                  "revision_feedback": ""
+                },
+                "dependencies": [],
+                "expected_output": "A single short sanity check question.",
+                "status": "PROPOSED"
+              },
+              {
+                "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+                "position": 1,
+                "name": "Answer sanity check",
+                "description": "Use googleADK-Chatagent to answer the drafted sanity check in one sentence.",
+                "required_capability": "CHAT",
+                "agent_id": "googleADK-Chatagent",
+                "payload": {
+                  "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+                  "revision_feedback": ""
+                },
+                "dependencies": [
+                  "a1033c9c-2291-4003-a013-2ba433368bbf"
+                ],
+                "expected_output": "A one-sentence answer to the sanity check.",
+                "status": "PROPOSED"
+              }
+            ],
+            "rationale": "We first create a tiny sanity check using the drafting capability of langgraph\u2011copilot, then have googleADK\u2011Chatagent answer it in a single sentence using its chat capability.",
+            "planner_provider": "groq",
+            "planner_model": "openai/gpt-oss-120b",
+            "created_at": "2026-08-30T14:34:03.132392Z"
+          }
+        }
+      },
+      "prompt": "Approve workflow plan version 1 before tasks are prepared?",
+      "options": [
+        {
+          "label": "Approve",
+          "value": "APPROVE"
+        },
+        {
+          "label": "Revise",
+          "value": "REVISE"
+        },
+        {
+          "label": "Reject",
+          "value": "REJECT"
+        }
+      ],
+      "plan": {
+        "plan_id": "46b66d20-74e9-4aec-aba0-364417a8592f",
+        "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "version": 1,
+        "tasks": [
+          {
+            "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+            "position": 0,
+            "name": "Draft sanity check",
+            "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+            "required_capability": "DRAFT",
+            "agent_id": "langgraph-copilot",
+            "payload": {
+              "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+              "revision_feedback": ""
+            },
+            "dependencies": [],
+            "expected_output": "A single short sanity check question.",
+            "status": "PROPOSED"
+          },
+          {
+            "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+            "position": 1,
+            "name": "Answer sanity check",
+            "description": "Use googleADK-Chatagent to answer the drafted sanity check in one sentence.",
+            "required_capability": "CHAT",
+            "agent_id": "googleADK-Chatagent",
+            "payload": {
+              "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+              "revision_feedback": ""
+            },
+            "dependencies": [
+              "a1033c9c-2291-4003-a013-2ba433368bbf"
+            ],
+            "expected_output": "A one-sentence answer to the sanity check.",
+            "status": "PROPOSED"
+          }
+        ],
+        "rationale": "We first create a tiny sanity check using the drafting capability of langgraph\u2011copilot, then have googleADK\u2011Chatagent answer it in a single sentence using its chat capability.",
+        "planner_provider": "groq",
+        "planner_model": "openai/gpt-oss-120b",
+        "created_at": "2026-08-30T14:34:03.132392Z"
+      }
+    },
+    "assigned_agents": [],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+    "conversation_id": "sanity-workflow-0abab2be-756e-454b-8b51-3a95d740db23",
+    "status": "WAITING_FOR_AGENT",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+          "dependencies": [],
+          "expected_output": "A single short sanity check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Use googleADK-Chatagent to answer the drafted sanity check in one sentence.",
+          "dependencies": [
+            "a1033c9c-2291-4003-a013-2ba433368bbf"
+          ],
+          "expected_output": "A one-sentence answer to the sanity check.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "46b66d20-74e9-4aec-aba0-364417a8592f",
+      "version": 1,
+      "rationale": "We first create a tiny sanity check using the drafting capability of langgraph\u2011copilot, then have googleADK\u2011Chatagent answer it in a single sentence using its chat capability.",
+      "created_at": "2026-08-30T14:34:03.132392Z",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+      "dependencies": [],
+      "expected_output": "A single short sanity check question.",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "agent_result",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "task": {
+        "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+        "position": 0,
+        "name": "Draft sanity check",
+        "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+        "required_capability": "DRAFT",
+        "agent_id": "langgraph-copilot",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": ""
+        },
+        "dependencies": [],
+        "expected_output": "A single short sanity check question.",
+        "status": "PROPOSED"
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+    "conversation_id": "sanity-workflow-0abab2be-756e-454b-8b51-3a95d740db23",
+    "status": "WAITING_FOR_AGENT",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+          "dependencies": [],
+          "expected_output": "A single short sanity check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Use googleADK-Chatagent to answer the drafted sanity check in one sentence.",
+          "dependencies": [
+            "a1033c9c-2291-4003-a013-2ba433368bbf"
+          ],
+          "expected_output": "A one-sentence answer to the sanity check.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "46b66d20-74e9-4aec-aba0-364417a8592f",
+      "version": 1,
+      "rationale": "We first create a tiny sanity check using the drafting capability of langgraph\u2011copilot, then have googleADK\u2011Chatagent answer it in a single sentence using its chat capability.",
+      "created_at": "2026-08-30T14:34:03.132392Z",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+      "dependencies": [],
+      "expected_output": "A single short sanity check question.",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "agent_result",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "task": {
+        "name": "Draft sanity check",
+        "status": "PROPOSED",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": ""
+        },
+        "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+        "agent_id": "langgraph-copilot",
+        "position": 0,
+        "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+        "dependencies": [],
+        "expected_output": "A single short sanity check question.",
+        "required_capability": "DRAFT"
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+    "conversation_id": "sanity-workflow-0abab2be-756e-454b-8b51-3a95d740db23",
+    "status": "WAITING_FOR_AGENT",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+          "dependencies": [],
+          "expected_output": "A single short sanity check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Use googleADK-Chatagent to answer the drafted sanity check in one sentence.",
+          "dependencies": [
+            "a1033c9c-2291-4003-a013-2ba433368bbf"
+          ],
+          "expected_output": "A one-sentence answer to the sanity check.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "46b66d20-74e9-4aec-aba0-364417a8592f",
+      "version": 1,
+      "rationale": "We first create a tiny sanity check using the drafting capability of langgraph\u2011copilot, then have googleADK\u2011Chatagent answer it in a single sentence using its chat capability.",
+      "created_at": "2026-08-30T14:34:03.132392Z",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+      "dependencies": [],
+      "expected_output": "A single short sanity check question.",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "agent_result",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "task": {
+        "name": "Draft sanity check",
+        "status": "PROPOSED",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": ""
+        },
+        "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+        "agent_id": "langgraph-copilot",
+        "position": 0,
+        "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+        "dependencies": [],
+        "expected_output": "A single short sanity check question.",
+        "required_capability": "DRAFT"
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+    "conversation_id": "sanity-workflow-0abab2be-756e-454b-8b51-3a95d740db23",
+    "status": "AWAITING_AGENT_APPROVAL",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+          "dependencies": [],
+          "expected_output": "A single short sanity check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Use googleADK-Chatagent to answer the drafted sanity check in one sentence.",
+          "dependencies": [
+            "a1033c9c-2291-4003-a013-2ba433368bbf"
+          ],
+          "expected_output": "A one-sentence answer to the sanity check.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "46b66d20-74e9-4aec-aba0-364417a8592f",
+      "version": 1,
+      "rationale": "We first create a tiny sanity check using the drafting capability of langgraph\u2011copilot, then have googleADK\u2011Chatagent answer it in a single sentence using its chat capability.",
+      "created_at": "2026-08-30T14:34:03.132392Z",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+      "dependencies": [],
+      "expected_output": "A single short sanity check question.",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "human_approval",
+      "approval": {
+        "prompt": "Review the LangGraph Copilot draft before accepting it.",
+        "context": {
+          "task": {
+            "name": "Draft sanity check",
+            "status": "PROPOSED",
+            "payload": {
+              "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+              "revision_feedback": ""
+            },
+            "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+            "agent_id": "langgraph-copilot",
+            "position": 0,
+            "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+            "dependencies": [],
+            "expected_output": "A single short sanity check question.",
+            "required_capability": "DRAFT"
+          },
+          "agent_id": "langgraph-copilot",
+          "thread_id": "agent:workflow:a1033c9c-2291-4003-a013-2ba433368bbf",
+          "draft_reply": "**Sanity check:** What is the result of adding 2\u202f+\u202f2?  \n**Answer:** 4.",
+          "agent_output": {
+            "agent": "langgraph-copilot",
+            "model": "openai/gpt-oss-120b",
+            "prompt": "Review the LangGraph Copilot draft before accepting it.",
+            "status": "AWAITING_APPROVAL",
+            "options": [
+              "approve",
+              "revise",
+              "reject"
+            ],
+            "interrupt": {
+              "type": "agent_output_approval",
+              "prompt": "Review the LangGraph Copilot draft before accepting it.",
+              "options": [
+                "approve",
+                "revise",
+                "reject"
+              ],
+              "draft_reply": "**Sanity check:** What is the result of adding 2\u202f+\u202f2?  \n**Answer:** 4.",
+              "max_revisions": 2,
+              "revision_count": 0
+            },
+            "llm_model": "openai/gpt-oss-120b",
+            "thread_id": "agent:workflow:a1033c9c-2291-4003-a013-2ba433368bbf",
+            "draft_reply": "**Sanity check:** What is the result of adding 2\u202f+\u202f2?  \n**Answer:** 4.",
+            "attempt_number": 1
+          }
+        },
+        "options": [
+          "APPROVE",
+          "REVISE",
+          "REJECT"
+        ],
+        "subject_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+        "approval_id": "1a643995-a948-49f7-871e-0d9f49991fda",
+        "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+        "approval_type": "AGENT_OUTPUT"
+      },
+      "prompt": "Review the LangGraph Copilot draft before accepting it.",
+      "options": [
+        {
+          "label": "Approve",
+          "value": "APPROVE"
+        },
+        {
+          "label": "Revise",
+          "value": "REVISE"
+        },
+        {
+          "label": "Reject",
+          "value": "REJECT"
+        }
+      ],
+      "task": {
+        "name": "Draft sanity check",
+        "status": "PROPOSED",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": ""
+        },
+        "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+        "agent_id": "langgraph-copilot",
+        "position": 0,
+        "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+        "dependencies": [],
+        "expected_output": "A single short sanity check question.",
+        "required_capability": "DRAFT"
+      },
+      "agent_id": "langgraph-copilot",
+      "thread_id": "agent:workflow:a1033c9c-2291-4003-a013-2ba433368bbf",
+      "draft_reply": "**Sanity check:** What is the result of adding 2\u202f+\u202f2?  \n**Answer:** 4.",
+      "agent_output": {
+        "agent": "langgraph-copilot",
+        "model": "openai/gpt-oss-120b",
+        "prompt": "Review the LangGraph Copilot draft before accepting it.",
+        "status": "AWAITING_APPROVAL",
+        "options": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "interrupt": {
+          "type": "agent_output_approval",
+          "prompt": "Review the LangGraph Copilot draft before accepting it.",
+          "options": [
+            "approve",
+            "revise",
+            "reject"
+          ],
+          "draft_reply": "**Sanity check:** What is the result of adding 2\u202f+\u202f2?  \n**Answer:** 4.",
+          "max_revisions": 2,
+          "revision_count": 0
+        },
+        "llm_model": "openai/gpt-oss-120b",
+        "thread_id": "agent:workflow:a1033c9c-2291-4003-a013-2ba433368bbf",
+        "draft_reply": "**Sanity check:** What is the result of adding 2\u202f+\u202f2?  \n**Answer:** 4.",
+        "attempt_number": 1
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+    "conversation_id": "sanity-workflow-0abab2be-756e-454b-8b51-3a95d740db23",
+    "status": "WAITING_FOR_AGENT",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+          "dependencies": [],
+          "expected_output": "A single short sanity check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Use googleADK-Chatagent to answer the drafted sanity check in one sentence.",
+          "dependencies": [
+            "a1033c9c-2291-4003-a013-2ba433368bbf"
+          ],
+          "expected_output": "A one-sentence answer to the sanity check.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "46b66d20-74e9-4aec-aba0-364417a8592f",
+      "version": 1,
+      "rationale": "We first create a tiny sanity check using the drafting capability of langgraph\u2011copilot, then have googleADK\u2011Chatagent answer it in a single sentence using its chat capability.",
+      "created_at": "2026-08-30T14:34:03.132392Z",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Draft sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "resume_thread_id": "agent:workflow:a1033c9c-2291-4003-a013-2ba433368bbf",
+        "approval_decision": "approve",
+        "approval_feedback": "",
+        "revision_feedback": ""
+      },
+      "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+      "agent_id": "langgraph-copilot",
+      "position": 0,
+      "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+      "dependencies": [],
+      "expected_output": "A single short sanity check question.",
+      "required_capability": "DRAFT"
+    },
+    "pending_input": {
+      "type": "agent_result",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "task": {
+        "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+        "position": 0,
+        "name": "Draft sanity check",
+        "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+        "required_capability": "DRAFT",
+        "agent_id": "langgraph-copilot",
+        "payload": {
+          "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+          "revision_feedback": "",
+          "resume_thread_id": "agent:workflow:a1033c9c-2291-4003-a013-2ba433368bbf",
+          "approval_decision": "approve",
+          "approval_feedback": ""
+        },
+        "dependencies": [],
+        "expected_output": "A single short sanity check question.",
+        "status": "PROPOSED"
+      }
+    },
+    "assigned_agents": [
+      "langgraph-copilot"
+    ],
+    "task_results": [],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  },
+  {
+    "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+    "conversation_id": "sanity-workflow-0abab2be-756e-454b-8b51-3a95d740db23",
+    "status": "COMPLETED",
+    "plan": {
+      "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+      "tasks": [
+        {
+          "name": "Draft sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+          "agent_id": "langgraph-copilot",
+          "position": 0,
+          "description": "Use langgraph-copilot to draft a tiny sanity check question.",
+          "dependencies": [],
+          "expected_output": "A single short sanity check question.",
+          "required_capability": "DRAFT"
+        },
+        {
+          "name": "Answer sanity check",
+          "status": "PROPOSED",
+          "payload": {
+            "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+            "revision_feedback": ""
+          },
+          "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+          "agent_id": "googleADK-Chatagent",
+          "position": 1,
+          "description": "Use googleADK-Chatagent to answer the drafted sanity check in one sentence.",
+          "dependencies": [
+            "a1033c9c-2291-4003-a013-2ba433368bbf"
+          ],
+          "expected_output": "A one-sentence answer to the sanity check.",
+          "required_capability": "CHAT"
+        }
+      ],
+      "plan_id": "46b66d20-74e9-4aec-aba0-364417a8592f",
+      "version": 1,
+      "rationale": "We first create a tiny sanity check using the drafting capability of langgraph\u2011copilot, then have googleADK\u2011Chatagent answer it in a single sentence using its chat capability.",
+      "created_at": "2026-08-30T14:34:03.132392Z",
+      "workflow_id": "13cbb098-13b0-4d5e-8a6c-8ee85e62dec8",
+      "planner_model": "openai/gpt-oss-120b",
+      "planner_provider": "groq"
+    },
+    "current_task": {
+      "name": "Answer sanity check",
+      "status": "PROPOSED",
+      "payload": {
+        "goal": "Draft a tiny sanity check, then answer it in one sentence.",
+        "revision_feedback": ""
+      },
+      "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+      "agent_id": "googleADK-Chatagent",
+      "position": 1,
+      "description": "Use googleADK-Chatagent to answer the drafted sanity check in one sentence.",
+      "dependencies": [
+        "a1033c9c-2291-4003-a013-2ba433368bbf"
+      ],
+      "expected_output": "A one-sentence answer to the sanity check.",
+      "required_capability": "CHAT"
+    },
+    "pending_input": null,
+    "assigned_agents": [
+      "langgraph-copilot",
+      "googleADK-Chatagent"
+    ],
+    "task_results": [
+      {
+        "result": {
+          "status": "COMPLETED",
+          "approved": true,
+          "rejected": false,
+          "llm_model": "openai/gpt-oss-120b",
+          "task_kind": "simple",
+          "thread_id": "agent:workflow:a1033c9c-2291-4003-a013-2ba433368bbf",
+          "draft_reply": "**Sanity check:** What is the result of adding 2\u202f+\u202f2?  \n**Answer:** 4.",
+          "final_reply": "**Sanity check:** What is the result of adding 2\u202f+\u202f2?  \n**Answer:** 4.",
+          "max_revisions": 2,
+          "memory_opt_in": false,
+          "quality_score": 1.0,
+          "attempt_number": 1,
+          "memory_updates": {},
+          "memory_user_id": "",
+          "revision_count": 0,
+          "draft_message_id": "34ab483d-7348-4cbe-8e60-a35dbcb7b5e9",
+          "approval_decision": "approve",
+          "approval_feedback": "",
+          "approval_required": true,
+          "long_term_memories": [],
+          "memory_delete_keys": [],
+          "evaluation_attempts": 1,
+          "evaluation_feedback": "",
+          "max_evaluation_tokens": 12000,
+          "evaluation_deadline_at": "2026-08-30T14:34:49.005627+00:00",
+          "evaluation_tokens_used": 13,
+          "max_evaluation_attempts": 3
+        },
+        "task_id": "a1033c9c-2291-4003-a013-2ba433368bbf",
+        "assignment_event_id": "e83b9716-13fc-4a72-8902-046f0dc8dc24"
+      },
+      {
+        "result": {
+          "agent": "googleADK-Chatagent",
+          "model": "openai/gpt-oss-120b",
+          "source": "local_fallback",
+          "status": "success",
+          "session_id": "d2664a1b-207a-4e6f-a0bc-2de6737eebe2",
+          "final_reply": "Local ADK fallback response for: Use googleADK-Chatagent to answer the drafted sanity check in one sentence.\n\nDraft a tiny sanity check, then answer it in one sentence.",
+          "attempt_number": 1
+        },
+        "task_id": "05e8c06a-da86-4ff6-9a86-6cf8a1b6e421",
+        "assignment_event_id": "5640cff6-fa85-477b-b2b8-0de354b61891"
+      }
+    ],
+    "rerun_of_workflow_id": null,
+    "rerun_of_task_id": null
+  }
+]

@@ -6,6 +6,7 @@ from google.adk.sessions import BaseSessionService, DatabaseSessionService, InMe
 
 from agentmesh.config import Settings
 from agentmesh.core.models.exceptions import ValidationError
+from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
 
 
 def google_adk_database_url(database_url: str) -> str:
@@ -23,11 +24,34 @@ def create_google_adk_session_service(settings: Settings) -> BaseSessionService:
 
     backend = settings.google_adk_session_backend.strip().lower()
     if backend == "memory":
-        return InMemorySessionService()
+        with agentmesh_span(
+            agentmesh_run_name("CheckPointer", "google-adk-memory", "session setup", "system"),
+            metadata=agentmesh_metadata(
+                checkpoint_backend="google_adk_memory",
+                checkpoint_operation="session_setup",
+                framework="google_adk",
+            ),
+            tags=["checkpoint", "google-adk", "setup"],
+        ):
+            return InMemorySessionService()
     if backend not in {"database", "postgres"}:
         raise ValidationError("GOOGLE_ADK_SESSION_BACKEND must be memory, database, or postgres.")
     try:
-        return DatabaseSessionService(db_url=google_adk_database_url(settings.database_url))
+        with agentmesh_span(
+            agentmesh_run_name(
+                "CheckPointer",
+                "google-adk-database",
+                "session setup",
+                "system",
+            ),
+            metadata=agentmesh_metadata(
+                checkpoint_backend="google_adk_database",
+                checkpoint_operation="session_setup",
+                framework="google_adk",
+            ),
+            tags=["checkpoint", "google-adk", "database", "setup"],
+        ):
+            return DatabaseSessionService(db_url=google_adk_database_url(settings.database_url))
     except (ImportError, ValueError) as exc:
         raise ValidationError(
             "Google ADK database sessions require the ADK database dependencies."

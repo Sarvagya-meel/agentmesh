@@ -1,0 +1,62 @@
+{
+  "endpoint": "https://api.smith.langchain.com",
+  "project": "AgentMesh",
+  "api_key_present": true,
+  "project_matches": 1,
+  "recent_run_count_sample": 100,
+  "trace_marker_thread_id": "langsmith-trace-shape-da9ecb1c-f137-48be-b675-99943221c642",
+  "agentmesh_trace_shape": true,
+  "no_routine_registry_noise": true,
+  "recent_runs": [
+    {
+      "name": "finalize",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:47:20.724642+00:00"
+    },
+    {
+      "name": "_evaluation_route",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:47:20.723853+00:00"
+    },
+    {
+      "name": "evaluate_output",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:47:20.723853+00:00"
+    },
+    {
+      "name": "validate_output",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:47:20.722390+00:00"
+    },
+    {
+      "name": "generate_response",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:47:20.721645+00:00"
+    },
+    {
+      "name": "plan_task",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:47:20.720104+00:00"
+    },
+    {
+      "name": "RunnableCallable",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:47:20.719390+00:00"
+    },
+    {
+      "name": "classify_task",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:47:20.718603+00:00"
+    },
+    {
+      "name": "load_context",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:47:20.717138+00:00"
+    },
+    {
+      "name": "validate_input",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:47:20.716355+00:00"
+    }
+  ]
+}

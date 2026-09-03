@@ -1,6 +1,6 @@
 # ─── Dockerfile.Service ──────────────────────────────────────────────────────
-# Builds the AgentMesh control-plane server (orchestrator + API) and the
-# Streamlit UI. Both share the same image; the entrypoint differs in compose.
+# Builds the AgentMesh control plane, supervisor, or Streamlit UI. Compose
+# assigns a separate image name and entrypoint to each process.
 #
 # Optional build arg:
 #   DEPENDENCY_GROUP — pyproject.toml group to install
@@ -37,5 +37,5 @@ COPY src ./src
 RUN pip install --no-deps --no-build-isolation .
 
 # ── Default entrypoint: control-plane API server ─────────────────────────────
-CMD ["uvicorn", "agentmesh.services.service_agentmesh_server.app:app", \
+CMD ["uvicorn", "agentmesh.services.service_agentmesh_server.control_plane_app:app", \
      "--host", "0.0.0.0", "--port", "8000"]

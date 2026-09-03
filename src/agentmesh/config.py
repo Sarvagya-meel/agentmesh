@@ -11,10 +11,14 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     poll_interval_seconds: float = 2.0
     agentmesh_api_url: str = "http://127.0.0.1:8000"
+    supervisor_agent_id: str = "orchestrator-supervisor-agent"
+    supervisor_api_url: str = "http://127.0.0.1:8110"
+    internal_service_token: SecretStr | None = None
     worker_heartbeat_seconds: float = Field(default=60.0, gt=0)
     agent_stale_seconds: float = Field(default=180.0, gt=0)
     worker_lease_seconds: int = Field(default=300, ge=10)
     worker_request_timeout_seconds: float = Field(default=30.0, gt=0)
+    supervisor_action_lease_seconds: int = Field(default=300, ge=10)
     agent_runtime_role: str = "combined"
     agent_max_concurrency: int = Field(default=4, ge=1)
     agent_shutdown_timeout_seconds: float = Field(default=30.0, gt=0)
@@ -33,7 +37,11 @@ class Settings(BaseSettings):
     langgraph_memory_retention_days: int = Field(default=30, ge=1)
     langsmith_tracing: bool = False
     langsmith_project: str = "agentmesh-local"
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    langsmith_api_key: SecretStr | None = None
+    langsmith_workspace_id: str = ""
     google_adk_session_backend: str = "memory"
+    google_adk_model: str = ""
 
     llm_provider: str = "mock"
     bedrock_model_id: str = ""
@@ -44,6 +52,10 @@ class Settings(BaseSettings):
     groq_temperature: float = Field(default=0.1, ge=0, le=2)
     groq_max_completion_tokens: int = Field(default=4096, gt=0)
     groq_timeout_seconds: float = Field(default=45.0, gt=0)
+    litellm_enabled: bool = False
+    litellm_api_base: str = "http://127.0.0.1:4000/v1"
+    litellm_master_key: SecretStr = SecretStr("sk-agentmesh-local")
+    litellm_model: str = "agentmesh-groq"
 
     aws_agent_registry_enabled: bool = False
     agent_registry_id: str = ""

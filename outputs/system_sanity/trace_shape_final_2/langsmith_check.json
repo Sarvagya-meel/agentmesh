@@ -1,0 +1,60 @@
+{
+  "endpoint": "https://api.smith.langchain.com",
+  "project": "AgentMesh",
+  "api_key_present": true,
+  "project_matches": 1,
+  "recent_run_count_sample": 50,
+  "agentmesh_trace_shape": false,
+  "recent_runs": [
+    {
+      "name": "Registry || langgraph-copilot || get agent || langgraph-copilot || 2026-08-30T14:24:30+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:24:30.429764+00:00"
+    },
+    {
+      "name": "Registry || langgraph-copilot || get agent || langgraph-copilot || 2026-08-30T14:24:30+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:24:30.423872+00:00"
+    },
+    {
+      "name": "Registry || googleADK-Chatagent || get agent || googleADK-Chatagent || 2026-08-30T14:24:29+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:24:29.756625+00:00"
+    },
+    {
+      "name": "Registry || googleADK-Chatagent || get agent || googleADK-Chatagent || 2026-08-30T14:24:29+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:24:29.749250+00:00"
+    },
+    {
+      "name": "Registry || langgraph-copilot || get agent || langgraph-copilot || 2026-08-30T14:24:28+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:24:28.415178+00:00"
+    },
+    {
+      "name": "Registry || langgraph-copilot || get agent || langgraph-copilot || 2026-08-30T14:24:28+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:24:28.408161+00:00"
+    },
+    {
+      "name": "Registry || googleADK-Chatagent || get agent || googleADK-Chatagent || 2026-08-30T14:24:27+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:24:27.737835+00:00"
+    },
+    {
+      "name": "Registry || googleADK-Chatagent || get agent || googleADK-Chatagent || 2026-08-30T14:24:27+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:24:27.728952+00:00"
+    },
+    {
+      "name": "Registry || langgraph-copilot || get agent || langgraph-copilot || 2026-08-30T14:24:26+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:24:26.397724+00:00"
+    },
+    {
+      "name": "Registry || langgraph-copilot || get agent || langgraph-copilot || 2026-08-30T14:24:26+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:24:26.390026+00:00"
+    }
+  ]
+}

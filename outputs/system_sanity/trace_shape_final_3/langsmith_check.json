@@ -1,0 +1,60 @@
+{
+  "endpoint": "https://api.smith.langchain.com",
+  "project": "AgentMesh",
+  "api_key_present": true,
+  "project_matches": 1,
+  "recent_run_count_sample": 100,
+  "agentmesh_trace_shape": false,
+  "recent_runs": [
+    {
+      "name": "WorkFlow || e17263fa-054c-43e1-a40b-16c3fec4c5ff || workflow event replay || orchestrator-supervisor-agent || 2026-08-30T14:30:5",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:30:54.440133+00:00"
+    },
+    {
+      "name": "WorkFlow || e17263fa-054c-43e1-a40b-16c3fec4c5ff || workflow event replay || orchestrator-supervisor-agent || 2026-08-30T14:30:5",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:30:52.422746+00:00"
+    },
+    {
+      "name": "WorkFlow || e17263fa-054c-43e1-a40b-16c3fec4c5ff || workflow event replay || orchestrator-supervisor-agent || 2026-08-30T14:30:5",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:30:50.407487+00:00"
+    },
+    {
+      "name": "WorkFlow || e17263fa-054c-43e1-a40b-16c3fec4c5ff || workflow event replay || orchestrator-supervisor-agent || 2026-08-30T14:30:4",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:30:48.390617+00:00"
+    },
+    {
+      "name": "Registry || googleADK-Chatagent || agent heartbeat || googleADK-Chatagent || 2026-08-30T14:30:47+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:30:47.146145+00:00"
+    },
+    {
+      "name": "WorkFlow || e17263fa-054c-43e1-a40b-16c3fec4c5ff || workflow event replay || orchestrator-supervisor-agent || 2026-08-30T14:30:4",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:30:46.372296+00:00"
+    },
+    {
+      "name": "Registry || agent:langgraph-copilot:runtime:b4932748-b959-430c-9f41-43a2707175cc || resource upsert agent_runtime langgraph-copi",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:30:45.812547+00:00"
+    },
+    {
+      "name": "Registry || langgraph-copilot || resource upsert agent || langgraph-copilot || 2026-08-30T14:30:45+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:30:45.809649+00:00"
+    },
+    {
+      "name": "Registry || langgraph-copilot || agent heartbeat || langgraph-copilot || 2026-08-30T14:30:45+00:00",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:30:45.802798+00:00"
+    },
+    {
+      "name": "WorkFlow || e17263fa-054c-43e1-a40b-16c3fec4c5ff || workflow event replay || orchestrator-supervisor-agent || 2026-08-30T14:30:4",
+      "run_type": "chain",
+      "start_time": "2026-08-30 14:30:44.354931+00:00"
+    }
+  ]
+}

@@ -6,6 +6,13 @@ from typing import Any
 from uuid import uuid4
 
 from agentmesh.agents.common.base_agent import BaseAgent
+from agentmesh.core.observability import (
+    agentmesh_metadata,
+    agentmesh_run_name,
+    agentmesh_span,
+    resolve_trace_author,
+    trace_author_metadata,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +85,40 @@ class AgentExecutor:
         async with self._active_condition:
             self._active_count += 1
         try:
-            return await self.agent.arun_task(payload, context)
+            task_id = payload.get("task_id")
+            execution_mode = "workflow" if context.source == "assignment" else context.source
+            author = resolve_trace_author(
+                self.agent.agent_name,
+                agent_card=self.agent.agent_card(),
+            )
+            with agentmesh_span(
+                agentmesh_run_name(
+                    "WorkFlow" if execution_mode == "workflow" else "Direct",
+                    context.workflow_id or context.thread_id or context.run_id,
+                    str(payload.get("description") or payload.get("messages") or "agent execution"),
+                    author.author_name,
+                ),
+                inputs={"payload_keys": sorted(payload)},
+                metadata=agentmesh_metadata(
+                    agent_id=self.agent.agent_name,
+                    agent_name=author.author_name,
+                    execution_mode=execution_mode,
+                    source=context.source,
+                    workflow_id=context.workflow_id,
+                    assignment_event_id=context.assignment_id,
+                    assignment_id=context.assignment_id,
+                    task_id=task_id,
+                    thread_id=context.thread_id,
+                    attempt_number=context.attempt_number,
+                    run_id=context.run_id,
+                    **trace_author_metadata(author),
+                ),
+                tags=["agent-execution", self.agent.agent_name],
+            ) as run:
+                result = await self.agent.arun_task(payload, context)
+                if run is not None:
+                    run.end(outputs={"status": result.get("status"), "result_keys": sorted(result)})
+                return result
         finally:
             async with self._active_condition:
                 self._active_count -= 1

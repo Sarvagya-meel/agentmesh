@@ -50,6 +50,7 @@ async def test_claimed_worker_completes_orchestrated_task(
             pending = await client.get(f"/workers/{agent_id}/assignments")
             assert pending.status_code == 200
             assignment = pending.json()[0]
+            assert assignment["payload"]["task"]["approval_required"] is True
             worker_id = str(uuid4())
             claim = await client.post(
                 f"/workers/{agent_id}/assignments/{assignment['event_id']}/claim",
@@ -156,6 +157,7 @@ async def test_directed_playground_assignment_uses_claim_and_event_contract() ->
             assignment = pending.json()[0]
             assert assignment["payload"]["standalone"] is True
             assert assignment["payload"]["task"]["messages"] == ["Make Dubai travel plans"]
+            assert assignment["payload"]["task"]["approval_required"] is True
 
             worker_id = str(uuid4())
             claim = await client.post(
@@ -176,8 +178,252 @@ async def test_directed_playground_assignment_uses_claim_and_event_contract() ->
     assert completed.status_code == 200
     assert completed.json()["status"] == "COMPLETED"
     assert [event["event_type"] for event in events.json()] == [
+        "DIRECT_REQUEST_SUBMITTED",
         "TASK_ASSIGNED",
         "TASK_COMPLETED",
+        "DIRECT_REQUEST_COMPLETED",
+    ]
+    assert events.json()[0]["source_agent"] == "HumanAgent"
+    assert events.json()[0]["target_agent"] == "agentmesh-control-plane"
+    assert events.json()[-1]["source_agent"] == "agentmesh-control-plane"
+    assert events.json()[-1]["target_agent"] == "HumanAgent"
+
+
+async def test_directed_langgraph_approval_queues_resume_and_completes() -> None:
+    agent_id = "queued-approval-agent"
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await client.post(
+                "/registry/agents",
+                json={
+                    "agent_id": agent_id,
+                    "name": agent_id,
+                    "capabilities": ["CHAT"],
+                    "status": "online",
+                },
+            )
+            queued = await client.post(
+                f"/workers/{agent_id}/assignments",
+                json={
+                    "message": "Draft a response that requires approval",
+                    "approval_required": True,
+                },
+            )
+            workflow_id = queued.json()["workflow_id"]
+            first_assignment = (
+                await client.get(f"/workers/{agent_id}/assignments")
+            ).json()[0]
+            first_worker_id = str(uuid4())
+            first_claim = await client.post(
+                f"/workers/{agent_id}/assignments/{first_assignment['event_id']}/claim",
+                json={"worker_id": first_worker_id},
+            )
+            awaiting = await client.post(
+                f"/workers/{agent_id}/assignments/{first_assignment['event_id']}/result",
+                json={
+                    "worker_id": first_worker_id,
+                    "claim_token": first_claim.json()["claim_token"],
+                    "status": "AWAITING_APPROVAL",
+                    "result": {
+                        "thread_id": workflow_id,
+                        "prompt": "Review this draft.",
+                        "draft_reply": "Draft response",
+                    },
+                },
+            )
+            activity = await client.get(f"/workflows/{workflow_id}/activity")
+
+            assert awaiting.json()["status"] == "AWAITING_AGENT_APPROVAL"
+            assert activity.json()["workflow"]["status"] == "AWAITING_AGENT_APPROVAL"
+            assert activity.json()["pending_interrupt"]["type"] == "human_approval"
+            assert activity.json()["pending_interrupt"]["draft_reply"] == "Draft response"
+            assert activity.json()["steps"][0]["status"] == "AWAITING_APPROVAL"
+
+            approved = await client.post(
+                f"/workflows/{workflow_id}/approvals",
+                json={"decision": "APPROVE", "actor": "streamlit-user"},
+            )
+            resume_assignments = (
+                await client.get(f"/workers/{agent_id}/assignments")
+            ).json()
+
+            assert approved.json()["status"] == "RUNNING"
+            assert len(resume_assignments) == 1
+            resume_assignment = resume_assignments[0]
+            resume_task = resume_assignment["payload"]["task"]
+            assert resume_assignment["payload"]["resume"] is True
+            assert resume_task["resume_thread_id"] == workflow_id
+            assert resume_task["approval_decision"] == "approve"
+
+            resume_worker_id = str(uuid4())
+            resume_claim = await client.post(
+                f"/workers/{agent_id}/assignments/{resume_assignment['event_id']}/claim",
+                json={"worker_id": resume_worker_id},
+            )
+            completed = await client.post(
+                f"/workers/{agent_id}/assignments/{resume_assignment['event_id']}/result",
+                json={
+                    "worker_id": resume_worker_id,
+                    "claim_token": resume_claim.json()["claim_token"],
+                    "status": "COMPLETED",
+                    "result": {"thread_id": workflow_id, "final_reply": "Approved response"},
+                },
+            )
+            events = await client.get("/events", params={"workflow_id": workflow_id})
+
+    assert completed.json()["status"] == "COMPLETED"
+    assert [event["event_type"] for event in events.json()] == [
+        "DIRECT_REQUEST_SUBMITTED",
+        "TASK_ASSIGNED",
+        "AGENT_OUTPUT_PROPOSED",
+        "AGENT_APPROVAL_REQUESTED",
+        "AGENT_OUTPUT_APPROVED",
+        "TASK_ASSIGNED",
+        "TASK_COMPLETED",
+        "DIRECT_REQUEST_COMPLETED",
+    ]
+
+
+async def test_directed_langgraph_revision_returns_to_approval_then_rejects() -> None:
+    agent_id = "queued-revision-agent"
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await client.post(
+                "/registry/agents",
+                json={
+                    "agent_id": agent_id,
+                    "name": agent_id,
+                    "capabilities": ["CHAT"],
+                    "status": "online",
+                },
+            )
+            queued = await client.post(
+                f"/workers/{agent_id}/assignments",
+                json={"message": "Draft and revise a response", "approval_required": True},
+            )
+            workflow_id = queued.json()["workflow_id"]
+            first_assignment = (
+                await client.get(f"/workers/{agent_id}/assignments")
+            ).json()[0]
+            first_worker_id = str(uuid4())
+            first_claim = await client.post(
+                f"/workers/{agent_id}/assignments/{first_assignment['event_id']}/claim",
+                json={"worker_id": first_worker_id},
+            )
+            await client.post(
+                f"/workers/{agent_id}/assignments/{first_assignment['event_id']}/result",
+                json={
+                    "worker_id": first_worker_id,
+                    "claim_token": first_claim.json()["claim_token"],
+                    "status": "AWAITING_APPROVAL",
+                    "result": {
+                        "thread_id": workflow_id,
+                        "prompt": "Review this draft.",
+                        "draft_reply": "First draft",
+                    },
+                },
+            )
+
+            revision_feedback = "Add the recovery procedure."
+            revised = await client.post(
+                f"/workflows/{workflow_id}/approvals",
+                json={
+                    "decision": "REVISE",
+                    "feedback": revision_feedback,
+                    "actor": "streamlit-user",
+                },
+            )
+            revision_assignment = (
+                await client.get(f"/workers/{agent_id}/assignments")
+            ).json()[0]
+            revision_task = revision_assignment["payload"]["task"]
+
+            assert revised.json()["status"] == "RUNNING"
+            assert revision_task["approval_decision"] == "revise"
+            assert revision_task["approval_feedback"] == revision_feedback
+            assert revision_task["resume_thread_id"] == workflow_id
+
+            revision_worker_id = str(uuid4())
+            revision_claim = await client.post(
+                f"/workers/{agent_id}/assignments/{revision_assignment['event_id']}/claim",
+                json={"worker_id": revision_worker_id},
+            )
+            await client.post(
+                f"/workers/{agent_id}/assignments/{revision_assignment['event_id']}/result",
+                json={
+                    "worker_id": revision_worker_id,
+                    "claim_token": revision_claim.json()["claim_token"],
+                    "status": "AWAITING_APPROVAL",
+                    "result": {
+                        "thread_id": workflow_id,
+                        "prompt": "Review the revised draft.",
+                        "draft_reply": "Revised draft with recovery procedure",
+                    },
+                },
+            )
+            awaiting_again = await client.get(f"/workflows/{workflow_id}/activity")
+
+            assert awaiting_again.json()["workflow"]["status"] == (
+                "AWAITING_AGENT_APPROVAL"
+            )
+            assert awaiting_again.json()["pending_interrupt"]["draft_reply"] == (
+                "Revised draft with recovery procedure"
+            )
+
+            rejected = await client.post(
+                f"/workflows/{workflow_id}/approvals",
+                json={"decision": "REJECT", "actor": "streamlit-user"},
+            )
+            rejection_assignment = (
+                await client.get(f"/workers/{agent_id}/assignments")
+            ).json()[0]
+
+            assert rejected.json()["status"] == "RUNNING"
+            assert rejection_assignment["payload"]["task"]["approval_decision"] == (
+                "reject"
+            )
+
+            rejection_worker_id = str(uuid4())
+            rejection_claim = await client.post(
+                f"/workers/{agent_id}/assignments/{rejection_assignment['event_id']}/claim",
+                json={"worker_id": rejection_worker_id},
+            )
+            terminal = await client.post(
+                f"/workers/{agent_id}/assignments/{rejection_assignment['event_id']}/result",
+                json={
+                    "worker_id": rejection_worker_id,
+                    "claim_token": rejection_claim.json()["claim_token"],
+                    "status": "REJECTED",
+                    "result": {
+                        "thread_id": workflow_id,
+                        "final_reply": "Approval rejected.",
+                        "rejected": True,
+                    },
+                },
+            )
+            activity = await client.get(f"/workflows/{workflow_id}/activity")
+            events = await client.get("/events", params={"workflow_id": workflow_id})
+
+    assert terminal.json()["status"] == "FAILED"
+    assert terminal.json()["task_results"][0]["final_reply"] == "Approval rejected."
+    assert activity.json()["workflow"]["task_results"][0]["result"]["final_reply"] == (
+        "Approval rejected."
+    )
+    assert [event["event_type"] for event in events.json()] == [
+        "DIRECT_REQUEST_SUBMITTED",
+        "TASK_ASSIGNED",
+        "AGENT_OUTPUT_PROPOSED",
+        "AGENT_APPROVAL_REQUESTED",
+        "AGENT_OUTPUT_REVISION_REQUESTED",
+        "TASK_ASSIGNED",
+        "AGENT_OUTPUT_PROPOSED",
+        "AGENT_APPROVAL_REQUESTED",
+        "AGENT_OUTPUT_REJECTED",
+        "TASK_ASSIGNED",
+        "TASK_FAILED",
+        "DIRECT_REQUEST_FAILED",
     ]
 
 

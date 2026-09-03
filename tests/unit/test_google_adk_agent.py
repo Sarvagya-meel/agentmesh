@@ -1,18 +1,17 @@
+import pytest
 from google.adk.sessions import DatabaseSessionService
 
 from agentmesh.agents.agent_adk_spark.agent import GoogleADKAgent
 from agentmesh.agents.agent_adk_spark.factory import create_google_adk_worker_agent
 from agentmesh.config import Settings
+from agentmesh.core.models.exceptions import ModelProviderError, ValidationError
 
 
-def test_google_adk_agent_returns_structured_response() -> None:
+def test_google_adk_agent_rejects_unconfigured_model_runtime() -> None:
     agent = GoogleADKAgent(auto_register=False)
-    result = agent.run_task({"messages": ["Design a launch plan for my product."]})
 
-    assert result["status"] == "success"
-    assert result["agent"] == "googleADK-Chatagent"
-    assert "final_reply" in result
-    assert result["source"] == "local_fallback"
+    with pytest.raises(ModelProviderError, match="no configured model runtime"):
+        agent.run_task({"messages": ["Design a launch plan for my product."]})
 
 
 def test_google_adk_agent_uses_injected_llm_executor() -> None:
@@ -29,18 +28,42 @@ def test_google_adk_agent_uses_injected_llm_executor() -> None:
     assert result["final_reply"] == "LLM answer for: Explain event sourcing."
 
 
-def test_google_adk_factory_falls_back_to_mock_when_key_missing() -> None:
+def test_google_adk_factory_rejects_missing_key() -> None:
     settings = Settings(llm_provider="groq", groq_api_key=None)
-    agent, _ = create_google_adk_worker_agent(settings)
 
-    result = agent.run_task({"messages": ["Summarize the release checklist."]})
+    with pytest.raises(ValidationError, match="GROQ_API_KEY"):
+        create_google_adk_worker_agent(settings)
 
-    assert result["status"] == "success"
-    assert result["source"] == "local_fallback"
+
+def test_google_adk_factory_rejects_gpt_oss_tool_choice_mismatch() -> None:
+    settings = Settings(llm_provider="groq", groq_api_key="test-key", google_adk_model="")
+
+    with pytest.raises(ValidationError, match="ADK-compatible"):
+        create_google_adk_worker_agent(settings)
+
+
+def test_google_adk_factory_uses_adk_specific_groq_model_override() -> None:
+    settings = Settings(
+        llm_provider="groq",
+        groq_api_key="test-key",
+        google_adk_model="qwen/qwen3.6-27b",
+        google_adk_session_backend="memory",
+    )
+    agent, close = create_google_adk_worker_agent(settings)
+
+    assert isinstance(agent, GoogleADKAgent)
+    assert agent.model_name == "qwen/qwen3.6-27b"
+    assert agent._adk_runner is not None
+    assert agent._adk_runner.agent.model._additional_args == {
+        "include_reasoning": False,
+        "reasoning_effort": "none",
+    }
+
+    close()
 
 
 def test_google_adk_agent_uses_stable_workflow_task_session_identity() -> None:
-    agent = GoogleADKAgent(auto_register=False)
+    agent = GoogleADKAgent(auto_register=False, executor=lambda prompt: prompt)
 
     result = agent.run_task(
         {
@@ -52,6 +75,26 @@ def test_google_adk_agent_uses_stable_workflow_task_session_identity() -> None:
     )
 
     assert result["session_id"] == "agent:workflow-123:task-456"
+
+
+def test_google_adk_agent_includes_validated_dependency_outputs_in_prompt() -> None:
+    prompt = GoogleADKAgent._task_prompt(
+        {
+            "description": "Review the earlier result.",
+            "payload": {
+                "goal": "Produce a final answer.",
+                "workflow_context": {
+                    "resolved_inputs": {
+                        "step_0": {"final_reply": "Dependency result"}
+                    }
+                },
+            },
+        }
+    )
+
+    assert "Validated dependency outputs:" in prompt
+    assert '"final_reply": "Dependency result"' in prompt
+    assert "Use these dependency outputs as input" in prompt
 
 
 async def test_google_adk_agent_closes_database_sessions_from_async_runtime() -> None:
