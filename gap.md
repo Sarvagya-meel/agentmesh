@@ -1,5 +1,144 @@
 # Branch Gap and Repository Cleanup Plan
 
+## Main Adoption Review: Awaiting Approval
+
+Requested scope: identify useful things in main that the current branch lacks;
+record a plan only, and wait for review before importing or implementing anything.
+This review supersedes the immediate integration sequence below: selective
+adoption comes first, and merging main remains a separate decision.
+
+Comparison refreshed on 2026-09-04: current `feature/Supervisor&RegistryPro`
+at `0bac89b5` versus `origin/main` at `fac0c1056b2146865fe02136c439849329960609`.
+Local `main` is a different, older tip: it has zero commits absent from HEAD
+(`git rev-list --left-right --count HEAD...main` gives `37 / 0`). The source
+for the following review is therefore **origin/main**, not local main.
+
+There are no files present only in origin/main. Shared files do differ, but the
+review found no must-have runtime capability to import. Most main-side code is
+an older implementation replaced by the current control-plane architecture.
+This is a source-level assessment, not proof of behavioral equivalence: main
+was not deployed or tested independently during this review.
+
+### Candidate Approval List
+
+| ID | Main-only detail and source | Current branch | Recommendation and acceptance check | Decision |
+| --- | --- | --- | --- | --- |
+| M1 | Editor exclusions for virtual-environment and distribution folders in [origin/main `.vscode/settings.json`](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/.vscode/settings.json). | Hides caches and egg-info, but not `.venv` or distribution folders; retains pytest discovery and source-path configuration. | Optional, low priority: add narrowly scoped `.venv` and generated build/dist exclusions if these folders clutter the Explorer. Do not copy main's file: it has missing commas and an invalid escape, and also hides `__init__.py`. Validate JSON and retain test discovery, source paths, and visibility of source files. | Pending review |
+| M2 | Package-level `create_orchestration_checkpointer` export in [origin/main `core/database/__init__.py`, line 8](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/src/agentmesh/core/database/__init__.py#L8). | Factory still exists in `core/database/checkpoint.py`; package initialization intentionally avoids importing optional LangGraph dependencies into control-plane-only processes. | Defer unless an external caller needs the old package-level import. No repository caller requiring that export was identified. If approved, implement lazy compatibility, not main's eager import; test both the old import with LangGraph installed and core database import without optional framework dependencies. | Pending evidence; recommend defer |
+
+Neither item is required for the current runtime to work. M1 is a small developer
+convenience; M2 is compatibility work only, not missing checkpoint functionality.
+
+### Differences Not Recommended for Import
+
+| Main-side behavior and source | Why keep the current implementation |
+| --- | --- |
+| Combined supervisor/API service in [origin/main Compose](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/deployment/docker/compose.yml) and direct orchestrator dependency in [workflow routes](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/src/agentmesh/services/service_agentmesh_server/api/routes/workflows.py). | Conflicts with `plan.md`: retain separate control plane, supervisor actions, validated dispatch, and durable state ownership. |
+| Direct SQL reads and sleep-driven refresh in [origin/main Streamlit app, line 253](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/src/agentmesh/services/service_agentmesh_ui/app.py#L253). | Resource/audit views already exist through the current API client. Do not restore UI database coupling, old sidebar navigation, or page-wide polling behavior. |
+| Silent missing-key fallback in [origin/main ADK factory test, line 32](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/tests/unit/test_google_adk_agent.py#L32) and canned success in [ADK agent, line 71](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/src/agentmesh/agents/agent_adk_spark/agent.py#L71). | Current factory retains explicit `LLM_PROVIDER=mock` selection and validates configured real-provider credentials. Do not disguise missing credentials as successful model execution. |
+| Older approval, task-prompt, and checkpoint paths in [origin/main ConversationAgent](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/src/agentmesh/agents/agent_langgraph_copilot/agent.py). | Current branch adds explicit rejection coverage, validated dependency inputs, and expanded checkpoint handling. Main is not a source of additional reject/revise/recovery features. |
+| Queued-direct approval disabled in [origin/main WorkerService](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/src/agentmesh/services/service_agentmesh_server/workers/service.py). | Preserve current request-controlled approval policy; importing this default would undo requested human-approval behavior. |
+| Start-with-build and non-destructive rebuild defaults in [origin/main Docker helper](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/scripts/docker_component_manager.ps1). | These differ from the user's current start/restart/rebuild contract. Do not copy older operations code or its runbook claims. |
+| Smaller tracing setup in [origin/main observability module](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/src/agentmesh/core/observability.py). | Current branch adds tracing configuration, identity metadata, redaction, and failure isolation. Main's simpler code is not an observability gap to fill. |
+| LiteLLM dependency under the LangGraph group in [origin/main pyproject.toml, line 22](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/pyproject.toml#L22). | The same `1.97.0` pin exists here under the current dependency grouping. There is no missing package version to carry across. |
+| Expanded inline IDE architecture guidance in [origin/main architecture instructions](https://github.com/Sarvagya-meel/agentmesh/blob/fac0c1056b2146865fe02136c439849329960609/.github/instructions/Architecture.md.instructions.md). | Current `AGENTS.md`, `plan.md`, and focused docs replace duplicated guidance. Older text assigns durable dispatch to the supervisor and would reintroduce conflicting instructions. |
+
+### Plan After Review
+
+1. Review M1 and M2 independently; approving the plan does not imply importing
+   every difference or merging main wholesale.
+2. Implement only approved items on the current architecture, one scoped change
+   at a time. Recheck source SHAs before using this list if either branch moves.
+3. Run each item's acceptance checks and inspect the diff. For M2, also run
+   checkpoint-focused tests and control-plane import checks in its lean environment.
+4. Present the completed diff before the separate main-integration decision.
+   Keep the known 69 merge conflicts and stale graph-export CI failure as
+   integration work, not features to copy from main.
+
+G1 (Streamlit telemetry) and G2 (IDE onboarding) below come from **other
+branches**, not main. They remain separate backlog items and are not evidence of
+missing main functionality. No runtime, configuration, or test files were changed
+for this review; only this plan was updated.
+
+## Execution and PR Readiness: 2026-09-04
+
+Refreshed origin before cleanup. Reviewed `feature/Supervisor&RegistryPro` at
+`0bac89b5` against `origin/main` at `fac0c105`. The sections below this update
+retain the original September 2 comparison and proposed dispositions.
+
+### Completed Cleanup
+
+Deleted these ten local branches after verifying each tip was an ancestor of HEAD:
+
+- `agents/plan-revision-assistance`
+- `codex/repo-cleanup-phase-1`
+- `copilot-setup`
+- `copilot/first_agent`
+- `copilot/orchestrator_agent`
+- `feature/db_postgress`
+- `feature/langSmithObsEval`
+- `feature/PlanAndDocumentationAlignment`
+- `LangGraphAgent`
+- `LangGraphAgentPro`
+
+Deleted the seven corresponding origin branches, excluding the three local-only
+names `agents/plan-revision-assistance`, `codex/repo-cleanup-phase-1`, and
+`feature/db_postgress`. Remote deletion was atomic, guarded by expected tip SHAs,
+and followed verification that all seven tips were ancestors of the retained
+`origin/feature/Supervisor&RegistryPro` branch.
+
+Retained local and remote `main`, the current feature branch, the unique local
+`agents/understanding-hooks-and-kiro-files` documentation branch, and both
+foreign-history prototype references. The prototype references duplicate each
+other but contain content absent from the baseline; their archival review is
+still pending. No main branch was merged, reset, or force-pushed.
+
+### Merge Blockers
+
+`git rev-list --left-right --count origin/main...HEAD` reports one main-only
+commit and 38 feature-only commits. Direct tree comparison reports 345 changed
+files, 43,028 insertions, and 1,872 deletions.
+
+The non-mutating `git merge-tree --write-tree --name-only origin/main HEAD`
+check exits with conflicts in 69 paths: 37 under `src`, seven under `tests`,
+eight under `.github`, three under `.kiro`, four under `deployment`, four under
+`docs`, two under `scripts`, and one each in `.env.example`, `.vscode`,
+`pyproject.toml`, and `README.md`. Many runtime conflicts are add/add conflicts
+against main's snapshot commit. An absence of main-only file paths does not
+prove semantic equivalence or make this merge automatically safe.
+
+Local validation using `.venv/Scripts/python.exe`:
+
+- `-m pytest -q`: 143 passed, two deprecation warnings.
+- `-m ruff check src tests`: passed.
+- `-m mypy --strict src`: passed across 96 source files.
+- `scripts/export_langgraph_mermaid.py --check`: failed because
+  `orchestrator-supervisor.mmd` is stale. This is a configured CI gate.
+- LangSmith trace delivery reported HTTP 429 for the monthly trace quota;
+  this did not fail pytest but external trace validation remains limited.
+
+These checks validate the current feature tree, not a resolved merge tree.
+Docker and browser UAT were not rerun for this branch audit. GitHub CLI is not
+installed, so hosted PR checks and branch protection were not inspected.
+
+### Integration Plan
+
+1. Create an isolated `codex/` integration branch/worktree from the feature tip
+   and merge `origin/main` there, leaving the presentation checkout unchanged.
+2. Resolve conflicts individually against `plan.md` and the active runtime
+   docs. Review main's snapshot changes for intent; do not blanket-select one
+   side for runtime, deployment, dependency, or test conflicts.
+3. Regenerate and review the stale supervisor graph export using the repository
+   export script. Address G1 and G2 separately if included in the PR scope.
+4. Rerun all four CI checks on the resolved tree, then Docker smoke and browser
+   UAT for API/queue execution, approval/reject/revise, dependencies, retries,
+   replay, and checkpoint recovery.
+5. Open or update the PR to main, verify hosted checks and protection, and merge
+   only after review. Realign local main afterward without discarding unique work.
+
+No merge or PR creation was performed in this audit. Runtime code, deployment
+configuration, and active architecture docs were intentionally left unchanged.
+
 ## Scope
 
 Baseline: `feature/Supervisor&RegistryPro` at `032f49c3`.
@@ -12,9 +151,9 @@ grouped when they point to the same commit.
 
 ## Executive Summary
 
-- Ten local branches and seven remote branches are fully contained in the
-  baseline. They have no commits or files missing from the baseline and can be
-  deleted after this report is reviewed.
+- Ten local branches and seven remote branches are ancestors of the baseline.
+  They have no unmerged commits; historical file snapshots may still differ.
+  Their deletion was completed as recorded in the September 4 update above.
 - `agents/understanding-hooks-and-kiro-files` has one branch-only documentation
   commit. Its `.kiro/README-IDE.md` is not in the baseline, but much of it is
   stale or duplicates the repository-wide `AGENTS.md` contract.
