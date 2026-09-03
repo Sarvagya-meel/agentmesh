@@ -315,6 +315,14 @@ Supervisor actions have their own claims and retry budget. A transient superviso
 failure appends `SUPERVISOR_ACTION_RETRY_SCHEDULED`, and the same durable action is
 available again after its retry time.
 
+A queued start resumes unfinished native checkpoint work after a planning error;
+it does not reinitialize the graph or mark the workflow failed while a retry is
+pending. Existing human interrupts are not resumed by a duplicate start. Provider
+retryability and `Retry-After` hints are respected, with a 60-second backoff cap.
+`SUPERVISOR_ACTION_FAILED` projects a terminal workflow failure when the action is
+dead-lettered. An unqueued supervisor invocation has no durable retry owner and
+still reports its planning failure immediately.
+
 ## Current Limitations
 
 - Worker retry scheduling is durable in `agentmesh_event_claims`, but it does not

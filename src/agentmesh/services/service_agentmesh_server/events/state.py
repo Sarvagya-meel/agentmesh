@@ -143,10 +143,13 @@ class StateService:
                 results = list(metadata.get("task_results", []))
                 results.append(payload)
                 metadata["task_results"] = results
-            elif event.event_type in {"TASK_FAILED", "WORKFLOW_FAILED"}:
+            elif event.event_type in {
+                "TASK_FAILED", "WORKFLOW_FAILED", "SUPERVISOR_ACTION_FAILED"
+            }:
                 status = WorkflowStatus.FAILED
                 pending = []
                 metadata.pop("assignment_event_id", None)
+                metadata.pop("pending_approval", None)
                 metadata["failure"] = payload
             elif event.event_type == "WORKFLOW_COMPLETED":
                 status = WorkflowStatus.COMPLETED

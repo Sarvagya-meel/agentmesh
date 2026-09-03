@@ -14,6 +14,11 @@ events, and LangGraph checkpoint mappings.
 Transient worker failures such as 429, timeouts, and 502-504 responses are retried
 by the control plane without disturbing the supervisor.
 
+Queued supervisor planning failures remain nonterminal while their durable action
+can retry. The next attempt resumes the same native checkpoint without duplicating
+discovery or bypassing human approval. The control plane's dead-letter event marks
+the workflow failed only after a permanent error or exhausted retry budget.
+
 Concurrent supervisor/worker startup serializes native LangGraph checkpoint and
 Store schema setup with a shared PostgreSQL advisory lock. A dedicated session
 holds the lock so autocommit-only DDL remains supported; the session is closed

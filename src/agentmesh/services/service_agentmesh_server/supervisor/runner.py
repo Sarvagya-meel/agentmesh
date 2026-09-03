@@ -207,19 +207,21 @@ class SupervisorActionRunner:
 
     @staticmethod
     def classify_failure(exc: Exception, attempt_number: int) -> tuple[bool, float]:
+        backoff = min(float(2**attempt_number), 60.0)
+        if isinstance(exc, ModelProviderError):
+            return exc.retryable, min(max(backoff, exc.retry_after_seconds or 0.0), 60.0)
         retryable = isinstance(
             exc,
             (
                 httpx.TimeoutException,
                 httpx.NetworkError,
-                ModelProviderError,
             ),
         )
         if isinstance(exc, httpx.HTTPStatusError):
             retryable = exc.response.status_code == 429 or exc.response.status_code >= 500
         lowered = f"{type(exc).__name__} {exc}".lower()
         retryable = retryable or "rate limit" in lowered or "temporar" in lowered
-        return retryable, min(float(2**attempt_number), 60.0)
+        return retryable, backoff
 
     @staticmethod
     def _uuid_or_none(value: Any) -> UUID | None:

@@ -69,5 +69,11 @@ database-scoped advisory lock; dedicated lock sessions close on success or failu
 The local dependency group includes the same LiteLLM adapter used by ADK, so a
 clean CI install can collect and run the ADK tests without relying on old packages.
 
+Live rerun validation also exposed a transient planning failure incorrectly becoming
+terminal before its queued retry. Queued starts now resume unfinished checkpoints;
+permanent or exhausted actions project failure through the control plane. Regression
+tests cover repeated transient failures, checkpoint reuse, approval preservation,
+provider retry hints, permanent errors, and exhaustion.
+
 Re-fetch main and verify its ancestry before opening the PR. Hosted CI and
 GitHub's mergeability status must be checked separately from local acceptance.

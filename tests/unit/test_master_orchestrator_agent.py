@@ -11,7 +11,11 @@ from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.execution import ExecutionContext
 from agentmesh.core.models import Event, RoutingMode
 from agentmesh.core.models.agent_card import AgentCard
-from agentmesh.core.models.exceptions import ValidationError
+from agentmesh.core.models.exceptions import (
+    ModelProviderError,
+    ValidationError,
+    WorkflowConflictError,
+)
 from agentmesh.services.service_agentmesh_server.database.repository import InMemoryEventRepository
 from agentmesh.services.service_agentmesh_server.events.service import EventService
 from agentmesh.services.service_agentmesh_server.events.state import StateService
@@ -165,6 +169,68 @@ def test_master_agent_uses_the_shared_agent_contract() -> None:
     )
 
     assert started["status"] == "AWAITING_PLAN_APPROVAL"
+
+
+async def test_queued_planning_retry_resumes_checkpoint_without_duplicate_events(monkeypatch):
+    master, events = build_master_agent()
+    workflow_id = uuid4()
+    events.append(Event(
+        conversation_id="retry-conversation", workflow_id=workflow_id,
+        event_type="WORKFLOW_STARTED", source_agent="agentmesh-control-plane",
+        payload={"goal": "Research an architecture proposal"},
+    ))
+    original = master.planner.create_plan
+    attempts = 0
+
+    def transient_plan(**kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 2:
+            raise ModelProviderError("HTTP 429", retryable=True, status_code=429)
+        return original(**kwargs)
+
+    monkeypatch.setattr(master.planner, "create_plan", transient_plan)
+    arguments = {
+        "workflow_id": workflow_id, "start_event_persisted": True,
+        "preferred_agent_ids": ["research-agent"],
+    }
+    for _ in range(2):
+        with pytest.raises(ModelProviderError):
+            await master.astart_workflow(
+                "retry-conversation", "Research an architecture proposal", **arguments
+            )
+        assert master.state_service.get_current(workflow_id).status == "RUNNING"
+        snapshot = await master.graph.aget_state(master._config(workflow_id))
+        assert snapshot.next == ("create_plan",)
+    result = await master.astart_workflow(
+        "retry-conversation", "Research an architecture proposal", **arguments
+    )
+    assert result["status"] == "AWAITING_PLAN_APPROVAL"
+    assert attempts == 3
+    event_types = [event.event_type for event in events.replay(workflow_id)]
+    for event_type in ["WORKFLOW_STARTED", "AGENT_SNAPSHOT_CAPTURED", "PLAN_CREATED"]:
+        assert event_types.count(event_type) == 1
+    assert "WORKFLOW_FAILED" not in event_types
+    before = events.replay(workflow_id)
+    with pytest.raises(WorkflowConflictError):
+        await master.astart_workflow(
+            "retry-conversation", "Research an architecture proposal", **arguments
+        )
+    assert events.replay(workflow_id) == before
+
+
+async def test_unqueued_planning_failure_remains_terminal(monkeypatch):
+    master, events = build_master_agent()
+    workflow_id = uuid4()
+
+    def failed_plan(**kwargs):
+        raise ModelProviderError("HTTP 429", retryable=True)
+
+    monkeypatch.setattr(master.planner, "create_plan", failed_plan)
+    with pytest.raises(ModelProviderError):
+        await master.astart_workflow("conversation", "Research a proposal", workflow_id=workflow_id)
+    assert events.replay(workflow_id)[-1].event_type == "WORKFLOW_FAILED"
+    assert master.state_service.get_current(workflow_id).status == "FAILED"
 
 
 def test_master_agent_completes_all_approved_tasks() -> None:

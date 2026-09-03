@@ -423,18 +423,41 @@ class MasterOrchestratorAgent(BaseAgent):
             metadata=metadata,
             tags=["workflow", "orchestrator", self.agent_name],
         ) as run:
+            config = self._config(
+                resolved_workflow_id,
+                {
+                    "run_id": str(uuid4()),
+                    "operation": "start_workflow",
+                    "execution_mode": "workflow",
+                    **(trace_metadata or {}),
+                },
+            )
+            resume_checkpoint = False
             existing_events = self.event_service.replay(resolved_workflow_id)
             workflow_started = any(
                 event.event_type == "WORKFLOW_STARTED" for event in existing_events
             )
             if start_event_persisted:
+                snapshot = await self.graph.aget_state(config)
+                resume_checkpoint = bool(snapshot.values and snapshot.next) and not any(
+                    task.interrupts for task in snapshot.tasks
+                )
                 allowed_event_types = {
                     "WORKFLOW_STARTED",
                     "SUPERVISOR_ACTION_REQUESTED",
                     "SUPERVISOR_ACTION_RETRY_SCHEDULED",
                 }
-                if not workflow_started or any(
-                    event.event_type not in allowed_event_types for event in existing_events
+                if (
+                    not workflow_started
+                    or self.state_service.get_current(resolved_workflow_id).status
+                    in {WorkflowStatus.FAILED, WorkflowStatus.CANCELLED, WorkflowStatus.COMPLETED}
+                    or (
+                        not resume_checkpoint
+                        and any(
+                            event.event_type not in allowed_event_types
+                            for event in existing_events
+                        )
+                    )
                 ):
                     raise WorkflowConflictError(
                         f"Workflow {resolved_workflow_id} has already been processed."
@@ -459,7 +482,7 @@ class MasterOrchestratorAgent(BaseAgent):
                 )
             try:
                 result = await self.graph.ainvoke(
-                    {
+                    None if resume_checkpoint else {
                         "messages": [HumanMessage(content=goal)],
                         "conversation_id": conversation_id,
                         "workflow_id": str(resolved_workflow_id),
@@ -477,23 +500,17 @@ class MasterOrchestratorAgent(BaseAgent):
                         "memory_updates": memory_updates or {},
                         "memory_delete_keys": memory_delete_keys or [],
                     },
-                    config=self._config(
-                        resolved_workflow_id,
-                        {
-                            "run_id": str(uuid4()),
-                            "operation": "start_workflow",
-                            "execution_mode": "workflow",
-                            **(trace_metadata or {}),
-                        },
-                    ),
+                    config=config,
                 )
             except Exception as exc:
-                self._emit_raw(
-                    conversation_id=conversation_id,
-                    workflow_id=resolved_workflow_id,
-                    event_type="WORKFLOW_FAILED",
-                    payload={"stage": "planning", "error_type": type(exc).__name__},
-                )
+                # Queued actions remain resumable until the control plane exhausts retries.
+                if not start_event_persisted:
+                    self._emit_raw(
+                        conversation_id=conversation_id,
+                        workflow_id=resolved_workflow_id,
+                        event_type="WORKFLOW_FAILED",
+                        payload={"stage": "planning", "error_type": type(exc).__name__},
+                    )
                 raise
             response = self._format_result(resolved_workflow_id, dict(result))
             if run is not None:

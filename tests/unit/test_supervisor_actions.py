@@ -6,7 +6,7 @@ import pytest
 
 from agentmesh.core.models import Event, EventFilters, SupervisorActionType
 from agentmesh.core.models.agent_card import AgentCard
-from agentmesh.core.models.exceptions import ValidationError
+from agentmesh.core.models.exceptions import ModelProviderError, ValidationError
 from agentmesh.services.service_agentmesh_server.database.repository import (
     InMemoryClaimRepository,
     InMemoryEventRepository,
@@ -262,6 +262,49 @@ def test_rate_limit_is_classified_for_control_plane_retry() -> None:
 
     assert retryable is True
     assert delay == 4.0
+
+
+@pytest.mark.parametrize("retry_after, expected", [(None, 4.0), (25.0, 25.0), (120.0, 60.0)])
+def test_supervisor_honors_provider_retry_hint(retry_after, expected):
+    assert SupervisorActionRunner.classify_failure(
+        ModelProviderError("HTTP 429", retryable=True, retry_after_seconds=retry_after), 2
+    ) == (True, expected)
+
+
+def test_permanent_model_error_is_not_retried():
+    assert SupervisorActionRunner.classify_failure(
+        ModelProviderError("Invalid model credentials", status_code=401), 1
+    ) == (False, 2.0)
+
+
+@pytest.mark.parametrize("retryable, attempts", [(True, 3), (False, 1)])
+def test_supervisor_failure_becomes_terminal_only_when_dead_lettered(retryable, attempts):
+    service, events = build_action_service()
+    workflow_id = uuid4()
+    events.append(Event(
+        conversation_id="conversation", workflow_id=workflow_id,
+        event_type="WORKFLOW_STARTED", source_agent="agentmesh-control-plane",
+    ))
+    action = service.enqueue(
+        conversation_id="conversation", workflow_id=workflow_id,
+        action_type=SupervisorActionType.START_WORKFLOW, arguments={}, supervisor_id="supervisor",
+    )
+    for attempt in range(attempts):
+        claim = service.claim(action.event_id, supervisor_id="supervisor", worker_id="worker")
+        failure = service.fail(
+            action.event_id, supervisor_id="supervisor", worker_id="worker",
+            claim_token=claim.claim_token, error_code="ModelProviderError",
+            error_message="Provider unavailable", retryable=retryable, retry_after_seconds=0,
+        )
+        state = StateService(events).get_current(workflow_id)
+        if attempt + 1 < attempts:
+            assert failure.event_type == "SUPERVISOR_ACTION_RETRY_SCHEDULED"
+            assert state.status == "RUNNING"
+        else:
+            assert failure.event_type == "SUPERVISOR_ACTION_FAILED"
+            assert state.status == "FAILED"
+            assert state.metadata["failure"]["error_code"] == "ModelProviderError"
+    assert service.list_actions("supervisor") == []
 
 
 def test_start_action_uses_workflow_uuid() -> None:
