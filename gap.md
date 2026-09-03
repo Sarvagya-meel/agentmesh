@@ -1,5 +1,15 @@
 # Branch Gap and Repository Cleanup Plan
 
+## PR Preparation Update
+
+The user subsequently authorized sanity fixes and a conflict-free PR to main.
+Branch `codex/main-demo-readiness` now contains the reviewed main snapshot through
+merge commit `1c0e057d`. That merge retained the current implementation tree; it
+did not adopt M1/M2 or rewrite main. The historical 69-conflict finding below is
+resolved on this integration branch. See [Demo Validation](docs/demo-validation.md)
+for the repeatable acceptance procedure and readiness fixes. Final hosted CI and
+mergeability still need verification against the PR's eventual head SHA.
+
 ## Main Adoption Review: Awaiting Approval
 
 Requested scope: identify useful things in main that the current branch lacks;

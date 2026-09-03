@@ -6,6 +6,7 @@ import pytest
 
 from agentmesh.core.models import Event, EventFilters, SupervisorActionType
 from agentmesh.core.models.agent_card import AgentCard
+from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.services.service_agentmesh_server.database.repository import (
     InMemoryClaimRepository,
     InMemoryEventRepository,
@@ -132,13 +133,100 @@ async def test_queued_start_persists_disabled_approval_policy() -> None:
         supervisor_api_url="http://supervisor",
     )
 
-    result = await proxy.astart_workflow(
-        "conversation", "goal", approval_required=False
-    )
+    result = await proxy.astart_workflow("conversation", "goal", approval_required=False)
     events = event_service.replay(UUID(result["workflow_id"]))
 
     assert events[0].payload["approval_required"] is False
     assert events[1].payload["arguments"]["approval_required"] is False
+
+
+@pytest.mark.parametrize("task_only", [False, True])
+async def test_rerun_returns_new_durable_identity_and_keeps_approval_policy(task_only):
+    service, events = build_action_service()
+    proxy = QueuedWorkflowOrchestrator(
+        action_service=service,
+        state_service=StateService(events),
+        supervisor_id="supervisor",
+        supervisor_api_url="http://supervisor",
+    )
+    source, task_id = uuid4(), uuid4()
+    await proxy.astart_workflow(
+        "conversation", "Original goal", workflow_id=source, approval_required=False
+    )
+    events.append(
+        Event(
+            conversation_id="conversation",
+            workflow_id=source,
+            event_type="PLAN_CREATED",
+            source_agent="supervisor",
+            payload={
+                "plan": {
+                    "tasks": [
+                        {"task_id": str(task_id), "agent_id": "worker", "description": "Task goal"}
+                    ]
+                }
+            },
+        )
+    )
+    previous = events.replay(source)
+    children = []
+    for _ in range(2):
+        result = (
+            await proxy.arerun_task(source, task_id)
+            if task_only
+            else await proxy.arerun_workflow(source)
+        )
+        child = UUID(result["workflow_id"])
+        children.append(child)
+        assert child != source
+        assert result["rerun_of_workflow_id"] == str(source)
+        assert result["rerun_of_task_id"] == (str(task_id) if task_only else None)
+        history = events.replay(child)
+        assert [event.event_type for event in history] == [
+            "WORKFLOW_STARTED",
+            "SUPERVISOR_ACTION_REQUESTED",
+        ]
+        assert history[0].payload["approval_required"] is False
+        assert history[1].payload["arguments"]["preferred_agent_ids"] == ["worker"]
+        assert history[1].payload["arguments"]["approval_required"] is False
+    assert children[0] != children[1]
+    assert events.replay(source)[: len(previous)] == previous
+
+
+async def test_terminal_checkpoint_recovery_is_rejected_before_child_events(monkeypatch):
+    service, events = build_action_service()
+    proxy = QueuedWorkflowOrchestrator(
+        action_service=service,
+        state_service=StateService(events),
+        supervisor_id="supervisor",
+        supervisor_api_url="http://supervisor",
+    )
+    source, child = uuid4(), uuid4()
+    await proxy.astart_workflow("conversation", "Goal", workflow_id=source)
+
+    async def replay(*args):
+        return {"next": [], "mode": "read_only_replay"}
+
+    monkeypatch.setattr(proxy, "replay_checkpoint", replay)
+    with pytest.raises(ValidationError, match="terminal"):
+        await proxy.arecover_checkpoint(source, checkpoint_id="terminal", new_workflow_id=child)
+    assert events.replay(child) == []
+
+
+async def test_rerun_rejects_foreign_task_before_enqueuing():
+    service, events = build_action_service()
+    proxy = QueuedWorkflowOrchestrator(
+        action_service=service,
+        state_service=StateService(events),
+        supervisor_id="supervisor",
+        supervisor_api_url="http://supervisor",
+    )
+    source = uuid4()
+    await proxy.astart_workflow("conversation", "Goal", workflow_id=source)
+    previous = events.replay(source)
+    with pytest.raises(ValidationError, match="does not belong"):
+        await proxy.arerun_task(source, uuid4())
+    assert events.replay(source) == previous
 
 
 @pytest.mark.asyncio

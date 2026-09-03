@@ -33,6 +33,14 @@ workers and records each result.
 
 ## Planning And Replanning
 
+Workflow and task reruns return a new durable workflow ID immediately. The control
+plane records the parent IDs and approval policy, then queues normal supervisor
+planning for that child. Repeating a rerun creates another child; it does not
+reuse the source workflow or suppress a later user request. An explicit terminal
+checkpoint cannot be recovered: the API rejects it before writing child events.
+Use read-only replay to inspect terminal checkpoints, or choose a checkpoint with
+an executable continuation for recovery.
+
 The supervisor claims planning, validation, replan, and summary actions from the
 control plane. It may inspect all authorized workflow outputs, but it must choose
 exactly which fields each downstream worker receives.

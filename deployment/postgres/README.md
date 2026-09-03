@@ -40,6 +40,7 @@ Current DDLs:
 006_agent_runtime_instances.sql
 007_supervisor_control_plane.sql
 008_agentmesh_uat_cases.sql
+009_live_uat_automation.sql
 ```
 
 ## Core Tables

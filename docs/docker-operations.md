@@ -147,6 +147,9 @@ docker compose --env-file .env `
 
 ## Health And Logs
 
+For two fresh build/test rounds, including opt-in live Streamlit behavior and
+desktop/mobile browser checks, see [Demo Validation](demo-validation.md).
+
 ```powershell
 Invoke-RestMethod http://localhost:8000/health
 Invoke-RestMethod http://localhost:8110/health

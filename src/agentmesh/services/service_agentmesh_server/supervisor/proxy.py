@@ -12,6 +12,7 @@ from agentmesh.core.models import (
     SupervisorActionType,
     WorkflowStatus,
 )
+from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.services.service_agentmesh_server.events.state import StateService
 from agentmesh.services.service_agentmesh_server.supervisor.service import (
     SupervisorActionService,
@@ -176,25 +177,59 @@ class QueuedWorkflowOrchestrator:
 
     async def arerun_workflow(self, workflow_id: UUID) -> dict[str, Any]:
         state = self.state_service.get_current(workflow_id)
-        self._enqueue(
-            workflow_id,
-            conversation_id=state.conversation_id,
-            action_type=SupervisorActionType.RERUN_WORKFLOW,
-            action_key="rerun-workflow",
-            arguments={"workflow_id": str(workflow_id)},
+        goal = str(state.metadata.get("goal", "")).strip()
+        if not goal:
+            raise ValidationError("The original workflow has no goal to rerun.")
+        plan = state.metadata.get("plan") or {}
+        agents = list(
+            dict.fromkeys(
+                str(task["agent_id"]) for task in plan.get("tasks", []) if task.get("agent_id")
+            )
         )
-        return self.get_workflow(workflow_id)
+        return await self._start_rerun(workflow_id, goal, agents)
 
     async def arerun_task(self, workflow_id: UUID, task_id: UUID) -> dict[str, Any]:
         state = self.state_service.get_current(workflow_id)
-        self._enqueue(
-            workflow_id,
-            conversation_id=state.conversation_id,
-            action_type=SupervisorActionType.RERUN_TASK,
-            action_key=f"rerun-task:{task_id}",
-            arguments={"workflow_id": str(workflow_id), "task_id": str(task_id)},
+        plan = state.metadata.get("plan") or {}
+        task = next(
+            (item for item in plan.get("tasks", []) if str(item.get("task_id")) == str(task_id)),
+            None,
         )
-        return self.get_workflow(workflow_id)
+        if task is None:
+            raise ValidationError(f"Task {task_id} does not belong to workflow {workflow_id}.")
+        return await self._start_rerun(
+            workflow_id, str(task["description"]), [str(task["agent_id"])], task_id=task_id
+        )
+
+    async def _start_rerun(
+        self, source_id: UUID, goal: str, agents: list[str], *, task_id: UUID | None = None
+    ) -> dict[str, Any]:
+        state = self.state_service.get_current(source_id)
+        child_id = uuid4()
+        # Allocate durable child identity before returning it to the UI. Planning
+        # still runs exclusively through the supervisor's normal start queue.
+        result = await self.astart_workflow(
+            state.conversation_id,
+            goal,
+            workflow_id=child_id,
+            preferred_agent_ids=agents,
+            rerun_of_workflow_id=source_id,
+            rerun_of_task_id=task_id,
+            approval_required=bool(state.metadata.get("approval_required", True)),
+        )
+        self.state_service.event_service.append(
+            Event(
+                conversation_id=state.conversation_id,
+                workflow_id=source_id,
+                event_type="TASK_RERUN_REQUESTED" if task_id else "WORKFLOW_RERUN_REQUESTED",
+                source_agent="agentmesh-control-plane",
+                payload={
+                    "new_workflow_id": str(child_id),
+                    **({"task_id": str(task_id)} if task_id else {}),
+                },
+            )
+        )
+        return result
 
     async def arecover_checkpoint(
         self,
@@ -205,6 +240,12 @@ class QueuedWorkflowOrchestrator:
         start_event_persisted: bool = False,
     ) -> dict[str, Any]:
         state = self.state_service.get_current(workflow_id)
+        if checkpoint_id is not None:
+            checkpoint = await self.replay_checkpoint(workflow_id, checkpoint_id)
+            if not checkpoint.get("next"):
+                raise ValidationError(
+                    "The selected checkpoint is terminal and has no executable continuation."
+                )
         recovery_workflow_id = new_workflow_id or uuid4()
         self._ensure_workflow_started(
             recovery_workflow_id,
@@ -233,14 +274,10 @@ class QueuedWorkflowOrchestrator:
         }
 
     async def checkpoint_history(self, workflow_id: UUID) -> list[dict[str, Any]]:
-        response = await self._supervisor_request(
-            "GET", f"/workflows/{workflow_id}/checkpoints"
-        )
+        response = await self._supervisor_request("GET", f"/workflows/{workflow_id}/checkpoints")
         return list(response.json())
 
-    async def replay_checkpoint(
-        self, workflow_id: UUID, checkpoint_id: str
-    ) -> dict[str, Any]:
+    async def replay_checkpoint(self, workflow_id: UUID, checkpoint_id: str) -> dict[str, Any]:
         response = await self._supervisor_request(
             "POST",
             f"/workflows/{workflow_id}/replay",
@@ -317,9 +354,7 @@ class QueuedWorkflowOrchestrator:
     async def _supervisor_request(
         self, method: str, path: str, *, json: dict[str, Any] | None = None
     ) -> httpx.Response:
-        headers = (
-            {"X-AgentMesh-Service-Token": self.service_token} if self.service_token else {}
-        )
+        headers = {"X-AgentMesh-Service-Token": self.service_token} if self.service_token else {}
         async with httpx.AsyncClient(timeout=self.request_timeout_seconds) as client:
             response = await client.request(
                 method, f"{self.supervisor_api_url}{path}", json=json, headers=headers
