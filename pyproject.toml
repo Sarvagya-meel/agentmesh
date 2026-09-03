@@ -70,6 +70,7 @@ local = [
   { include-group = "shared" },
   { include-group = "langgraph-framework" },
   { include-group = "adk-framework" },
+  { include-group = "model-gateway" },
   { include-group = "postgres-checkpoint" },
   { include-group = "ui-framework" },
   { include-group = "dev-tools" },
