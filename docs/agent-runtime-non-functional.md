@@ -14,6 +14,11 @@ events, and LangGraph checkpoint mappings.
 Transient worker failures such as 429, timeouts, and 502-504 responses are retried
 by the control plane without disturbing the supervisor.
 
+Concurrent supervisor/worker startup serializes native LangGraph checkpoint and
+Store schema setup with a shared PostgreSQL advisory lock. A dedicated session
+holds the lock so autocommit-only DDL remains supported; the session is closed
+on success, failure, or cancellation, with a bounded 90-second lock wait.
+
 ## Recoverability
 
 PostgreSQL is the durable recovery boundary for registry data, queues, claims,
