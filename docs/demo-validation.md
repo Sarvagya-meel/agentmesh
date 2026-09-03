@@ -63,5 +63,11 @@ reruns return a new durable child ID, preserve approval policy, and reject expli
 terminal-checkpoint recovery before creating child events. The stale supervisor
 graph export was regenerated, and in-process tests no longer inherit trace enablement.
 
+Fresh-start validation also exposed concurrent LangGraph schema setup between the
+supervisor and workers. Native checkpoint/store migrations now share a
+database-scoped advisory lock; dedicated lock sessions close on success or failure.
+The local dependency group includes the same LiteLLM adapter used by ADK, so a
+clean CI install can collect and run the ADK tests without relying on old packages.
+
 Re-fetch main and verify its ancestry before opening the PR. Hosted CI and
 GitHub's mergeability status must be checked separately from local acceptance.

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -13,6 +14,30 @@ from langgraph.store.memory import InMemoryStore
 from agentmesh.config import Settings
 from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
+
+POSTGRES_SETUP_LOCK = 193576485
+
+
+@contextmanager
+def _postgres_setup_lock(url: str) -> Iterator[None]:
+    import psycopg
+
+    # A separate session lock also covers DDL that cannot run in a transaction.
+    # Closing this connection releases the lock on success, failure, or cancellation.
+    with psycopg.connect(url, autocommit=True) as connection:
+        connection.execute("SET lock_timeout = '90s'")
+        connection.execute("SELECT pg_advisory_lock(%s)", (POSTGRES_SETUP_LOCK,))
+        yield
+
+
+@asynccontextmanager
+async def _async_postgres_setup_lock(url: str) -> AsyncIterator[None]:
+    import psycopg
+
+    async with await psycopg.AsyncConnection.connect(url, autocommit=True) as connection:
+        await connection.execute("SET lock_timeout = '90s'")
+        await connection.execute("SELECT pg_advisory_lock(%s)", (POSTGRES_SETUP_LOCK,))
+        yield
 
 
 def create_langgraph_checkpointer(
@@ -59,7 +84,12 @@ def create_langgraph_checkpointer(
         tags=["checkpoint", "postgres", "setup"],
     ):
         checkpointer = PostgresSaver(connection)
-        checkpointer.setup()
+        try:
+            with _postgres_setup_lock(url):
+                checkpointer.setup()
+        except BaseException:
+            connection.close()
+            raise
         return checkpointer, connection.close
 
 
@@ -104,7 +134,12 @@ async def create_async_langgraph_checkpointer(
         tags=["checkpoint", "postgres", "setup"],
     ):
         checkpointer = await context_manager.__aenter__()
-        await checkpointer.setup()
+        try:
+            async with _async_postgres_setup_lock(url):
+                await checkpointer.setup()
+        except BaseException:
+            await context_manager.__aexit__(None, None, None)
+            raise
 
     async def close() -> None:
         await context_manager.__aexit__(None, None, None)
@@ -133,7 +168,12 @@ def create_langgraph_store(
     url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
     context_manager = PostgresStore.from_conn_string(url)
     store = context_manager.__enter__()
-    store.setup()
+    try:
+        with _postgres_setup_lock(url):
+            store.setup()
+    except BaseException:
+        context_manager.__exit__(None, None, None)
+        raise
 
     def close() -> None:
         context_manager.__exit__(None, None, None)
