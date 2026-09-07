@@ -1,15 +1,39 @@
 {
   "files.exclude": {
+    "**/.coverage": true,
+    "**/.github": true,
+    "**/.venv": true,
+    "**/.vscode": true,
     "**/__pycache__": true,
+    "**/build": true,
+    "**/dist": true,
+    "**/htmlcov": true,
     "**/.mypy_cache": true,
     "**/.pytest_cache": true,
     "**/.ruff_cache": true,
-    "**/*.egg-info": true
+    "**/*.egg-info": true,
+    "**/local*": true,
+    ".dockerignore": true,
+    "agent_runtime/local_agentmesh.db": true,
+    "agent_runtime/logs": true,
+    "outputs": true,
+    "deployment/docker/outputs": true
   },
   "python.testing.pytestEnabled": true,
   "python.testing.pytestArgs": ["tests"],
   "python.analysis.extraPaths": ["${workspaceFolder}/src"],
   "files.watcherExclude": {
-    "**/agent_runtime/logs/**": true
+    "**/.venv/**": true,
+    "**/build/**": true,
+    "**/dist/**": true,
+    "**/htmlcov/**": true,
+    "**/agent_runtime/logs/**": true,
+    "**/outputs/**": true
+  },
+  "search.exclude": {
+    "**/.github": true,
+    "**/.vscode": true,
+    "**/local*": true,
+    "**/outputs": true
   }
 }
