@@ -31,6 +31,7 @@ def create_google_adk_worker_agent(
     agent = GoogleADKAgent(
         auto_register=False,
         model_name=model_name,
+        max_completion_tokens=settings.google_adk_max_completion_tokens,
         api_key=api_key,
         session_service=session_service,
     )

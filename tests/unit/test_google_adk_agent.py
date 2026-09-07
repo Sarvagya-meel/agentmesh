@@ -47,6 +47,7 @@ def test_google_adk_factory_uses_adk_specific_groq_model_override() -> None:
         llm_provider="groq",
         groq_api_key="test-key",
         google_adk_model="qwen/qwen3.6-27b",
+        google_adk_max_completion_tokens=384,
         google_adk_session_backend="memory",
     )
     agent, close = create_google_adk_worker_agent(settings)
@@ -56,6 +57,7 @@ def test_google_adk_factory_uses_adk_specific_groq_model_override() -> None:
     assert agent._adk_runner is not None
     assert agent._adk_runner.agent.model._additional_args == {
         "include_reasoning": False,
+        "max_tokens": 384,
         "reasoning_effort": "none",
     }
 
@@ -111,3 +113,22 @@ async def test_google_adk_agent_closes_database_sessions_from_async_runtime() ->
 
     assert event_thread is not None
     assert not event_thread.is_alive()
+
+
+def test_google_adk_provider_failures_are_domain_errors() -> None:
+    agent = GoogleADKAgent(
+        auto_register=False,
+        model_name="test-model",
+        api_key="test-key",
+        session_service=DatabaseSessionService(db_url="sqlite+aiosqlite:///:memory:"),
+    )
+
+    async def fail_provider(*args, **kwargs):
+        raise RuntimeError("rate limit")
+
+    agent._execute_adk = fail_provider
+
+    with pytest.raises(ModelProviderError, match="provider request failed"):
+        agent.run_task({"messages": ["Say hello."]})
+
+    agent.close()

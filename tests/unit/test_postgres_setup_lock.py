@@ -31,7 +31,7 @@ def test_sync_setup_lock_releases_session_even_on_failure(monkeypatch, fail):
     except RuntimeError:
         assert fail
     assert operations == [
-        ("SET lock_timeout = '90s'", None),
+        ("SET lock_timeout = 0", None),
         ("SELECT pg_advisory_lock(%s)", (persistence.POSTGRES_SETUP_LOCK,)),
         "setup",
         "closed",
@@ -64,7 +64,7 @@ async def test_async_setup_lock_uses_same_key_and_releases_session(monkeypatch, 
     except RuntimeError:
         assert fail
     assert operations == [
-        ("SET lock_timeout = '90s'", None),
+        ("SET lock_timeout = 0", None),
         ("SELECT pg_advisory_lock(%s)", (persistence.POSTGRES_SETUP_LOCK,)),
         "setup",
         "closed",

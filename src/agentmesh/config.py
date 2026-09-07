@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     langsmith_workspace_id: str = ""
     google_adk_session_backend: str = "memory"
     google_adk_model: str = ""
+    google_adk_max_completion_tokens: int = Field(default=512, gt=0)
 
     llm_provider: str = "mock"
     bedrock_model_id: str = ""

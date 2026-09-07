@@ -43,6 +43,22 @@ def wait_for(api, workflow_id, statuses, *, approve=False):
     pytest.fail(f"Workflow timed out: {json.dumps(activity, default=str)}")
 
 
+def wait_for_terminal_ack(api, workflow_id):
+    deadline = time.monotonic() + 60
+    activity = {}
+    while time.monotonic() < deadline:
+        activity = api.workflow_activity(workflow_id)
+        events = activity.get("events", [])
+        if (
+            activity["workflow"]["status"] in {"COMPLETED", "FAILED", "CANCELLED"}
+            and events
+            and events[-1]["event_type"] == "SUPERVISOR_ACTION_COMPLETED"
+        ):
+            return activity
+        time.sleep(1)
+    pytest.fail(f"Workflow terminal acknowledgement timed out: {json.dumps(activity, default=str)}")
+
+
 def assert_ui_ok(app):
     assert not app.exception, [item.message for item in app.exception]
     assert not app.error, [item.value for item in app.error]
@@ -151,9 +167,12 @@ def test_workflow_approvals_replay_recovery_and_reruns(api):
     assert checkpoints
     replay = api.replay_checkpoint(workflow_id, checkpoints[0]["checkpoint_id"])
     assert replay["mode"] == "read_only_replay"
+    before_replay = wait_for_terminal_ack(api, workflow_id)
     after = api.workflow_activity(workflow_id)
     assert after["workflow"]["status"] == "COMPLETED"
-    assert [e["event_id"] for e in after["events"]] == [e["event_id"] for e in events]
+    assert [e["event_id"] for e in after["events"]] == [
+        e["event_id"] for e in before_replay["events"]
+    ]
     terminal_checkpoint = next(item for item in checkpoints if not item["next"])
     with pytest.raises(httpx.HTTPStatusError) as invalid_recovery:
         api.recover_checkpoint(workflow_id, terminal_checkpoint["checkpoint_id"])

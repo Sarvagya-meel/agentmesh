@@ -35,11 +35,13 @@ class GoogleADKAgent(BaseAgent):
         *,
         auto_register: bool = True,
         model_name: str | None = None,
+        max_completion_tokens: int = 512,
         api_key: str | None = None,
         executor: Callable[[str], str] | None = None,
         session_service: BaseSessionService | None = None,
     ) -> None:
         self.model_name: str = model_name or os.getenv("GOOGLE_ADK_MODEL") or "gemini-2.5-flash"
+        self.max_completion_tokens = max_completion_tokens
         self._executor = executor
         self._session_service = session_service
         self._adk_runner: AdkRunner | None = None
@@ -52,6 +54,7 @@ class GoogleADKAgent(BaseAgent):
             self._adk_runner = self._build_adk_runner(
                 api_key,
                 self.model_name,
+                self.max_completion_tokens,
                 self._session_service,
             )
             self._start_event_loop(agent_name)
@@ -96,10 +99,18 @@ class GoogleADKAgent(BaseAgent):
                 reply = self._executor(prompt)
             elif self._adk_runner is not None and self._event_loop is not None:
                 with self._runner_lock:
-                    reply = asyncio.run_coroutine_threadsafe(
-                        self._execute_adk(prompt, user_id=user_id, session_id=session_id),
-                        self._event_loop,
-                    ).result()
+                    try:
+                        reply = asyncio.run_coroutine_threadsafe(
+                            self._execute_adk(prompt, user_id=user_id, session_id=session_id),
+                            self._event_loop,
+                        ).result()
+                    except ModelProviderError:
+                        raise
+                    except Exception as exc:
+                        raise ModelProviderError(
+                            f"Google ADK provider request failed: {exc}",
+                            retryable=True,
+                        ) from exc
             else:
                 raise ModelProviderError(
                     "Google ADK has no configured model runtime. Set LLM_PROVIDER=groq, "
@@ -125,12 +136,16 @@ class GoogleADKAgent(BaseAgent):
     def _build_adk_runner(
         api_key: str,
         model_name: str,
+        max_completion_tokens: int,
         session_service: BaseSessionService,
     ) -> AdkRunner:
         os.environ["GROQ_API_KEY"] = api_key
         os.environ.setdefault("PYTHONUTF8", "1")
         provider_model = model_name if model_name.startswith("groq/") else f"groq/{model_name}"
-        model_options: dict[str, Any] = {"include_reasoning": False}
+        model_options: dict[str, Any] = {
+            "include_reasoning": False,
+            "max_tokens": max_completion_tokens,
+        }
         if "qwen/qwen3" in provider_model.lower():
             model_options["reasoning_effort"] = "none"
         root_agent = LlmAgent(
