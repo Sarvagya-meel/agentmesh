@@ -18,6 +18,9 @@ from urllib.request import Request, urlopen
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 COMPOSE_FILE = ROOT / "deployment" / "docker" / "compose.yml"
 ENV_FILE = ROOT / ".env"
 DEFAULT_OUTPUT_DIR = ROOT / "outputs" / "system_sanity"
@@ -85,7 +88,7 @@ class SanityRun:
         self.results.append(CheckResult(name, status, detail, metadata=metadata))
 
     def write_catalog(self) -> None:
-        from agentmesh.testing.sanity_catalog import write_seeded_catalog_snapshot
+        from tests.support.sanity_catalog import write_seeded_catalog_snapshot
 
         catalog = self.output_dir / "agentmesh_uat_catalog_from_ddl.json"
         write_seeded_catalog_snapshot(catalog)

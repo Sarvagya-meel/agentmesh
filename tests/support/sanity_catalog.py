@@ -9,7 +9,7 @@ from typing import Any
 
 import psycopg
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 UAT_CASES_DDL = ROOT / "deployment" / "postgres" / "ddls" / "008_agentmesh_uat_cases.sql"
 
 

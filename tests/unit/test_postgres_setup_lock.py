@@ -4,7 +4,7 @@ import psycopg
 import pytest
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.frameworks.langgraph import persistence
 
 

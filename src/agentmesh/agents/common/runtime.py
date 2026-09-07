@@ -18,7 +18,7 @@ from agentmesh.agents.common.control_plane_client import AsyncControlPlaneClient
 from agentmesh.agents.common.execution import AgentExecutor, ExecutionContext
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
 from agentmesh.agents.common.worker import AssignmentWorker
-from agentmesh.config import Settings, get_settings
+from agentmesh.core.config import Settings, get_settings
 from agentmesh.core.models.exceptions import ModelProviderError
 from agentmesh.core.observability import (
     agentmesh_metadata,

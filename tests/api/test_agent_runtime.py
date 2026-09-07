@@ -5,7 +5,7 @@ from httpx import ASGITransport, AsyncClient
 from agentmesh.agents.agent_langgraph_copilot.agent import ConversationAgent
 from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.runtime import create_agent_runtime_app
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.models.exceptions import ModelProviderError
 
 

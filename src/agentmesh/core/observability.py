@@ -9,7 +9,7 @@ from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 
 SECRET_METADATA_KEYS = {
     "api_key",

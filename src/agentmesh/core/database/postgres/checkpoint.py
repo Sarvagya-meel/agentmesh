@@ -7,7 +7,7 @@ from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.frameworks.langgraph import create_langgraph_checkpointer
 
 

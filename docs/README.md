@@ -9,8 +9,8 @@ focused on source, tests, deployment, and the primary project entry points.
 - `runtime/`: active runtime behavior, non-functional requirements, roadmap, API
   guide, and checkpoint/retry notes.
 - `operations/`: local Docker, demo validation, and observability runbooks.
-- `project/`: product, architecture, technology, testing, and coding standards
-  that are shared across IDEs and assistant tools.
+- `project/`: product, architecture, technology, testing, coding standards, and
+  package-layout guidance shared across IDEs and assistant tools.
 - `business/`: business problem framing and use-case context.
 - `ide/`: optional IDE adapter notes and migrated tool-specific guidance.
 - `planning/`: historical plans, gap analysis, and future proposals.

@@ -9,6 +9,9 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 ENV_FILE = ROOT / ".env"
 DATASET_NAME = "AgentMesh Sanity Eval"
 
@@ -96,7 +99,7 @@ EVALUATORS = (
 def seed_dataset() -> str:
     from langsmith import Client
 
-    from agentmesh.testing.sanity_catalog import load_postgres_catalog, read_seeded_catalog
+    from tests.support.sanity_catalog import load_postgres_catalog, read_seeded_catalog
 
     client = Client(
         api_url=os.environ.get("LANGSMITH_ENDPOINT") or None,

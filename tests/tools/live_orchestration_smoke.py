@@ -13,7 +13,7 @@ from agentmesh.agents.agent_langgraph_copilot.factory import create_langgraph_wo
 from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.agents.common.control_plane_client import ControlPlaneClient
 from agentmesh.agents.common.worker import AssignmentWorker
-from agentmesh.config import Settings, get_settings
+from agentmesh.core.config import Settings, get_settings
 
 AgentFactory = Callable[[Settings], tuple[BaseAgent, Callable[[], None]]]
 

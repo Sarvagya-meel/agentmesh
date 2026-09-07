@@ -3,7 +3,7 @@ from google.adk.sessions import DatabaseSessionService
 
 from agentmesh.agents.agent_adk_spark.agent import GoogleADKAgent
 from agentmesh.agents.agent_adk_spark.factory import create_google_adk_worker_agent
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.models.exceptions import ModelProviderError, ValidationError
 
 

@@ -11,7 +11,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.base import BaseStore
 from langgraph.store.memory import InMemoryStore
 
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
 

@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import Header, HTTPException, Request
 
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 
 
 def require_internal_service_token(

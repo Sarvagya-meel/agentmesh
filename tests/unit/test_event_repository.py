@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from typing import Any
 from uuid import uuid4
 
-from agentmesh.core.database.repository import InMemoryEventRepository
+from agentmesh.core.database.postgres.repository import InMemoryEventRepository
 from agentmesh.core.models import Event, RoutingMode
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.services.service_agentmesh_server.events.service import EventService

@@ -11,7 +11,7 @@ from agentmesh.agents.common.control_plane_client import AsyncControlPlaneClient
 from agentmesh.agents.common.execution import AgentExecutor
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
 from agentmesh.agents.common.worker import AssignmentWorker
-from agentmesh.config import Settings, get_settings
+from agentmesh.core.config import Settings, get_settings
 
 Cleanup = Callable[[], None | Awaitable[None]]
 FactoryResult = tuple[BaseAgent, Cleanup]
