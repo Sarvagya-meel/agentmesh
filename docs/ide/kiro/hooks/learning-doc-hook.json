@@ -7,8 +7,7 @@
     "patterns": [
       "src/agentmesh/services/**/*.py",
       "src/agentmesh/agents/**/*.py",
-      "src/agentmesh/**/*.py",
-      "src/agentmesh/database/**/*.py"
+      "src/agentmesh/**/*.py"
     ]
   },
   "then": {

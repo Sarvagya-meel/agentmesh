@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from contextlib import contextmanager
 from typing import Any
 from uuid import uuid4
@@ -136,3 +138,20 @@ def test_event_service_checkpoints_every_request_from_its_initial_event() -> Non
     assert initial.metadata["checkpoint_id"] == f"event:{initial.event_id}"
     assert "parent_checkpoint_id" not in initial.metadata
     assert assigned.metadata["parent_checkpoint_id"] == f"event:{initial.event_id}"
+
+def test_database_repository_import_does_not_load_checkpoint_framework() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; import agentmesh.core.database; "
+                "assert 'agentmesh.core.database.postgres.checkpoint' not in sys.modules"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr

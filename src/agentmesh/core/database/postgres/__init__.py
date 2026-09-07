@@ -1,9 +1,4 @@
-"""PostgreSQL repository and checkpoint adapters."""
-
-from agentmesh.core.database.postgres.checkpoint import (
-    create_agent_checkpointer,
-    create_orchestration_checkpointer,
-)
+"""PostgreSQL repositories without optional framework dependencies."""
 from agentmesh.core.database.postgres.repository import (
     ClaimRepository,
     EventRepository,
@@ -22,8 +17,6 @@ __all__ = [
     "InMemoryEventRepository",
     "PostgresClaimRepository",
     "PostgresEventRepository",
-    "create_agent_checkpointer",
     "create_claim_repository",
     "create_event_repository",
-    "create_orchestration_checkpointer",
 ]

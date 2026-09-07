@@ -34,3 +34,6 @@ The state projection algorithm must be tested to verify determinism and replay s
 - Validate both `control_plane_app:app` and `supervisor_app:app` as independent imports.
 - Compose acceptance must inspect control-plane, supervisor, LiteLLM, migration, and
   worker logs, then repeat after project-scoped image and volume deletion.
+
+Use the [full-system testing runbook](agentmeshTestingSteps.md) for the repeatable
+clean-build, runtime, live UAT, browser, and log-review procedure.
