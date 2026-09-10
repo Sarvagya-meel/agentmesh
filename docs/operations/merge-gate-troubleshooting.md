@@ -80,6 +80,11 @@ process cap. A timeout fails the LLM suite instead of holding the gate
 indefinitely. Check provider quota, workflow events, and service logs before
 rerunning; do not increase the limit to conceal a workflow that never completes.
 
+Until 2026-10-10, confirmed provider `429`, quota, or rate-limit failures in
+live UAT, system smoke, or LLM evaluation are recorded as `warn` under explicit
+owner waivers. The workflow must find that evidence in the suite log. Any other
+failure remains `fail` and blocks the PR.
+
 Provider `429` and LangSmith quota errors are external dependency failures, not
 local passes. Preserve the failed run, wait for quota recovery, and rerun the
 affected jobs. Use a temporary optional waiver only when the suite is explicitly

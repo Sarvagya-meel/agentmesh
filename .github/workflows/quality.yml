@@ -196,14 +196,41 @@ jobs:
           AGENTMESH_LIVE_UAT: "1"
         run: |
           mkdir -p outputs/test-reports
-          pytest tests/live -q --junitxml=outputs/test-reports/live-uat.xml
+          set +e
+          pytest tests/live -q --junitxml=outputs/test-reports/live-uat.xml \
+            2>&1 | tee /tmp/live-uat.log
+          code=${PIPESTATUS[0]}
+          if [[ "$code" == "0" ]]; then
+            echo "gate_status=pass" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -Eqi '429|quota|rate.?limit' /tmp/live-uat.log; then
+            echo "gate_status=warn" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "gate_status=fail" >> "$GITHUB_OUTPUT"
+          exit "$code"
       - name: System smoke
         id: smoke
         if: ${{ steps.docker.outcome == 'success' }}
         continue-on-error: true
         env:
           LANGSMITH_TRACING: "false"
-        run: python tests/tools/system_sanity.py --no-build --mode local
+        run: |
+          set +e
+          python tests/tools/system_sanity.py --no-build --mode local \
+            2>&1 | tee /tmp/system-smoke.log
+          code=${PIPESTATUS[0]}
+          if [[ "$code" == "0" ]]; then
+            echo "gate_status=pass" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -Eqi '429|quota|rate.?limit' /tmp/system-smoke.log; then
+            echo "gate_status=warn" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "gate_status=fail" >> "$GITHUB_OUTPUT"
+          exit "$code"
       - name: Install Playwright
         id: playwright
         if: ${{ steps.docker.outcome == 'success' }}
@@ -248,7 +275,9 @@ jobs:
           SCOPE_REASON: ${{ steps.scope.outputs.reason }}
           DOCKER: ${{ steps.docker.outcome }}
           UAT: ${{ steps.uat.outcome }}
+          UAT_GATE_STATUS: ${{ steps.uat.outputs.gate_status }}
           SMOKE: ${{ steps.smoke.outcome }}
+          SMOKE_GATE_STATUS: ${{ steps.smoke.outputs.gate_status }}
           PLAYWRIGHT: ${{ steps.playwright.outcome }}
           BROWSER: ${{ steps.browser.outcome }}
           LLM: ${{ steps.llm.outcome }}
@@ -263,6 +292,10 @@ jobs:
             done
             exit 0
           fi
+          uat_status="$UAT_GATE_STATUS"
+          if [[ -z "$uat_status" ]]; then uat_status="$UAT"; fi
+          smoke_status="$SMOKE_GATE_STATUS"
+          if [[ -z "$smoke_status" ]]; then smoke_status="$SMOKE"; fi
           browser_status="$BROWSER"
           if [[ "$PLAYWRIGHT" != "success" ]]; then browser_status=failure; fi
           llm_status="$LLM_GATE_STATUS"
@@ -271,10 +304,10 @@ jobs:
             --status "$DOCKER" --detail "clean Compose build/start: $DOCKER" \
             --output outputs/test-reports/suites/docker.json
           python tests/tools/merge_gate.py record-suite --suite uat \
-            --status "$UAT" --detail "live UAT: $UAT" \
+            --status "$uat_status" --detail "live UAT: $uat_status" \
             --output outputs/test-reports/suites/uat.json
           python tests/tools/merge_gate.py record-suite --suite smoke \
-            --status "$SMOKE" --detail "system sanity: $SMOKE" \
+            --status "$smoke_status" --detail "system sanity: $smoke_status" \
             --output outputs/test-reports/suites/smoke.json
           python tests/tools/merge_gate.py record-suite --suite browser \
             --status "$browser_status" \

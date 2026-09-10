@@ -37,3 +37,11 @@ def test_non_functional_changes_skip_expensive_full_system_steps() -> None:
     assert "tests/tools/full_system_scope.py" in workflow
     assert "steps.scope.outputs.required == 'true'" in workflow
     assert 'not applicable: $SCOPE_REASON' in workflow
+
+
+def test_provider_waivers_require_rate_limit_evidence() -> None:
+    workflow = (ROOT / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    assert workflow.count("grep -Eqi '429|quota|rate.?limit'") == 3
+    assert "UAT_GATE_STATUS" in workflow
+    assert "SMOKE_GATE_STATUS" in workflow
