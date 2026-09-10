@@ -106,5 +106,5 @@ where = ["src"]
 license-files = ["LICENSE", "NOTICE"]
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=84.0.0"]
 build-backend = "setuptools.build_meta"
