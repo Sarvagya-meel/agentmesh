@@ -19,3 +19,12 @@ def test_release_sync_inherits_the_protected_main_gate() -> None:
     assert 'git merge-base --is-ancestor "$HEAD_SHA" origin/main' in workflow
     assert "Full testing is inherited from the protected main promotion." in workflow
     assert "Verify released commit and authorize synchronization" in workflow
+
+
+def test_release_pr_dco_starts_at_accepted_develop_head() -> None:
+    workflow = (ROOT / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    assert 'dco_base="origin/$BASE_REF"' in workflow
+    assert '"$HEAD_REF" == release/*' in workflow
+    assert 'dco_base="origin/develop"' in workflow
+    assert '--base "$dco_base" --head "$HEAD_SHA"' in workflow

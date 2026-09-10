@@ -50,10 +50,15 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          dco_base="origin/$BASE_REF"
+          if [[ "$BASE_REF" == "main" && "$HEAD_REF" == release/* ]]; then
+            dco_base="origin/develop"
+          fi
           python tests/tools/verify_dco.py \
-            --base "origin/$BASE_REF" --head "$HEAD_SHA"
+            --base "$dco_base" --head "$HEAD_SHA"
       - name: Ruff
         id: ruff
         if: ${{ steps.install.outcome == 'success' }}
