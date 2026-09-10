@@ -1,106 +1,155 @@
 # Release Management
 
-AgentMesh uses a release-train model that keeps active development and public
-release presentation separate.
+AgentMesh uses `develop` for accepted development and `main` for public,
+versioned releases. Every protected-branch change is reviewed through a public
+pull request, validated against the exact PR commit, and merged manually by the
+repository maintainer.
 
-## Branches
+## Branch Flow
 
 ```text
-feature/* or fix/* -> PR -> develop
-develop -> release/vX.Y.Z -> PR -> main
-main -> tag vX.Y.Z -> GitHub Release
+feature/*, fix/*, chore/*, docs/*, test/*, codex/*
+    -> PR -> develop
+    -> release/vX.Y.Z -> PR -> main
+    -> tag vX.Y.Z -> GitHub Release
 ```
 
-- `develop` is the source of truth for accepted active work. Do not delete it.
-- `main` is the public stable release branch.
-- `feature/*`, `fix/*`, and `codex/*` branches are short-lived work branches.
-- `release/vX.Y.Z` branches are cut from `develop` and receive only release
-  stabilization changes.
-- `hotfix/vX.Y.Z` branches are cut from `main` for urgent released-version fixes
-  and then merged back into `develop`.
+- Preserve `develop`; it is the source of truth for accepted active work.
+- Keep `main` stable and release-only.
+- Use `release/vX.Y.Z` only for generated release preparation and synchronization.
+- Use `hotfix/vX.Y.Z` from `main` for released-version repairs.
+- Never rewrite or delete a published version tag.
 
-## Versioning
+## Daily Development
 
-Use Semantic Versioning:
+Start normal work from the latest `develop`:
 
-- `MAJOR`: incompatible public behavior after `v1.0.0`.
-- `MINOR`: user-visible features or meaningful runtime capability changes.
-- `PATCH`: backwards-compatible fixes.
-- `-alpha.N`, `-beta.N`, or `-rc.N`: prerelease validation builds.
+```powershell
+git switch develop
+git pull --ff-only origin develop
+git switch -c feature/<short-name>
+```
 
-Before `v1.0.0`, AgentMesh may still change public contracts, but release notes
-must call out migration or compatibility impact.
+Commit each logical change separately:
 
-## Commit And Release Mapping
+```powershell
+git add <files>
+git commit -m "feat(scope): add capability"
+git commit -m "test(scope): cover capability"
+git push -u origin HEAD
+```
 
-Conventional Commits drive the default release impact:
+Install the repository hooks once per checkout:
 
-| Commit type | Release impact |
+```powershell
+pwsh -File scripts/install_git_hooks.ps1
+```
+
+The `commit-msg` hook enforces Conventional Commits. The `pre-push` hook rejects
+direct pushes to `develop` and `main`, runs the fast local gate, and writes an
+ignored report bound to the current commit under `outputs/test-reports/local/`.
+Git hooks are a developer convenience; GitHub Actions is the authoritative gate.
+
+Open a PR into `develop`. The PR title must also use Conventional Commit format
+because squash merge uses that title as the accepted commit. After the required
+check passes and discussions are resolved, the maintainer's GitHub Merge click
+is the human approval.
+
+## Merge Gate
+
+The required check is `merge-gate / gate`. It aggregates these suites:
+
+| Suite | Coverage |
+| --- | --- |
+| `static` | PR metadata, release ancestry, Ruff, mypy, graph exports |
+| `unit` | `tests/unit` |
+| `integration` | `tests/api` |
+| `docker` | Clean Compose build and startup |
+| `uat` | Opt-in live tests under `tests/live` |
+| `smoke` | Health, registry, workflow, PostgreSQL, and log checks |
+| `browser` | Desktop and mobile Streamlit browser checks |
+| `llm` | Provider execution and LangSmith evaluation |
+
+Every suite writes compact JSON. The aggregator creates:
+
+```text
+outputs/test-reports/<PR-created-YYYY-MM-DD>/pr-<number>/<head-sha>/
+  gate-report.json
+  gate-report.csv
+  gate-report.md
+```
+
+The JSON report is authoritative for automation, CSV opens directly in
+spreadsheet tools, and Markdown is copied to the Actions summary. Full command
+output stays in Actions logs; only consolidated reports are uploaded.
+
+The report schema is versioned and includes `pr_number`, `base_ref`, `head_ref`,
+`head_sha`, `tested_sha`, timestamps, suite results, durations, waiver data,
+counts, blocking problems, and `overall_status`. The gate rejects missing,
+malformed, stale, or non-passing reports with `PR not allowed` annotations.
+
+Reproduce the fast gate locally with:
+
+```powershell
+\.venv\Scripts\python.exe tests\tools\merge_gate.py local
+```
+
+## Optional Test Policy
+
+`.github/test-policy.yml` is JSON-compatible YAML so the standard-library gate
+can parse it without adding a runtime dependency. Every active suite is required
+by default and only `pass` is accepted. The initial policy contains a 30-day
+waiver for LangSmith quota exhaustion; it expires on 2026-10-10 and must not be
+silently extended.
+
+To permit `warn` or `skip`, mark the suite non-required and add a waiver with its
+suite, owner, reason, creation date, and expiration date. Temporary waivers
+default operationally to 30 days and may not exceed 365 days. A genuinely
+permanent optional check must set `expires_on` to `null` and `permanent` to
+`true`. Failures and missing results are never waived.
+
+## Versioning And Release Train
+
+The release train evaluates `develop` daily. It opens a release when releasable
+changes exist and either 45 days have passed since the latest stable tag or an
+early signal exists. Early signals are a breaking Conventional Commit or a
+merged PR labeled `release:now` or `security`. A manual workflow dispatch forces
+evaluation without bypassing tests or approval.
+
+Version impact is automatic:
+
+| Signal | Version impact |
 | --- | --- |
 | `feat:` | Minor |
-| `fix:` | Patch |
-| `docs:`, `test:`, `ci:`, `chore:` | No version bump unless release-facing |
-| `BREAKING CHANGE:` | Major after `v1.0.0`; explicit migration note before `v1.0.0` |
+| `fix:` or `perf:` | Patch |
+| `!` or `BREAKING CHANGE:` | Minor before 1.0.0, major afterward |
+| `docs:`, `test:`, `ci:`, `chore:` | No release by themselves |
 
-## Release Checklist
+The workflow creates or updates one `release/vX.Y.Z` branch, updates
+`pyproject.toml` and `CHANGELOG.md`, and opens a PR to `main`. If `develop`
+advances, the release branch is synchronized and the old report becomes invalid.
+Only `release/*` and `hotfix/*` may target `main`.
 
-1. Confirm `develop` is green.
-2. Create `release/vX.Y.Z` from `develop`.
-3. Update `pyproject.toml` version if needed.
-4. Update `CHANGELOG.md`.
-5. Run code, documentation, and Docker validation.
-6. Open a PR from `release/vX.Y.Z` to `main`.
-7. Merge after public review and green checks.
-8. Tag `main` with `vX.Y.Z`.
-9. Publish the GitHub Release from that tag.
-10. Merge release changes back into `develop` if the release branch received
-    stabilization commits.
+After the maintainer merges a passing release PR, automation creates the
+immutable tag, publishes GitHub-generated release notes, and opens a PR that
+synchronizes the release version and changelog back into `develop`.
 
-## Release Validation Gate
+## Rollback
 
-Release PRs into `main` must prove the tested commit matches the branch being
-released.
+For an unreleased regression, use GitHub's revert operation to create a focused
+PR into `develop`, run the gate, and merge it normally.
 
-- The release branch must contain the latest `origin/develop` commit.
-- Quality CI must pass for the release PR head.
-- System sanity must pass for the release PR head.
-- LangSmith trace-shape validation must pass when the release PR targets `main`.
-- The GitHub Actions summary should show the compact sanity report, not full raw
-  logs.
-- Raw logs and JSON evidence may be uploaded as artifacts, but the PR-facing
-  report should be human-readable and machine-readable.
+For a released regression:
 
-The system sanity workflow writes:
+```powershell
+git switch main
+git pull --ff-only origin main
+git switch -c hotfix/vX.Y.Z
+```
 
-- `system_sanity_report.md` for the PR summary.
-- `system_sanity_report.json` for automation.
-- `system_sanity_report.csv` for spreadsheet review.
-- `system_sanity_summary.json` for full structured details.
+Apply the smallest fix, use a `fix:` commit, open a PR to `main`, and publish a
+new patch release after the complete gate passes. Merge the hotfix changes back
+into `develop` through the synchronization PR. Do not move an existing tag.
 
-If the release branch does not include the latest `origin/develop`, the release
-gate fails and the branch must be updated before review continues.
-
-## Rollbacks
-
-If unreleased work breaks `develop`, revert the PR on `develop` and continue
-from a new fix branch.
-
-If a public release breaks `main`, create a `hotfix/vX.Y.Z` branch from `main`,
-patch the issue, open a PR to `main`, tag the patch release, publish the GitHub
-Release, and merge the hotfix back into `develop`.
-
-Do not rewrite public release tags. Publish a new patch release instead.
-
-## GitHub Rulesets
-
-Protect `develop`, `main`, and `release/*` with:
-
-- Require pull request before merge.
-- Require status checks before merge.
-- Require conversation resolution.
-- Block force pushes.
-- Restrict deletions.
-- Allow admins to bypass only for emergency recovery.
-
-`main` should stay release-only so visitors, installers, and release archives see
-the most stable version of AgentMesh.
+See [Merge Gate Troubleshooting](../operations/merge-gate-troubleshooting.md)
+for failure diagnosis and recovery.

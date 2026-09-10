@@ -422,6 +422,10 @@ class SanityRun:
         )
 
     def langsmith_check(self) -> None:
+        if os.getenv("LANGSMITH_TRACING", "false").lower() not in {"1", "true", "yes"}:
+            status = "fail" if self.require_langsmith else "skip"
+            self.add("langsmith.tracing", status, "LangSmith tracing is disabled for this run.")
+            return
         missing = [
             name
             for name in ("LANGSMITH_API_KEY", "LANGSMITH_TRACING", "LANGSMITH_PROJECT")

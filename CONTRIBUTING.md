@@ -16,6 +16,7 @@ develop -> release/vX.Y.Z -> pull request -> main -> tag -> GitHub Release
 - Prefer pull requests into `develop` for all normal work.
 - Use `release/vX.Y.Z` branches only for release stabilization.
 - Use `hotfix/vX.Y.Z` branches only when a released version must be patched.
+- Install shared hooks with `pwsh -File scripts/install_git_hooks.ps1`.
 
 ## Commit Messages
 
@@ -57,6 +58,13 @@ For Docker or release changes, also run the relevant Docker compose checks from
 
 Generated evidence belongs under ignored `outputs/` directories and should not
 be committed.
+
+The required `merge-gate / gate` check binds consolidated JSON, CSV, and
+Markdown evidence to the current PR commit. See
+[`docs/project/release-management.md`](docs/project/release-management.md) for
+the report contract and
+[`docs/operations/merge-gate-troubleshooting.md`](docs/operations/merge-gate-troubleshooting.md)
+for error recovery.
 
 ## AI Assistant Rules
 

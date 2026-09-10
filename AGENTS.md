@@ -80,6 +80,10 @@ security, determinism, provider, and operability constraints.
   the hotfix back into `develop`.
 - Use Conventional Commits and include release impact plus rollback notes in PRs.
 - Do not delete protected branches or rewrite public release tags.
+- Run `tests/tools/merge_gate.py local` before pushing code changes. Treat
+  `merge-gate / gate` as the authoritative protected-branch result.
+- Use `docs/project/release-management.md` for the report and promotion contract,
+  and `docs/operations/merge-gate-troubleshooting.md` for recovery.
 
 ## Documentation Rules
 

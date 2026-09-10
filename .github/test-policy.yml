@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "suites": {
+    "static": {"required": true},
+    "unit": {"required": true},
+    "integration": {"required": true},
+    "docker": {"required": true},
+    "uat": {"required": true},
+    "smoke": {"required": true},
+    "browser": {"required": true},
+    "llm": {"required": false}
+  },
+  "waivers": [
+    {
+      "suite": "llm",
+      "owner": "@Sarvagya-meel",
+      "reason": "LangSmith monthly trace quota is exhausted; provider and runtime tests remain required.",
+      "created_on": "2026-09-10",
+      "expires_on": "2026-10-10"
+    }
+  ]
+}

@@ -1,8 +1,6 @@
 name: system-sanity
 
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
     inputs:
       require_langsmith:
@@ -16,11 +14,10 @@ on:
 
 jobs:
   sanity:
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/') }}
     runs-on: ubuntu-latest
     env:
       AGENTMESH_SANITY_MODE: ci
-      AGENTMESH_REQUIRE_LANGSMITH: ${{ github.event_name == 'pull_request' && '1' || (inputs.require_langsmith == 'true' && '1' || '0') }}
+      AGENTMESH_REQUIRE_LANGSMITH: ${{ inputs.require_langsmith == 'true' && '1' || '0' }}
       LANGSMITH_TRACING: ${{ secrets.LANGSMITH_TRACING }}
       LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
       LANGSMITH_ENDPOINT: ${{ secrets.LANGSMITH_ENDPOINT }}
@@ -39,9 +36,6 @@ jobs:
         run: |
           python -m pip install --upgrade "pip>=25.1"
           python -m pip install -e . --group local
-      - name: Verify release branch contains latest develop
-        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/') }}
-        run: python tests/tools/verify_release_branch.py
       - name: Write CI env file
         run: |
           {
@@ -67,9 +61,11 @@ jobs:
           if [ -f outputs/system_sanity/system_sanity_report.md ]; then
             cat outputs/system_sanity/system_sanity_report.md >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "# AgentMesh System Sanity Report" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Sanity report was not generated." >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "# AgentMesh System Sanity Report"
+              echo ""
+              echo "Sanity report was not generated."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Upload sanity artifacts
         if: always()

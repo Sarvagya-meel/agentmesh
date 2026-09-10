@@ -77,6 +77,8 @@ feature/* -> PR -> develop -> release/vX.Y.Z -> PR -> main -> tag -> release
 
 Release and rollback rules are documented in
 [`docs/project/release-management.md`](docs/project/release-management.md).
+Gate failures and recovery steps are documented in
+[`docs/operations/merge-gate-troubleshooting.md`](docs/operations/merge-gate-troubleshooting.md).
 
 ## Quick Start
 
@@ -128,6 +130,7 @@ runbook.
 .\.venv\Scripts\mypy.exe --strict src
 .\.venv\Scripts\python.exe tests\tools\clear_langsmith_traces.py
 .\.venv\Scripts\python.exe tests\tools\system_sanity.py
+.\.venv\Scripts\python.exe tests\tools\merge_gate.py local
 $env:COMPOSE_PROFILES = "combined"
 docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
 $env:COMPOSE_PROFILES = "split"
@@ -147,6 +150,8 @@ is not tracked in Git.
   recovery, security, determinism, and operability.
 - [`docs/runtime/roadmap.md`](docs/runtime/roadmap.md): runtime delivery roadmap.
 - [`docs/operations/docker.md`](docs/operations/docker.md): local Docker runbook.
+- [`docs/operations/merge-gate-troubleshooting.md`](docs/operations/merge-gate-troubleshooting.md):
+  PR, report, CI, provider, and release recovery.
 - [`docs/project/`](docs/project/): product, tech, testing, architecture, and
   coding standards shared across IDEs.
 - [`docs/project/release-management.md`](docs/project/release-management.md):

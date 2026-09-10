@@ -19,6 +19,10 @@ def run_git(*args: str) -> str:
     return completed.stdout.strip()
 
 
+def contains_latest_develop(develop_sha: str, merge_base: str) -> bool:
+    return merge_base == develop_sha
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Verify release PR branches include the latest develop commit."
@@ -38,7 +42,7 @@ def main() -> int:
     print(f"head_sha={head_sha}")
     print(f"merge_base={merge_base}")
 
-    if merge_base != develop_sha:
+    if not contains_latest_develop(develop_sha, merge_base):
         print(
             "::error::Release branch is not based on the latest origin/develop. "
             "Update the release branch from develop and rerun validation."
