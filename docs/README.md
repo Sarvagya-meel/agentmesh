@@ -12,7 +12,7 @@ focused on source, tests, deployment, and the primary project entry points.
 - `operations/`: local Docker, demo validation, observability, and
   [merge-gate troubleshooting](operations/merge-gate-troubleshooting.md).
 - `project/`: product, architecture, technology, testing, coding standards,
-  release management, and package-layout guidance shared across IDEs and
+  release management, intellectual-property, and package-layout guidance shared across IDEs and
   assistant tools. Full-system validation is documented in the
   [testing runbook](project/agentmeshTestingSteps.md).
   Branches, releases, reports, and rollback are defined in

@@ -27,7 +27,10 @@ BASH = find_bash()
 @pytest.mark.skipif(BASH is None, reason="bash is required to execute repository Git hooks")
 def test_commit_message_hook_accepts_and_rejects_messages(tmp_path: Path) -> None:
     message = tmp_path / "message.txt"
-    message.write_text("feat(hooks): validate commits\n", encoding="utf-8")
+    message.write_text(
+        "feat(hooks): validate commits\n\nSigned-off-by: Sarvagya Meel <sarvagya@example.com>\n",
+        encoding="utf-8",
+    )
     accepted = subprocess.run(
         [BASH, ".githooks/commit-msg", str(message).replace("\\", "/")],
         cwd=ROOT,
