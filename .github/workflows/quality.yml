@@ -44,6 +44,16 @@ jobs:
           if [[ "$BASE_REF" == "main" && "$HEAD_REF" == release/* ]]; then
             python tests/tools/verify_release_branch.py --head-ref "$HEAD_SHA"
           fi
+      - name: Validate Developer Certificate of Origin
+        id: dco
+        if: ${{ steps.install.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python tests/tools/verify_dco.py \
+            --base "origin/$BASE_REF" --head "$HEAD_SHA"
       - name: Ruff
         id: ruff
         if: ${{ steps.install.outcome == 'success' }}
@@ -78,6 +88,7 @@ jobs:
         env:
           INSTALL: ${{ steps.install.outcome }}
           METADATA: ${{ steps.metadata.outcome }}
+          DCO: ${{ steps.dco.outcome }}
           RUFF: ${{ steps.ruff.outcome }}
           MYPY: ${{ steps.mypy.outcome }}
           GRAPHS: ${{ steps.graphs.outcome }}
@@ -86,12 +97,12 @@ jobs:
         run: |
           mkdir -p outputs/test-reports/suites
           static_status=success
-          for value in "$INSTALL" "$METADATA" "$RUFF" "$MYPY" "$GRAPHS"; do
+          for value in "$INSTALL" "$METADATA" "$DCO" "$RUFF" "$MYPY" "$GRAPHS"; do
             if [[ "$value" != "success" ]]; then static_status=failure; fi
           done
           python tests/tools/merge_gate.py record-suite --suite static \
             --status "$static_status" \
-            --detail "metadata=$METADATA ruff=$RUFF mypy=$MYPY graphs=$GRAPHS" \
+            --detail "metadata=$METADATA dco=$DCO ruff=$RUFF mypy=$MYPY graphs=$GRAPHS" \
             --output outputs/test-reports/suites/static.json
           python tests/tools/merge_gate.py record-suite --suite unit \
             --status "$UNIT" --detail "pytest tests/unit: $UNIT" \

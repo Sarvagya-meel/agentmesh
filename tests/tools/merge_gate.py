@@ -34,6 +34,7 @@ SUITE_STEP_NAMES: dict[str, tuple[str, ...]] = {
     "static": (
         "Install",
         "Validate PR metadata and release ancestry",
+        "Validate Developer Certificate of Origin",
         "Ruff",
         "Mypy",
         "Graph exports",

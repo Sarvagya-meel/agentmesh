@@ -156,12 +156,22 @@ is not tracked in Git.
   coding standards shared across IDEs.
 - [`docs/project/release-management.md`](docs/project/release-management.md):
   branch, versioning, release, rollback, commit, and PR standards.
+- [`docs/project/intellectual-property.md`](docs/project/intellectual-property.md):
+  copyright, contributions, dependency, trademark, and invention-review policy.
 
 ## Contributing
 
 Public changes should land through pull requests into `develop`. See
 [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md), and
 [`SUPPORT.md`](SUPPORT.md) before opening issues or pull requests.
+
+## License
+
+Copyright 2026 Sarvagya Meel. AgentMesh is licensed under the
+[Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for project attribution,
+[TRADEMARKS.md](TRADEMARKS.md) for permitted brand references, and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party attribution
+guidance.
 
 ## Current Status
 

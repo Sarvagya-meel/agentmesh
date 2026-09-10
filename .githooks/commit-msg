@@ -9,4 +9,5 @@ else
   PYTHON="python"
 fi
 
-exec "$PYTHON" tests/tools/merge_gate.py validate-message "$1"
+"$PYTHON" tests/tools/merge_gate.py validate-message "$1"
+exec "$PYTHON" tests/tools/verify_dco.py --message-file "$1"

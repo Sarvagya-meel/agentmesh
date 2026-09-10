@@ -3,6 +3,8 @@ name = "agentmesh"
 version = "0.1.0"
 description = "A production-grade hybrid multi-agent system for job-search automation."
 requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "Apache-2.0" }
 
 [dependency-groups]
 shared = [
@@ -99,6 +101,9 @@ mypy_path = "src"
 # When using pip install -e . or setuptools, this ensures correct discovery
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools]
+license-files = ["LICENSE", "NOTICE"]
 
 [build-system]
 requires = ["setuptools>=68"]
