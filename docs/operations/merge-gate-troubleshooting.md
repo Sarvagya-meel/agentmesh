@@ -125,6 +125,24 @@ If publishing fails after `main` merges, inspect whether the intended tag alread
 exists. Never force-update it. Rerun the publishing workflow when no tag exists;
 otherwise verify the existing tag and create only the missing GitHub Release.
 
+The publishing workflow creates or reuses a synchronization PR to `develop` and
+enables squash auto-merge. Its lightweight `gate` verifies that the exact head
+SHA is already contained in protected `main`; it does not repeat the full test
+matrix. Automation does not use an administrator bypass or push directly. Check
+its state with:
+
+```powershell
+gh pr view <number> --json autoMergeRequest,mergeStateStatus,statusCheckRollup
+```
+
+If `autoMergeRequest` is empty, confirm repository auto-merge is enabled, then
+rerun the publishing workflow or re-arm the existing PR with
+`gh pr merge <number> --auto --squash`. If a bot-created PR's workflow is paused
+for first-time approval, approve that Actions run once; do not bypass the gate.
+If the synchronization gate says the head is not published, do not force it:
+confirm the release or hotfix PR merged to `main` and that the sync PR still uses
+the exact published branch head.
+
 For a bad public release, create a `hotfix/vX.Y.Z` branch from `main` and publish
 a new patch. Do not reset `main`, delete `develop`, or modify the old tag.
 

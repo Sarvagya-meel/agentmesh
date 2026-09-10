@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   quality:
+    if: ${{ !(github.base_ref == 'develop' && (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/'))) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +108,7 @@ jobs:
           retention-days: 30
 
   full-system:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && !(github.base_ref == 'develop' && (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/'))) }}
     runs-on: ubuntu-latest
     env:
       AGENTMESH_SANITY_MODE: ci
@@ -257,7 +258,7 @@ jobs:
             --profile combined down --volumes --remove-orphans || true
 
   aggregate:
-    if: always()
+    if: ${{ always() && !(github.base_ref == 'develop' && (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/'))) }}
     needs: [quality, full-system]
     runs-on: ubuntu-latest
     permissions:
@@ -335,11 +336,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
+        if: ${{ !(github.base_ref == 'develop' && (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/'))) }}
         with:
           name: merge-gate-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
           path: outputs/test-reports
       - name: Verify report and authorize merge
+        if: ${{ !(github.base_ref == 'develop' && (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/'))) }}
         env:
           PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -353,3 +358,19 @@ jobs:
           python tests/tools/merge_gate.py verify --report "$report" \
             --head-sha "$HEAD_SHA" --tested-sha "$TESTED_SHA" \
             --base-ref "$BASE_REF" --head-ref "$HEAD_REF"
+      - name: Verify released commit and authorize synchronization
+        if: ${{ github.base_ref == 'develop' && (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/')) }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$HEAD_SHA" origin/main; then
+            echo "::error title=PR not allowed::Synchronization head $HEAD_SHA is not published on main."
+            exit 1
+          fi
+          {
+            echo "# AgentMesh Synchronization Gate"
+            echo
+            echo "Full testing is inherited from the protected main promotion."
+            echo "Verified that $HEAD_SHA is contained in origin/main."
+          } >> "$GITHUB_STEP_SUMMARY"
