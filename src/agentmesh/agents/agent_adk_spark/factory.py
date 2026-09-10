@@ -17,7 +17,14 @@ def create_google_adk_worker_agent(
 
     provider = settings.llm_provider.strip().lower()
     if provider == "mock":
-        return GoogleADKAgent(auto_register=False), lambda: None
+        return (
+            GoogleADKAgent(
+                auto_register=False,
+                model_name="mock",
+                executor=lambda prompt: f"Mock Google ADK response: {prompt}",
+            ),
+            lambda: None,
+        )
 
     api_key = groq_api_key(settings)
     model_name = settings.google_adk_model.strip() or settings.groq_model
