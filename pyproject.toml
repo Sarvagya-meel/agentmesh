@@ -25,7 +25,7 @@ adk-framework = [
     "asyncpg",
 ]
 model-gateway = [
-    "litellm==1.97.0",
+    "litellm==1.100.0",
 ]
 postgres-checkpoint = [
     "langgraph-checkpoint-postgres",
