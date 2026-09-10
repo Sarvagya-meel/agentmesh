@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import langsmith
 
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.services.service_agentmesh_server.trace_links import (
     resolve_langsmith_trace_link,
 )

@@ -1,4 +1,4 @@
-from agentmesh.testing.sanity_catalog import cases_by_id, read_seeded_catalog
+from tests.support.sanity_catalog import cases_by_id, read_seeded_catalog
 
 
 def test_uat_catalog_seed_ddl_has_core_runtime_coverage() -> None:

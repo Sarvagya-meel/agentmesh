@@ -26,23 +26,24 @@ claims grounded in the code or docs.
 Read the relevant Markdown before editing code or docs. Prefer active source docs
 over generated or historical material.
 
-- Runtime architecture: `plan.md`, `agent_runtime/README.md`,
-  `docs/agent-runtime-functional.md`,
-  `docs/agent-runtime-non-functional.md`, `docs/agent-runtime-roadmap.md`,
-  `docs/agent-runtime-api-worker-registry-guide.md`
-- Project overview and local operation: `README.md`, `docs/docker-operations.md`
+- Runtime architecture: `plan.md`, `docs/runtime/overview.md`,
+  `docs/runtime/functional.md`,
+  `docs/runtime/non-functional.md`, `docs/runtime/roadmap.md`,
+  `docs/runtime/api-worker-registry-guide.md`
+- Project overview and local operation: `README.md`, `docs/README.md`,
+  `docs/operations/docker.md`
 - Database and deployment boundaries: `deployment/postgres/README.md`,
   `deployment/agentcore/README.md`
 - Worker package behavior: package README files under `src/agentmesh/agents/`
   and service README files under `src/agentmesh/services/`
-- Product and business context: `.kiro/steering/product.md`,
+- Product and business context: `docs/project/product.md`,
   `docs/business/BUSINESS_PROBLEMS.md`
-- Tech, testing, and style context: `.kiro/steering/tech.md`,
-  `.kiro/steering/testing.md`, `.kiro/steering/coding-standards.md`,
+- Tech, testing, and style context: `docs/project/tech.md`,
+  `docs/project/testing.md`, `docs/project/coding-standards.md`,
   `pyproject.toml`
 - IDE adapters: `CLAUDE.md`, `.github/copilot-instructions.md`,
-  `.github/instructions/*.instructions.md`, and `.kiro/steering/*.md` should
-  point back here instead of duplicating full rules.
+  and docs under `docs/ide/` should point back here instead of duplicating full
+  rules.
 
 ## Project Context
 
@@ -53,8 +54,8 @@ projection, explicit service boundaries, and local-first operation.
 ## Runtime Architecture
 
 Use `plan.md` as the source of truth for runtime architecture. Use
-`docs/agent-runtime-functional.md` to understand behavior and
-`docs/agent-runtime-non-functional.md` to understand reliability, recovery,
+`docs/runtime/functional.md` to understand behavior and
+`docs/runtime/non-functional.md` to understand reliability, recovery,
 security, determinism, provider, and operability constraints.
 
 ## Service Boundaries
@@ -75,13 +76,12 @@ security, determinism, provider, and operability constraints.
   or unrelated generated output.
 - Update active README/runbook/API/user-story docs when architecture language
   changes.
-- Keep functional runtime behavior in `docs/agent-runtime-functional.md` and
-  non-functional qualities in `docs/agent-runtime-non-functional.md`.
+- Keep functional runtime behavior in `docs/runtime/functional.md` and
+  non-functional qualities in `docs/runtime/non-functional.md`.
 - Avoid duplicating the full design across IDE instruction files. Point back to
   this file and the focused runtime docs.
-- Keep Kiro steering, Claude, Codex, and VS Code/GitHub Copilot guidance aligned
-  through this file; tool-specific files should be short adapters unless they are
-  domain docs such as product, tech, testing, or coding standards.
+- Keep Claude, Codex, Kiro, and VS Code/GitHub Copilot guidance aligned through
+  this file and `docs/ide/`; tool-specific files should be short adapters.
 - Keep explanations concise enough for maintainers, but clear enough that an
   interviewer can follow the architecture and tradeoffs.
 - Preserve historical learning logs and future proposals unless the task
@@ -103,6 +103,9 @@ python -m mypy --strict src
 
 - Do not revert user changes.
 - Keep edits scoped to the requested files and materially affected docs.
+- Treat files and directories whose names start with `local` as personal local
+  workspace artifacts: do not use them for project understanding unless the
+  current task explicitly references them.
 - Inspect `git diff` before reporting completion.
 - Report files changed, checks run, and any active docs intentionally left
   untouched.

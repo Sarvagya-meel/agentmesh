@@ -4,7 +4,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph.message import add_messages
 
 from agentmesh.agents.agent_langgraph_copilot.agent import ConversationAgent
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.observability import configure_langsmith
 
 

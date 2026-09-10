@@ -10,7 +10,7 @@ from agentmesh.agents.agent_langgraph_orchestrator_supervisor import (
 )
 from agentmesh.agents.agent_langgraph_orchestrator_supervisor.factory import create_workflow_planner
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
-from agentmesh.config import get_settings
+from agentmesh.core.config import get_settings
 from agentmesh.core.database import (
     create_claim_repository,
     create_event_repository,

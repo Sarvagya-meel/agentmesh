@@ -32,7 +32,6 @@ RUN pip install --upgrade "pip>=25.1" \
 
 # Copy shared runtime code and only the selected concrete agent.
 COPY src/agentmesh/__init__.py ./src/agentmesh/__init__.py
-COPY src/agentmesh/config.py ./src/agentmesh/config.py
 COPY src/agentmesh/core ./src/agentmesh/core
 COPY src/agentmesh/agents/__init__.py ./src/agentmesh/agents/__init__.py
 COPY src/agentmesh/agents/common ./src/agentmesh/agents/common

@@ -25,4 +25,4 @@ jobs:
       - name: Tests
         run: pytest -q
       - name: Verify offline graph exports
-        run: python scripts/export_langgraph_mermaid.py --check
+        run: python tests/tools/export_langgraph_mermaid.py --check

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 
 
 def resolve_langsmith_trace_link(settings: Settings, request_id: str) -> dict[str, Any]:

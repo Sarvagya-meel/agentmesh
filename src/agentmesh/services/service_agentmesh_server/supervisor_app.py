@@ -17,7 +17,7 @@ from agentmesh.agents.agent_langgraph_orchestrator_supervisor.factory import (
     create_workflow_planner,
 )
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
-from agentmesh.config import get_settings
+from agentmesh.core.config import get_settings
 from agentmesh.core.frameworks.langgraph import (
     create_async_langgraph_checkpointer,
     create_langgraph_store,

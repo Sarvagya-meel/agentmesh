@@ -19,7 +19,7 @@ WHERE case_id IN (
 
 UPDATE agentmesh_uat_cases
 SET metadata = metadata || jsonb_build_object(
-        'browser_smoke_script', 'scripts/browser_smoke.cjs',
+        'browser_smoke_script', 'tests/tools/browser_smoke.cjs',
         'viewports', jsonb_build_array('1440x1000', '390x844')
     ),
     updated_at = CURRENT_TIMESTAMP

@@ -1,5 +1,5 @@
-"""Backward-compatibility shim — real implementation is in core.database.checkpoint."""
+"""Service compatibility facade for the core PostgreSQL checkpoint adapter."""
 
-from agentmesh.core.database.checkpoint import create_orchestration_checkpointer
+from agentmesh.core.database.postgres.checkpoint import create_orchestration_checkpointer
 
 __all__ = ["create_orchestration_checkpointer"]
