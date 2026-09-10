@@ -18,6 +18,22 @@ develop -> release/vX.Y.Z -> pull request -> main -> tag -> GitHub Release
 - Use `hotfix/vX.Y.Z` branches only when a released version must be patched.
 - Install shared hooks with `pwsh -File scripts/install_git_hooks.ps1`.
 
+## Developer Certificate of Origin
+
+All contributions must be submitted under the Apache License 2.0 and include a
+Developer Certificate of Origin (DCO) sign-off. Use `git commit -s` to add the
+required trailer:
+
+```text
+Signed-off-by: Your Name <you@example.com>
+```
+
+By signing off, you confirm that you are entitled to submit the contribution
+under the repository license. Do not submit copied code, assets, models, or
+other material unless you have checked its license and preserved required
+attribution. The local commit hook gives early feedback; pull-request CI is the
+authoritative enforcement point.
+
 ## Commit Messages
 
 Use Conventional Commits:
@@ -39,6 +55,7 @@ Use `BREAKING CHANGE:` in the commit body for incompatible public behavior.
 Keep one pull request focused on one logical change. Each PR should include:
 
 - Summary of what changed.
+- DCO sign-off on every non-merge commit.
 - Validation commands or checks run.
 - Release impact: none, patch, minor, major, or prerelease.
 - Rollback plan.

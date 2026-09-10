@@ -2,8 +2,9 @@
 
 AgentMesh uses `develop` for accepted development and `main` for public,
 versioned releases. Every protected-branch change is reviewed through a public
-pull request, validated against the exact PR commit, and merged manually by the
-repository maintainer.
+pull request and validated against the exact PR commit. The maintainer merges
+development and release PRs manually; post-release synchronization PRs merge
+automatically through the restricted path described below.
 
 ## Branch Flow
 
@@ -70,7 +71,7 @@ The required check is `merge-gate / gate`. It aggregates these suites:
 | `browser` | Desktop and mobile Streamlit browser checks |
 | `llm` | Provider execution and LangSmith evaluation |
 
-Every suite writes compact JSON. The aggregator creates:
+Every full-gate suite writes compact JSON. The aggregator creates:
 
 ```text
 outputs/test-reports/<PR-created-YYYY-MM-DD>/pr-<number>/<head-sha>/
@@ -87,6 +88,11 @@ The report schema is versioned and includes `pr_number`, `base_ref`, `head_ref`,
 `head_sha`, `tested_sha`, timestamps, suite results, durations, waiver data,
 counts, blocking problems, and `overall_status`. The gate rejects missing,
 malformed, stale, or non-passing reports with `PR not allowed` annotations.
+
+For documentation and repository-metadata-only PRs, the gate records Docker,
+UAT, smoke, browser, and LLM suites as not applicable and skips their expensive
+execution. Changes to source, tests, dependencies, deployment, runtime
+configuration, or workflows always run the complete full-system job.
 
 Reproduce the fast gate locally with:
 
@@ -132,7 +138,14 @@ Only `release/*` and `hotfix/*` may target `main`.
 
 After the maintainer merges a passing release PR, automation creates the
 immutable tag, publishes GitHub-generated release notes, and opens a PR that
-synchronizes the release version and changelog back into `develop`.
+synchronizes the release version and changelog back into `develop`. That
+synchronization PR is automatically squash-merged only after its required
+`gate` succeeds. This synchronization gate does not repeat Ruff, mypy, tests,
+Docker, UAT, browser, or LLM evaluation. It verifies that the exact
+`release/*` or `hotfix/*` head SHA is already contained in protected `main`, so
+the successful release gate is inherited. Release and hotfix PRs into `main`
+still require the maintainer's manual Merge click; synchronization PRs are the
+only automatic PR merge path.
 
 ## Rollback
 
@@ -149,7 +162,8 @@ git switch -c hotfix/vX.Y.Z
 
 Apply the smallest fix, use a `fix:` commit, open a PR to `main`, and publish a
 new patch release after the complete gate passes. Merge the hotfix changes back
-into `develop` through the synchronization PR. Do not move an existing tag.
+into `develop` through the automatically gated synchronization PR. Do not move
+an existing tag.
 
 See [Merge Gate Troubleshooting](../operations/merge-gate-troubleshooting.md)
 for failure diagnosis and recovery.

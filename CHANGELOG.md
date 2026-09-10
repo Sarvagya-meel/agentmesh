@@ -7,6 +7,13 @@ Conventional Commits to decide release notes and version movement.
 
 ## Unreleased
 
+## v0.1.1 - 2026-09-10
+
+### Changed
+
+- Added DCO enforcement and explicit intellectual-property and third-party notices.
+- Automated post-release synchronization back into `develop`.
+
 ## v0.1.0 - 2026-09-10
 
 ### Added

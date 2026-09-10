@@ -4,6 +4,12 @@ Use this runbook when `merge-gate / gate`, release automation, or local Git hook
 block progress. Fix the evidence or code and rerun the gate; do not bypass branch
 rules or rewrite published history.
 
+Documentation and repository-metadata-only PRs intentionally skip expensive
+full-system execution while still producing passing, SHA-bound suite records.
+Inspect the `Classify full-system scope` step when an expected skip does not
+occur. Classification fails safe: an empty or unrecognized change set runs the
+complete system gate.
+
 ## Read The Consolidated Report
 
 Open the failed workflow's Actions summary first. Download the artifact named
@@ -69,6 +75,16 @@ live suite as `skip`. That blocks the trusted full-system gate unless an active
 owner waiver explicitly accepts it. Configure repository secrets; never paste
 them into a PR, report, issue, or workflow log.
 
+Live workflow polling has a 180-second completion deadline and a 240-second
+process cap. A timeout fails the LLM suite instead of holding the gate
+indefinitely. Check provider quota, workflow events, and service logs before
+rerunning; do not increase the limit to conceal a workflow that never completes.
+
+Until 2026-10-10, confirmed provider `429`, quota, or rate-limit failures in
+live UAT, system smoke, or LLM evaluation are recorded as `warn` under explicit
+owner waivers. The workflow must find that evidence in the suite log. Any other
+failure remains `fail` and blocks the PR.
+
 Provider `429` and LangSmith quota errors are external dependency failures, not
 local passes. Preserve the failed run, wait for quota recovery, and rerun the
 affected jobs. Use a temporary optional waiver only when the suite is explicitly
@@ -124,6 +140,24 @@ and rerun the gate. Close an abandoned release PR without publishing its tag.
 If publishing fails after `main` merges, inspect whether the intended tag already
 exists. Never force-update it. Rerun the publishing workflow when no tag exists;
 otherwise verify the existing tag and create only the missing GitHub Release.
+
+The publishing workflow creates or reuses a synchronization PR to `develop` and
+enables squash auto-merge. Its lightweight `gate` verifies that the exact head
+SHA is already contained in protected `main`; it does not repeat the full test
+matrix. Automation does not use an administrator bypass or push directly. Check
+its state with:
+
+```powershell
+gh pr view <number> --json autoMergeRequest,mergeStateStatus,statusCheckRollup
+```
+
+If `autoMergeRequest` is empty, confirm repository auto-merge is enabled, then
+rerun the publishing workflow or re-arm the existing PR with
+`gh pr merge <number> --auto --squash`. If a bot-created PR's workflow is paused
+for first-time approval, approve that Actions run once; do not bypass the gate.
+If the synchronization gate says the head is not published, do not force it:
+confirm the release or hotfix PR merged to `main` and that the sync PR still uses
+the exact published branch head.
 
 For a bad public release, create a `hotfix/vX.Y.Z` branch from `main` and publish
 a new patch. Do not reset `main`, delete `develop`, or modify the old tag.

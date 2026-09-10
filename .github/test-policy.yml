@@ -5,12 +5,26 @@
     "unit": {"required": true},
     "integration": {"required": true},
     "docker": {"required": true},
-    "uat": {"required": true},
-    "smoke": {"required": true},
+    "uat": {"required": false},
+    "smoke": {"required": false},
     "browser": {"required": true},
     "llm": {"required": false}
   },
   "waivers": [
+    {
+      "suite": "uat",
+      "owner": "@Sarvagya-meel",
+      "reason": "Live UAT provider calls may warn only when logs prove a provider 429 or quota failure; deterministic and non-provider failures remain blocking.",
+      "created_on": "2026-09-10",
+      "expires_on": "2026-10-10"
+    },
+    {
+      "suite": "smoke",
+      "owner": "@Sarvagya-meel",
+      "reason": "System smoke provider calls may warn only when logs prove a provider 429 or quota failure; deterministic and non-provider failures remain blocking.",
+      "created_on": "2026-09-10",
+      "expires_on": "2026-10-10"
+    },
     {
       "suite": "llm",
       "owner": "@Sarvagya-meel",
