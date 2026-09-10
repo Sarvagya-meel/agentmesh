@@ -4,6 +4,12 @@ Use this runbook when `merge-gate / gate`, release automation, or local Git hook
 block progress. Fix the evidence or code and rerun the gate; do not bypass branch
 rules or rewrite published history.
 
+Documentation and repository-metadata-only PRs intentionally skip expensive
+full-system execution while still producing passing, SHA-bound suite records.
+Inspect the `Classify full-system scope` step when an expected skip does not
+occur. Classification fails safe: an empty or unrecognized change set runs the
+complete system gate.
+
 ## Read The Consolidated Report
 
 Open the failed workflow's Actions summary first. Download the artifact named

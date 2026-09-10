@@ -137,21 +137,33 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Classify full-system scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python tests/tools/full_system_scope.py \
+            --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --github-output "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
+        if: ${{ steps.scope.outputs.required == 'true' }}
         with:
           python-version: "3.11"
           cache: pip
       - uses: actions/setup-node@v4
+        if: ${{ steps.scope.outputs.required == 'true' }}
         with:
           node-version: "22"
       - name: Install Python dependencies
         id: install
+        if: ${{ steps.scope.outputs.required == 'true' }}
         continue-on-error: true
         run: |
           python -m pip install --upgrade "pip>=25.1"
           python -m pip install -e . --group local
       - name: Write CI environment
-        if: ${{ steps.install.outcome == 'success' }}
+        if: ${{ steps.scope.outputs.required == 'true' && steps.install.outcome == 'success' }}
         run: |
           provider=mock
           if [[ -n "$GROQ_API_KEY" ]]; then provider=groq; fi
@@ -167,7 +179,7 @@ jobs:
           } > .env
       - name: Clean build and start Docker stack
         id: docker
-        if: ${{ steps.install.outcome == 'success' }}
+        if: ${{ steps.scope.outputs.required == 'true' && steps.install.outcome == 'success' }}
         continue-on-error: true
         run: |
           docker compose --env-file .env -f deployment/docker/compose.yml \
@@ -230,6 +242,8 @@ jobs:
       - name: Record full-system suites
         if: always()
         env:
+          FULL_SYSTEM_REQUIRED: ${{ steps.scope.outputs.required }}
+          SCOPE_REASON: ${{ steps.scope.outputs.reason }}
           DOCKER: ${{ steps.docker.outcome }}
           UAT: ${{ steps.uat.outcome }}
           SMOKE: ${{ steps.smoke.outcome }}
@@ -239,6 +253,14 @@ jobs:
           LLM_GATE_STATUS: ${{ steps.llm.outputs.gate_status }}
         run: |
           mkdir -p outputs/test-reports/suites
+          if [[ "$FULL_SYSTEM_REQUIRED" != "true" ]]; then
+            for suite in docker uat smoke browser llm; do
+              python tests/tools/merge_gate.py record-suite --suite "$suite" \
+                --status pass --detail "not applicable: $SCOPE_REASON" \
+                --output "outputs/test-reports/suites/${suite}.json"
+            done
+            exit 0
+          fi
           browser_status="$BROWSER"
           if [[ "$PLAYWRIGHT" != "success" ]]; then browser_status=failure; fi
           llm_status="$LLM_GATE_STATUS"
@@ -268,7 +290,7 @@ jobs:
           path: outputs/test-reports/suites/*.json
           retention-days: 30
       - name: Stop Docker stack
-        if: always()
+        if: ${{ always() && steps.scope.outputs.required == 'true' }}
         run: |
           docker compose --env-file .env -f deployment/docker/compose.yml \
             --profile combined down --volumes --remove-orphans || true

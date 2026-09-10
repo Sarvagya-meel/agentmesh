@@ -28,3 +28,12 @@ def test_release_pr_dco_starts_at_accepted_develop_head() -> None:
     assert '"$HEAD_REF" == release/*' in workflow
     assert 'dco_base="origin/develop"' in workflow
     assert '--base "$dco_base" --head "$HEAD_SHA"' in workflow
+
+
+def test_non_functional_changes_skip_expensive_full_system_steps() -> None:
+    workflow = (ROOT / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    assert "Classify full-system scope" in workflow
+    assert "tests/tools/full_system_scope.py" in workflow
+    assert "steps.scope.outputs.required == 'true'" in workflow
+    assert 'not applicable: $SCOPE_REASON' in workflow

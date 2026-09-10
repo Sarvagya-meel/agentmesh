@@ -89,6 +89,11 @@ The report schema is versioned and includes `pr_number`, `base_ref`, `head_ref`,
 counts, blocking problems, and `overall_status`. The gate rejects missing,
 malformed, stale, or non-passing reports with `PR not allowed` annotations.
 
+For documentation and repository-metadata-only PRs, the gate records Docker,
+UAT, smoke, browser, and LLM suites as not applicable and skips their expensive
+execution. Changes to source, tests, dependencies, deployment, runtime
+configuration, or workflows always run the complete full-system job.
+
 Reproduce the fast gate locally with:
 
 ```powershell
