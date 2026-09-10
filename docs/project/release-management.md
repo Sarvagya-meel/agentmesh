@@ -99,8 +99,8 @@ Reproduce the fast gate locally with:
 `.github/test-policy.yml` is JSON-compatible YAML so the standard-library gate
 can parse it without adding a runtime dependency. Every active suite is required
 by default and only `pass` is accepted. The initial policy contains a 30-day
-waiver for LangSmith quota exhaustion; it expires on 2026-10-10 and must not be
-silently extended.
+waiver for missing GitHub provider secrets and LangSmith quota exhaustion; it
+expires on 2026-10-10 and must not be silently extended.
 
 To permit `warn` or `skip`, mark the suite non-required and add a waiver with its
 suite, owner, reason, creation date, and expiration date. Temporary waivers

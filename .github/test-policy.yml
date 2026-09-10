@@ -14,7 +14,7 @@
     {
       "suite": "llm",
       "owner": "@Sarvagya-meel",
-      "reason": "LangSmith monthly trace quota is exhausted; provider and runtime tests remain required.",
+      "reason": "Live provider secrets are not configured in GitHub and LangSmith trace quota is exhausted; deterministic runtime coverage remains required.",
       "created_on": "2026-09-10",
       "expires_on": "2026-10-10"
     }
