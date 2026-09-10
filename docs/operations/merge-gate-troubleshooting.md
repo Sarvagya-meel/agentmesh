@@ -82,8 +82,10 @@ rerunning; do not increase the limit to conceal a workflow that never completes.
 
 Until 2026-10-10, confirmed provider `429`, quota, or rate-limit failures in
 live UAT, system smoke, or LLM evaluation are recorded as `warn` under explicit
-owner waivers. The workflow must find that evidence in the suite log. Any other
-failure remains `fail` and blocks the PR.
+owner waivers. System smoke may surface the same outage as a local `503`; that
+result may warn only when UAT in the same Docker run already proved the provider
+limit. Any standalone `503` or unrelated failure remains `fail` and blocks the
+PR.
 
 Provider `429` and LangSmith quota errors are external dependency failures, not
 local passes. Preserve the failed run, wait for quota recovery, and rerun the
@@ -141,20 +143,20 @@ If publishing fails after `main` merges, inspect whether the intended tag alread
 exists. Never force-update it. Rerun the publishing workflow when no tag exists;
 otherwise verify the existing tag and create only the missing GitHub Release.
 
-The publishing workflow creates or reuses a synchronization PR to `develop` and
-enables squash auto-merge. Its lightweight `gate` verifies that the exact head
-SHA is already contained in protected `main`; it does not repeat the full test
-matrix. Automation does not use an administrator bypass or push directly. Check
-its state with:
+The publishing workflow creates or reuses a synchronization PR to `develop`.
+It verifies that the exact head is contained in the published `main` merge,
+records an inherited `gate` check, and performs the protected squash merge. This
+avoids relying on a recursive `pull_request` event, which GitHub suppresses for
+PRs created with the built-in Actions token. It does not repeat the full test
+matrix, use an administrator bypass, or push directly. Check its state with:
 
 ```powershell
-gh pr view <number> --json autoMergeRequest,mergeStateStatus,statusCheckRollup
+gh pr view <number> --json mergeStateStatus,statusCheckRollup
 ```
 
-If `autoMergeRequest` is empty, confirm repository auto-merge is enabled, then
-rerun the publishing workflow or re-arm the existing PR with
-`gh pr merge <number> --auto --squash`. If a bot-created PR's workflow is paused
-for first-time approval, approve that Actions run once; do not bypass the gate.
+If the inherited check is absent, inspect the publishing workflow's ancestry
+validation and `checks: write` permission, then rerun the workflow. Do not add a
+manual success status or bypass the gate.
 If the synchronization gate says the head is not published, do not force it:
 confirm the release or hotfix PR merged to `main` and that the sync PR still uses
 the exact published branch head.

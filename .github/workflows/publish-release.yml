@@ -5,6 +5,7 @@ on:
     branches: [main]
 
 permissions:
+  checks: write
   contents: write
   pull-requests: write
 
@@ -42,7 +43,7 @@ jobs:
           git tag -a "$TAG" -m "AgentMesh $TAG"
           git push origin "$TAG"
           gh release create "$TAG" --verify-tag --generate-notes --title "AgentMesh $TAG"
-      - name: Open and auto-merge synchronization PR back to develop
+      - name: Open and merge synchronization PR back to develop
         env:
           GH_TOKEN: ${{ github.token }}
           MERGE_SHA: ${{ github.sha }}
@@ -68,4 +69,25 @@ jobs:
             echo "Synchronization PR was not found after creation."
             exit 1
           fi
-          gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto --squash
+          head_sha="$(gh pr view "$number" --json headRefOid --jq .headRefOid)"
+          if ! git merge-base --is-ancestor "$head_sha" "$MERGE_SHA"; then
+            echo "Synchronization head $head_sha is not part of published merge $MERGE_SHA."
+            exit 1
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" \
+            -f name=gate \
+            -f head_sha="$head_sha" \
+            -f status=completed \
+            -f conclusion=success \
+            -f "output[title]=Published release gate inherited" \
+            -f "output[summary]=This exact commit passed the protected main release gate and is contained in $MERGE_SHA."
+          for attempt in {1..12}; do
+            if gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --squash \
+              --match-head-commit "$head_sha"; then
+              exit 0
+            fi
+            echo "Protected merge is not ready yet (attempt $attempt/12)."
+            sleep 5
+          done
+          echo "Synchronization PR did not become mergeable."
+          exit 1

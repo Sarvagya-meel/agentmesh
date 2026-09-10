@@ -216,6 +216,7 @@ jobs:
         continue-on-error: true
         env:
           LANGSMITH_TRACING: "false"
+          UAT_GATE_STATUS: ${{ steps.uat.outputs.gate_status }}
         run: |
           set +e
           python tests/tools/system_sanity.py --no-build --mode local \
@@ -226,6 +227,11 @@ jobs:
             exit 0
           fi
           if grep -Eqi '429|quota|rate.?limit' /tmp/system-smoke.log; then
+            echo "gate_status=warn" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$UAT_GATE_STATUS" == "warn" ]] && \
+            grep -Eqi '503|service unavailable' /tmp/system-smoke.log; then
             echo "gate_status=warn" >> "$GITHUB_OUTPUT"
             exit 0
           fi
