@@ -62,12 +62,16 @@ jobs:
         id: unit
         if: ${{ steps.install.outcome == 'success' }}
         continue-on-error: true
-        run: pytest tests/unit -q --junitxml=outputs/test-reports/unit.xml
+        run: |
+          mkdir -p outputs/test-reports
+          pytest tests/unit -q --junitxml=outputs/test-reports/unit.xml
       - name: Integration and API tests
         id: integration
         if: ${{ steps.install.outcome == 'success' }}
         continue-on-error: true
-        run: pytest tests/api -q --junitxml=outputs/test-reports/integration.xml
+        run: |
+          mkdir -p outputs/test-reports
+          pytest tests/api -q --junitxml=outputs/test-reports/integration.xml
       - name: Record quality suites
         if: always()
         env:
@@ -108,7 +112,6 @@ jobs:
     env:
       AGENTMESH_SANITY_MODE: ci
       AGENTMESH_REQUIRE_LANGSMITH: "1"
-      LANGSMITH_TRACING: ${{ secrets.LANGSMITH_TRACING }}
       LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
       LANGSMITH_ENDPOINT: ${{ secrets.LANGSMITH_ENDPOINT }}
       LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
@@ -161,7 +164,9 @@ jobs:
         continue-on-error: true
         env:
           AGENTMESH_LIVE_UAT: "1"
-        run: pytest tests/live -q --junitxml=outputs/test-reports/live-uat.xml
+        run: |
+          mkdir -p outputs/test-reports
+          pytest tests/live -q --junitxml=outputs/test-reports/live-uat.xml
       - name: System smoke
         id: smoke
         if: ${{ steps.docker.outcome == 'success' }}
