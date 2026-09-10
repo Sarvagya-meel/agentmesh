@@ -10,6 +10,9 @@ For deeper planning and interview explanations, use:
   result contracts
 - `docs/runtime/non-functional.md` for reliability, recovery, determinism,
   security, and operability constraints
+- `docs/runtime/rfc-001-three-plane-architecture.md` for the event plane,
+  projection plane, replay plane, execution-lineage tree, and MCP-native
+  registry direction
 
 ## Service Topology
 

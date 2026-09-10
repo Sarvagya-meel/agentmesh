@@ -7,6 +7,10 @@ Pair this roadmap with `docs/runtime/functional.md` and
 `docs/runtime/non-functional.md` so implementation planning keeps behavior
 and quality constraints separate.
 
+Use `docs/runtime/rfc-001-three-plane-architecture.md` as the draft RFC for the
+event plane, projection plane, replay plane, execution-lineage tree, and future
+MCP-native capability registry direction.
+
 ## Target Architecture
 
 - Durable registry/control-plane service owns registry data, queueing, workflow
@@ -39,6 +43,8 @@ and quality constraints separate.
 ## Documentation Tasks
 
 - Keep root and runtime README language aligned with this topology.
+- Keep RFC-001 aligned with `plan.md` before turning any three-plane runtime
+  concept into code, migrations, or public APIs.
 - Keep functional behavior in `docs/runtime/functional.md`.
 - Keep reliability, recovery, security, and operability constraints in
   `docs/runtime/non-functional.md`.

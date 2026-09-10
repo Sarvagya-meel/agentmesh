@@ -7,7 +7,8 @@ focused on source, tests, deployment, and the primary project entry points.
 ## Map
 
 - `runtime/`: active runtime behavior, non-functional requirements, roadmap, API
-  guide, and checkpoint/retry notes.
+  guide, checkpoint/retry notes, and RFCs such as
+  [RFC-001: Intent-Driven Three-Plane Runtime](runtime/rfc-001-three-plane-architecture.md).
 - `operations/`: local Docker, demo validation, and observability runbooks.
 - `project/`: product, architecture, technology, testing, coding standards, and
   package-layout guidance shared across IDEs and assistant tools. Full-system
