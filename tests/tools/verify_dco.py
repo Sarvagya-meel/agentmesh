@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SIGNED_OFF_BY = re.compile(
     r"^Signed-off-by:\s+[^<>\r\n]+\s+<[^<>\s]+@[^<>\s]+>$", re.IGNORECASE
 )
+TRUSTED_BRANCH_REFS = ("origin/develop", "origin/main")
 
 
 def dco_error(message: str) -> str | None:
@@ -41,10 +42,35 @@ def dco_errors_for_messages(messages: Mapping[str, str]) -> list[str]:
     ]
 
 
+def is_ancestor(ancestor: str, head: str) -> bool:
+    """Return whether a protected branch ref is already contained in the head."""
+    return (
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ancestor, head],
+            cwd=ROOT,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode
+        == 0
+    )
+
+
+def revision_args(base: str, head: str) -> list[str]:
+    """Build a range that excludes history accepted on protected branches."""
+    exclusions = [base]
+    exclusions.extend(
+        ref
+        for ref in TRUSTED_BRANCH_REFS
+        if ref != base and is_ancestor(ref, head)
+    )
+    return ["git", "rev-list", "--no-merges", head, *[f"^{ref}" for ref in exclusions]]
+
+
 def commit_messages(base: str, head: str) -> dict[str, str]:
     """Read each non-merge commit introduced between two Git revisions."""
     commit_ids = subprocess.check_output(
-        ["git", "rev-list", "--no-merges", f"{base}..{head}"],
+        revision_args(base, head),
         cwd=ROOT,
         text=True,
     ).splitlines()

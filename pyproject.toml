@@ -1,6 +1,6 @@
 [project]
 name = "agentmesh"
-version = "0.1.0"
+version = "0.1.1"
 description = "A production-grade hybrid multi-agent system for job-search automation."
 requires-python = ">=3.11"
 readme = "README.md"

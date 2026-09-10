@@ -4,6 +4,12 @@ Use this runbook when `merge-gate / gate`, release automation, or local Git hook
 block progress. Fix the evidence or code and rerun the gate; do not bypass branch
 rules or rewrite published history.
 
+Documentation and repository-metadata-only PRs intentionally skip expensive
+full-system execution while still producing passing, SHA-bound suite records.
+Inspect the `Classify full-system scope` step when an expected skip does not
+occur. Classification fails safe: an empty or unrecognized change set runs the
+complete system gate.
+
 ## Read The Consolidated Report
 
 Open the failed workflow's Actions summary first. Download the artifact named
@@ -68,6 +74,16 @@ Missing `GROQ_API_KEY`, `OPENAI_API_KEY`, or LangSmith configuration records the
 live suite as `skip`. That blocks the trusted full-system gate unless an active
 owner waiver explicitly accepts it. Configure repository secrets; never paste
 them into a PR, report, issue, or workflow log.
+
+Live workflow polling has a 180-second completion deadline and a 240-second
+process cap. A timeout fails the LLM suite instead of holding the gate
+indefinitely. Check provider quota, workflow events, and service logs before
+rerunning; do not increase the limit to conceal a workflow that never completes.
+
+Until 2026-10-10, confirmed provider `429`, quota, or rate-limit failures in
+live UAT, system smoke, or LLM evaluation are recorded as `warn` under explicit
+owner waivers. The workflow must find that evidence in the suite log. Any other
+failure remains `fail` and blocks the PR.
 
 Provider `429` and LangSmith quota errors are external dependency failures, not
 local passes. Preserve the failed run, wait for quota recovery, and rerun the

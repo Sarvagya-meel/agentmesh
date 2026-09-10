@@ -50,10 +50,15 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          dco_base="origin/$BASE_REF"
+          if [[ "$BASE_REF" == "main" && "$HEAD_REF" == release/* ]]; then
+            dco_base="origin/develop"
+          fi
           python tests/tools/verify_dco.py \
-            --base "origin/$BASE_REF" --head "$HEAD_SHA"
+            --base "$dco_base" --head "$HEAD_SHA"
       - name: Ruff
         id: ruff
         if: ${{ steps.install.outcome == 'success' }}
@@ -132,21 +137,33 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Classify full-system scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python tests/tools/full_system_scope.py \
+            --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --github-output "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
+        if: ${{ steps.scope.outputs.required == 'true' }}
         with:
           python-version: "3.11"
           cache: pip
       - uses: actions/setup-node@v4
+        if: ${{ steps.scope.outputs.required == 'true' }}
         with:
           node-version: "22"
       - name: Install Python dependencies
         id: install
+        if: ${{ steps.scope.outputs.required == 'true' }}
         continue-on-error: true
         run: |
           python -m pip install --upgrade "pip>=25.1"
           python -m pip install -e . --group local
       - name: Write CI environment
-        if: ${{ steps.install.outcome == 'success' }}
+        if: ${{ steps.scope.outputs.required == 'true' && steps.install.outcome == 'success' }}
         run: |
           provider=mock
           if [[ -n "$GROQ_API_KEY" ]]; then provider=groq; fi
@@ -162,7 +179,7 @@ jobs:
           } > .env
       - name: Clean build and start Docker stack
         id: docker
-        if: ${{ steps.install.outcome == 'success' }}
+        if: ${{ steps.scope.outputs.required == 'true' && steps.install.outcome == 'success' }}
         continue-on-error: true
         run: |
           docker compose --env-file .env -f deployment/docker/compose.yml \
@@ -179,14 +196,41 @@ jobs:
           AGENTMESH_LIVE_UAT: "1"
         run: |
           mkdir -p outputs/test-reports
-          pytest tests/live -q --junitxml=outputs/test-reports/live-uat.xml
+          set +e
+          pytest tests/live -q --junitxml=outputs/test-reports/live-uat.xml \
+            2>&1 | tee /tmp/live-uat.log
+          code=${PIPESTATUS[0]}
+          if [[ "$code" == "0" ]]; then
+            echo "gate_status=pass" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -Eqi '429|quota|rate.?limit' /tmp/live-uat.log; then
+            echo "gate_status=warn" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "gate_status=fail" >> "$GITHUB_OUTPUT"
+          exit "$code"
       - name: System smoke
         id: smoke
         if: ${{ steps.docker.outcome == 'success' }}
         continue-on-error: true
         env:
           LANGSMITH_TRACING: "false"
-        run: python tests/tools/system_sanity.py --no-build --mode local
+        run: |
+          set +e
+          python tests/tools/system_sanity.py --no-build --mode local \
+            2>&1 | tee /tmp/system-smoke.log
+          code=${PIPESTATUS[0]}
+          if [[ "$code" == "0" ]]; then
+            echo "gate_status=pass" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -Eqi '429|quota|rate.?limit' /tmp/system-smoke.log; then
+            echo "gate_status=warn" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "gate_status=fail" >> "$GITHUB_OUTPUT"
+          exit "$code"
       - name: Install Playwright
         id: playwright
         if: ${{ steps.docker.outcome == 'success' }}
@@ -210,7 +254,9 @@ jobs:
             exit 0
           fi
           set +e
-          python tests/tools/langsmith_eval.py --require-langsmith 2>&1 | tee /tmp/llm-eval.log
+          timeout 240s python tests/tools/langsmith_eval.py \
+            --require-langsmith --workflow-timeout-seconds 180 \
+            2>&1 | tee /tmp/llm-eval.log
           code=${PIPESTATUS[0]}
           if [[ "$code" == "0" ]]; then
             echo "gate_status=warn" >> "$GITHUB_OUTPUT"
@@ -225,15 +271,31 @@ jobs:
       - name: Record full-system suites
         if: always()
         env:
+          FULL_SYSTEM_REQUIRED: ${{ steps.scope.outputs.required }}
+          SCOPE_REASON: ${{ steps.scope.outputs.reason }}
           DOCKER: ${{ steps.docker.outcome }}
           UAT: ${{ steps.uat.outcome }}
+          UAT_GATE_STATUS: ${{ steps.uat.outputs.gate_status }}
           SMOKE: ${{ steps.smoke.outcome }}
+          SMOKE_GATE_STATUS: ${{ steps.smoke.outputs.gate_status }}
           PLAYWRIGHT: ${{ steps.playwright.outcome }}
           BROWSER: ${{ steps.browser.outcome }}
           LLM: ${{ steps.llm.outcome }}
           LLM_GATE_STATUS: ${{ steps.llm.outputs.gate_status }}
         run: |
           mkdir -p outputs/test-reports/suites
+          if [[ "$FULL_SYSTEM_REQUIRED" != "true" ]]; then
+            for suite in docker uat smoke browser llm; do
+              python tests/tools/merge_gate.py record-suite --suite "$suite" \
+                --status pass --detail "not applicable: $SCOPE_REASON" \
+                --output "outputs/test-reports/suites/${suite}.json"
+            done
+            exit 0
+          fi
+          uat_status="$UAT_GATE_STATUS"
+          if [[ -z "$uat_status" ]]; then uat_status="$UAT"; fi
+          smoke_status="$SMOKE_GATE_STATUS"
+          if [[ -z "$smoke_status" ]]; then smoke_status="$SMOKE"; fi
           browser_status="$BROWSER"
           if [[ "$PLAYWRIGHT" != "success" ]]; then browser_status=failure; fi
           llm_status="$LLM_GATE_STATUS"
@@ -242,10 +304,10 @@ jobs:
             --status "$DOCKER" --detail "clean Compose build/start: $DOCKER" \
             --output outputs/test-reports/suites/docker.json
           python tests/tools/merge_gate.py record-suite --suite uat \
-            --status "$UAT" --detail "live UAT: $UAT" \
+            --status "$uat_status" --detail "live UAT: $uat_status" \
             --output outputs/test-reports/suites/uat.json
           python tests/tools/merge_gate.py record-suite --suite smoke \
-            --status "$SMOKE" --detail "system sanity: $SMOKE" \
+            --status "$smoke_status" --detail "system sanity: $smoke_status" \
             --output outputs/test-reports/suites/smoke.json
           python tests/tools/merge_gate.py record-suite --suite browser \
             --status "$browser_status" \
@@ -263,7 +325,7 @@ jobs:
           path: outputs/test-reports/suites/*.json
           retention-days: 30
       - name: Stop Docker stack
-        if: always()
+        if: ${{ always() && steps.scope.outputs.required == 'true' }}
         run: |
           docker compose --env-file .env -f deployment/docker/compose.yml \
             --profile combined down --volumes --remove-orphans || true
