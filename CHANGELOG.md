@@ -7,6 +7,8 @@ Conventional Commits to decide release notes and version movement.
 
 ## Unreleased
 
+## v0.1.0 - 2026-09-10
+
 ### Added
 
 - Repository release, contribution, security, support, and automation standards.
