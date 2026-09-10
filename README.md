@@ -65,6 +65,19 @@ agentmesh/
 
 For the full documentation map, start with [`docs/README.md`](docs/README.md).
 
+## Release Channel
+
+Use the latest GitHub Release for stable public snapshots. The `develop` branch
+is the source of truth for accepted active work, while `main` is kept as the
+stable release branch.
+
+```text
+feature/* -> PR -> develop -> release/vX.Y.Z -> PR -> main -> tag -> release
+```
+
+Release and rollback rules are documented in
+[`docs/project/release-management.md`](docs/project/release-management.md).
+
 ## Quick Start
 
 Python 3.11 or newer and pip 25.1 or newer are required.
@@ -136,6 +149,14 @@ is not tracked in Git.
 - [`docs/operations/docker.md`](docs/operations/docker.md): local Docker runbook.
 - [`docs/project/`](docs/project/): product, tech, testing, architecture, and
   coding standards shared across IDEs.
+- [`docs/project/release-management.md`](docs/project/release-management.md):
+  branch, versioning, release, rollback, commit, and PR standards.
+
+## Contributing
+
+Public changes should land through pull requests into `develop`. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md), and
+[`SUPPORT.md`](SUPPORT.md) before opening issues or pull requests.
 
 ## Current Status
 

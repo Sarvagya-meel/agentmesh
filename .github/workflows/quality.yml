@@ -2,8 +2,9 @@ name: quality
 
 on:
   pull_request:
+    branches: [develop, "release/**", main]
   push:
-    branches: [main]
+    branches: [develop, "release/**", main]
 
 jobs:
   test:

@@ -70,6 +70,17 @@ security, determinism, provider, and operability constraints.
 - Keep worker packages focused on their own execution behavior, prompts, schemas,
   and tools.
 
+## Branch And Release Rules
+
+- Preserve `develop`; it is the source of truth for accepted active work.
+- Keep `main` release-only and stable for public visitors and GitHub Releases.
+- Send normal work through focused PRs into `develop`.
+- Cut `release/vX.Y.Z` from `develop`, stabilize there, then PR into `main`.
+- Use `hotfix/vX.Y.Z` from `main` only for released-version repairs, then merge
+  the hotfix back into `develop`.
+- Use Conventional Commits and include release impact plus rollback notes in PRs.
+- Do not delete protected branches or rewrite public release tags.
+
 ## Documentation Rules
 
 - Documentation-only tasks must not add runtime code, migrations, Docker changes,

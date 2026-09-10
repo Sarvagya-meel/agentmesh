@@ -37,14 +37,24 @@ pwsh -File scripts\docker_component_manager.ps1 -Action restart -Service streaml
 The scripts automatically:
 - Detect your `COMPOSE_PROFILES` setting from `.env`
 - Apply the correct service set (combined or split profile)
+- Start Docker Desktop on Windows when the Docker daemon is not already running
 - Wait for services to be healthy before returning
+
+If Docker Desktop needs to be started, the helper reports readiness progress
+every 3 seconds and waits up to 180 seconds by default. Override this with
+`-DockerStartupPollSeconds` or `-DockerStartupTimeoutSeconds` when needed.
+
+Python dependency installs use Docker BuildKit cache mounts for pip downloads.
+The first rebuild after a dependency change may still download packages, but
+later rebuilds can reuse the cached wheels even when dependency layers must run
+again.
 
 ### Lifecycle Actions
 
 | Action | Behavior | Data impact |
 | --- | --- | --- |
 | `start` | Runs `docker compose up -d` and uses the current local images. Use it when no code, DDL, or environment value changed. | Preserves the PostgreSQL volume. |
-| `restart` | Runs `docker compose up -d --build --force-recreate`. Compose rereads `.env`, rebuilds images containing changed source or DDL files, and recreates the selected containers. | Preserves the PostgreSQL volume and existing workflow data. |
+| `restart` | Builds selected service images in one batch, then runs `docker compose up -d --no-build --force-recreate` service by service. Compose rereads `.env`, rebuilds images containing changed source or DDL files, and recreates the selected containers. | Preserves the PostgreSQL volume and existing workflow data. |
 | `rebuild` | Runs Compose `down` with volumes and images, prunes the Docker builder cache, builds every image with `--no-cache --pull`, and respawns the full stack. | **Deletes the AgentMesh PostgreSQL volume and all stored workflow data.** |
 
 `rebuild` is always a full-stack operation and requires `-Service all`. Use `restart`
