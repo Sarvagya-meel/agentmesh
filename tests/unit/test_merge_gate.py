@@ -8,6 +8,7 @@ from tests.tools.merge_gate import (
     active_waiver,
     aggregate_report,
     conventional_message_error,
+    github_suite_durations,
     report_directory,
     suite_result,
     validate_report,
@@ -55,6 +56,37 @@ def test_aggregate_writes_human_and_machine_reports(tmp_path: Path) -> None:
     assert (tmp_path / "report" / "gate-report.json").exists()
     assert (tmp_path / "report" / "gate-report.csv").exists()
     assert (tmp_path / "report" / "gate-report.md").exists()
+
+
+def test_github_step_timestamps_produce_suite_durations() -> None:
+    durations = github_suite_durations(
+        {
+            "jobs": [
+                {
+                    "steps": [
+                        {
+                            "name": "Unit tests",
+                            "started_at": "2026-09-10T07:00:00Z",
+                            "completed_at": "2026-09-10T07:00:05.500Z",
+                        },
+                        {
+                            "name": "Install Playwright",
+                            "started_at": "2026-09-10T07:01:00Z",
+                            "completed_at": "2026-09-10T07:01:03Z",
+                        },
+                        {
+                            "name": "Browser smoke",
+                            "started_at": "2026-09-10T07:01:03Z",
+                            "completed_at": "2026-09-10T07:01:05Z",
+                        },
+                    ]
+                }
+            ]
+        }
+    )
+
+    assert durations["unit"] == 5.5
+    assert durations["browser"] == 5.0
 
 
 def test_missing_required_suite_fails(tmp_path: Path) -> None:

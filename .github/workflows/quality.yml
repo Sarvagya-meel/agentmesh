@@ -273,6 +273,7 @@ jobs:
       - name: Build consolidated report
         continue-on-error: true
         env:
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
           BASE_REF: ${{ github.base_ref }}
@@ -280,9 +281,13 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           TESTED_SHA: ${{ github.sha }}
         run: |
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
+            > outputs/test-reports/github-jobs.json
           python tests/tools/merge_gate.py aggregate \
             --input-dir outputs/test-reports/suites \
             --output-root outputs/test-reports \
+            --jobs-json outputs/test-reports/github-jobs.json \
             --pr-number "$PR_NUMBER" --pr-created-at "$PR_CREATED_AT" \
             --base-ref "$BASE_REF" --head-ref "$HEAD_REF" \
             --head-sha "$HEAD_SHA" --tested-sha "$TESTED_SHA"

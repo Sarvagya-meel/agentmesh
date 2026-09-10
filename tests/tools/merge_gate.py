@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -30,6 +30,22 @@ ALLOWED_DEVELOP_PREFIXES = (
     "hotfix/",
 )
 ALLOWED_MAIN_PREFIXES = ("release/", "hotfix/")
+SUITE_STEP_NAMES: dict[str, tuple[str, ...]] = {
+    "static": (
+        "Install",
+        "Validate PR metadata and release ancestry",
+        "Ruff",
+        "Mypy",
+        "Graph exports",
+    ),
+    "unit": ("Unit tests",),
+    "integration": ("Integration and API tests",),
+    "docker": ("Clean build and start Docker stack",),
+    "uat": ("Live UAT",),
+    "smoke": ("System smoke",),
+    "browser": ("Install Playwright", "Browser smoke"),
+    "llm": ("LLM evaluations",),
+}
 
 
 def utc_now() -> datetime:
@@ -172,6 +188,39 @@ def report_counts(suites: Sequence[dict[str, Any]]) -> dict[str, int]:
     }
 
 
+def github_suite_durations(payload: Mapping[str, Any]) -> dict[str, float]:
+    """Map completed GitHub job-step timestamps to merge-gate suites."""
+
+    step_durations: dict[str, float] = {}
+    jobs = payload.get("jobs", [])
+    if not isinstance(jobs, list):
+        return {}
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        steps = job.get("steps", [])
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict) or not isinstance(step.get("name"), str):
+                continue
+            started_at = step.get("started_at")
+            completed_at = step.get("completed_at")
+            if not isinstance(started_at, str) or not isinstance(completed_at, str):
+                continue
+            try:
+                started = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+                completed = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            step_durations[step["name"]] = max(0.0, (completed - started).total_seconds())
+    return {
+        suite: round(sum(step_durations.get(name, 0.0) for name in names), 3)
+        for suite, names in SUITE_STEP_NAMES.items()
+        if any(name in step_durations for name in names)
+    }
+
+
 def markdown_report(report: dict[str, Any]) -> str:
     counts = report["counts"]
     lines = [
@@ -187,14 +236,14 @@ def markdown_report(report: dict[str, Any]) -> str:
             f"skip `{counts['skip']}`, missing `{counts['missing']}`"
         ),
         "",
-        "| Suite | Required | Status | Accepted | Detail |",
-        "| --- | --- | --- | --- | --- |",
+        "| Suite | Required | Status | Accepted | Duration (s) | Detail |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for suite in report["suites"]:
         detail = str(suite.get("detail", "")).replace("|", "\\|").replace("\n", " ")
         lines.append(
             f"| `{suite['suite']}` | `{suite['required']}` | `{suite['status']}` | "
-            f"`{suite['accepted']}` | {detail} |"
+            f"`{suite['accepted']}` | `{suite.get('duration_seconds', 0.0)}` | {detail} |"
         )
     if report["problems"]:
         lines.extend(["", "## Blocking Problems", ""])
@@ -244,6 +293,7 @@ def aggregate_report(
     head_ref: str,
     head_sha: str,
     tested_sha: str,
+    suite_durations: Mapping[str, float] | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     current = now or utc_now()
@@ -252,6 +302,8 @@ def aggregate_report(
         result = load_json(path)
         suite = result.get("suite")
         if isinstance(suite, str):
+            if suite_durations and suite in suite_durations:
+                result["duration_seconds"] = round(suite_durations[suite], 3)
             raw_results[suite] = result
     suites, problems, waivers = evaluate_suites(raw_results, policy, today=current.date())
     report = {
@@ -416,6 +468,7 @@ def build_parser() -> argparse.ArgumentParser:
     aggregate.add_argument("--head-ref", required=True)
     aggregate.add_argument("--head-sha", required=True)
     aggregate.add_argument("--tested-sha", required=True)
+    aggregate.add_argument("--jobs-json", type=Path)
 
     verify = subparsers.add_parser("verify")
     verify.add_argument("--report", type=Path, required=True)
@@ -468,6 +521,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             head_ref=args.head_ref,
             head_sha=args.head_sha,
             tested_sha=args.tested_sha,
+            suite_durations=(
+                github_suite_durations(load_json(args.jobs_json))
+                if args.jobs_json
+                else None
+            ),
         )
         print(output_dir / "gate-report.json")
         return int(report["overall_status"] != "pass")
@@ -483,10 +541,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"::error::PR not allowed: {error}")
         return int(bool(errors))
     if args.command == "validate-message":
-        error = conventional_message_error(args.message_file.read_text(encoding="utf-8"))
-        if error:
-            print(f"ERROR: {error}", file=sys.stderr)
-        return int(error is not None)
+        message_error = conventional_message_error(
+            args.message_file.read_text(encoding="utf-8")
+        )
+        if message_error:
+            print(f"ERROR: {message_error}", file=sys.stderr)
+        return int(message_error is not None)
     if args.command == "validate-pr":
         errors = [
             error
