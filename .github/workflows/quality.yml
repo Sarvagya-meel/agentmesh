@@ -112,7 +112,7 @@ jobs:
             --output outputs/test-reports/suites/integration.json
       - name: Upload quality results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: suite-quality
           path: outputs/test-reports/suites/*.json
@@ -257,7 +257,7 @@ jobs:
             --output outputs/test-reports/suites/llm.json
       - name: Upload full-system results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: suite-full-system
           path: outputs/test-reports/suites/*.json
@@ -320,7 +320,7 @@ jobs:
           fi
       - name: Upload consolidated report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: merge-gate-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
           path: outputs/test-reports/20*/pr-*/**/gate-report.*
