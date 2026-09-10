@@ -26,8 +26,13 @@ def test_live_workflow_reports_terminal_provider_failure(monkeypatch) -> None:
         lambda _url, _payload: {
             "workflow_id": "workflow-429",
             "status": "FAILED",
-            "task_results": [{"error": "Groq returned HTTP 429."}],
+            "task_results": [],
         },
+    )
+    monkeypatch.setattr(
+        langsmith_eval,
+        "get_json",
+        lambda _url: [{"payload": {"error_message": "Groq returned HTTP 429."}}],
     )
 
     with pytest.raises(RuntimeError, match="Groq returned HTTP 429"):

@@ -158,9 +158,10 @@ def collect_live_workflow(
                 f"Workflow {workflow_id} did not complete within {timeout_seconds:g}s"
             )
         if workflow.get("status") in {"FAILED", "CANCELLED"}:
+            events = get_json(f"{api_url}/events?workflow_id={workflow_id}")
             raise RuntimeError(
                 f"Workflow {workflow_id} ended with status {workflow.get('status')}: "
-                f"{json.dumps(workflow, sort_keys=True)}"
+                f"{json.dumps({'workflow': workflow, 'events': events}, sort_keys=True)}"
             )
         if workflow.get("status") in {"AWAITING_PLAN_APPROVAL", "AWAITING_AGENT_APPROVAL"}:
             workflow = post_json(
