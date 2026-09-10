@@ -3,12 +3,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_release_sync_uses_protected_auto_merge() -> None:
+def test_release_sync_attests_published_head_before_protected_merge() -> None:
     workflow = (ROOT / ".github/workflows/publish-release.yml").read_text(
         encoding="utf-8"
     )
 
-    assert 'gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto --squash' in workflow
+    assert "checks: write" in workflow
+    assert 'git merge-base --is-ancestor "$head_sha" "$MERGE_SHA"' in workflow
+    assert '"repos/$GITHUB_REPOSITORY/check-runs"' in workflow
+    assert "-f name=gate" in workflow
+    assert '--match-head-commit "$head_sha"' in workflow
     assert "--admin" not in workflow
     assert "git push origin develop" not in workflow
 
@@ -45,3 +49,5 @@ def test_provider_waivers_require_rate_limit_evidence() -> None:
     assert workflow.count("grep -Eqi '429|quota|rate.?limit'") == 3
     assert "UAT_GATE_STATUS" in workflow
     assert "SMOKE_GATE_STATUS" in workflow
+    assert '[[ "$UAT_GATE_STATUS" == "warn" ]]' in workflow
+    assert "grep -Eqi '503|service unavailable'" in workflow

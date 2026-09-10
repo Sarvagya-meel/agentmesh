@@ -138,12 +138,12 @@ Only `release/*` and `hotfix/*` may target `main`.
 
 After the maintainer merges a passing release PR, automation creates the
 immutable tag, publishes GitHub-generated release notes, and opens a PR that
-synchronizes the release version and changelog back into `develop`. That
-synchronization PR is automatically squash-merged only after its required
-`gate` succeeds. This synchronization gate does not repeat Ruff, mypy, tests,
-Docker, UAT, browser, or LLM evaluation. It verifies that the exact
-`release/*` or `hotfix/*` head SHA is already contained in protected `main`, so
-the successful release gate is inherited. Release and hotfix PRs into `main`
+synchronizes the release version and changelog back into `develop`. The trusted
+publisher verifies that the exact synchronization head is contained in the
+published `main` merge, records the inherited required `gate` check, and
+automatically squash-merges the PR. It does not repeat Ruff, mypy, tests,
+Docker, UAT, browser, or LLM evaluation because the same commit already passed
+the protected release gate. Release and hotfix PRs into `main`
 still require the maintainer's manual Merge click; synchronization PRs are the
 only automatic PR merge path.
 

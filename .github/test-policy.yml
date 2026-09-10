@@ -21,7 +21,7 @@
     {
       "suite": "smoke",
       "owner": "@Sarvagya-meel",
-      "reason": "System smoke provider calls may warn only when logs prove a provider 429 or quota failure; deterministic and non-provider failures remain blocking.",
+      "reason": "System smoke may warn for a provider 429 or its downstream 503 only when UAT in the same run proves the provider limit; deterministic and unrelated failures remain blocking.",
       "created_on": "2026-09-10",
       "expires_on": "2026-10-10"
     },
