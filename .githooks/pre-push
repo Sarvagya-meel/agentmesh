@@ -1,0 +1,49 @@
+#!/bin/sh
+set -eu
+
+updates=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_sha" in
+    0000000000000000000000000000000000000000) continue ;;
+  esac
+  case "$remote_ref" in
+    refs/heads/develop|refs/heads/main)
+      echo "ERROR: direct pushes to $remote_ref are prohibited; open a pull request." >&2
+      exit 1
+      ;;
+  esac
+  updates=$((updates + 1))
+done
+
+if [ "$updates" -eq 0 ]; then
+  exit 0
+fi
+if [ "$updates" -gt 1 ]; then
+  echo "ERROR: push one branch at a time so its report is bound to one HEAD." >&2
+  exit 1
+fi
+
+if [ -x ".venv/Scripts/python.exe" ]; then
+  PYTHON=".venv/Scripts/python.exe"
+elif [ -x ".venv/bin/python" ]; then
+  PYTHON=".venv/bin/python"
+else
+  PYTHON="python"
+fi
+
+if [ ! -d "outputs/test-reports/local" ]; then
+  if [ -r /dev/tty ]; then
+    printf "No local merge-gate report exists. Create one now? [Y/n] " >/dev/tty
+    read -r answer </dev/tty || answer="n"
+    case "$answer" in
+      ""|y|Y|yes|YES) ;;
+      *) echo "Push stopped. Run: $PYTHON tests/tools/merge_gate.py local" >&2; exit 1 ;;
+    esac
+  else
+    echo "ERROR: no local report exists and this client is non-interactive." >&2
+    echo "Run: $PYTHON tests/tools/merge_gate.py local" >&2
+    exit 1
+  fi
+fi
+
+exec "$PYTHON" tests/tools/merge_gate.py local

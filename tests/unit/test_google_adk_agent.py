@@ -35,6 +35,17 @@ def test_google_adk_factory_rejects_missing_key() -> None:
         create_google_adk_worker_agent(settings)
 
 
+def test_google_adk_factory_mock_agent_can_execute() -> None:
+    agent, close = create_google_adk_worker_agent(Settings(llm_provider="mock"))
+
+    result = agent.run_task({"messages": ["Say ready."]})
+
+    assert result["status"] == "success"
+    assert result["model"] == "mock"
+    assert result["final_reply"] == "Mock Google ADK response: Say ready."
+    close()
+
+
 def test_google_adk_factory_rejects_gpt_oss_tool_choice_mismatch() -> None:
     settings = Settings(llm_provider="groq", groq_api_key="test-key", google_adk_model="")
 

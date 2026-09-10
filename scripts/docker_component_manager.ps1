@@ -46,6 +46,11 @@ param(
 
     [int]$WaitSeconds = 2,
 
+    [int]$DockerStartupTimeoutSeconds = 180,
+
+    [ValidateRange(1, 60)]
+    [int]$DockerStartupPollSeconds = 3,
+
     [switch]$Force
 )
 
@@ -140,6 +145,70 @@ function Invoke-Compose {
     }
 }
 
+function Test-DockerDaemonReady {
+    & docker info *> $null
+    return $LASTEXITCODE -eq 0
+}
+
+function Start-DockerDesktop {
+    $candidatePaths = @(
+        (Join-Path $Env:ProgramFiles "Docker\Docker\Docker Desktop.exe"),
+        (Join-Path $Env:LocalAppData "Docker\Docker Desktop.exe")
+    )
+
+    $dockerDesktopPath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $dockerDesktopPath) {
+        throw "Docker daemon is not available and Docker Desktop was not found in the standard install paths."
+    }
+
+    Write-Host "[INFO] Docker daemon is not available. Starting Docker Desktop..." -ForegroundColor Yellow
+    Start-Process -FilePath $dockerDesktopPath -WindowStyle Hidden
+}
+
+function Wait-ForDockerDaemon {
+    param(
+        [int]$TimeoutSec,
+        [int]$PollSeconds
+    )
+
+    $startTime = Get-Date
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-DockerDaemonReady) {
+            $version = & docker info --format "{{.ServerVersion}}" 2>$null
+            Write-Host "[INFO] Docker daemon is ready. Server version: $version" -ForegroundColor Green
+            return
+        }
+
+        $elapsed = [int]((Get-Date) - $startTime).TotalSeconds
+        Write-Host "[INFO] Waiting for Docker daemon... ${elapsed}s/${TimeoutSec}s"
+        Start-Sleep -Seconds $PollSeconds
+    }
+
+    throw "Timed out after $TimeoutSec seconds waiting for Docker daemon. Open Docker Desktop and check that the Linux engine is running."
+}
+
+function Ensure-DockerAvailable {
+    if (Test-DockerDaemonReady) {
+        return
+    }
+
+    if (-not $IsWindows) {
+        throw "Docker daemon is not available. Start Docker for this system, then rerun the command."
+    }
+
+    Start-DockerDesktop
+    Wait-ForDockerDaemon -TimeoutSec $DockerStartupTimeoutSeconds -PollSeconds $DockerStartupPollSeconds
+}
+
+function Get-BuildableServices {
+    param([string[]]$SelectedServices)
+
+    return $SelectedServices |
+        Where-Object { $_ -ne "postgres" } |
+        Select-Object -Unique
+}
+
 function Wait-ForHttp {
     param(
         [string]$Url,
@@ -223,6 +292,7 @@ function Wait-ForServiceReady {
 }
 
 $servicesToManage = Resolve-RequestedServices -Requested $Service
+Ensure-DockerAvailable
 Write-Host "Repo root: $RepoRoot"
 Write-Host "Compose file: $composeFile"
 Write-Host "Selected services: $($servicesToManage -join ', ')"
@@ -244,19 +314,34 @@ switch ($Action) {
     }
 
     "restart" {
+        $restartArgs = @("up", "-d", "--force-recreate")
+        if ($NoBuild) {
+            $restartLabelSuffix = ""
+        } else {
+            $buildServices = @(Get-BuildableServices -SelectedServices $servicesToManage)
+            if ($buildServices.Count -gt 0) {
+                $buildArgs = @("build", "--with-dependencies")
+                if ($NoCache) {
+                    $buildArgs += "--no-cache"
+                }
+                $buildArgs += $buildServices
+                Invoke-Compose -ComposeArgs $buildArgs -StepLabel "Building selected service images"
+            }
+
+            $restartArgs += "--no-build"
+            $restartLabelSuffix = " (using prebuilt images)"
+        }
+
         foreach ($svc in $servicesToManage) {
             if ($svc -eq "migrate") {
                 Write-Host "==> Restarting $svc (rebuilds to apply any new/changed DDLs, then exits)"
-                if ($NoBuild) {
-                    Invoke-Compose -ComposeArgs @("up", "-d", "--force-recreate", $svc) -StepLabel "Restarting $svc"
-                } else {
-                    Invoke-Compose -ComposeArgs @("up", "--build", "-d", "--force-recreate", $svc) -StepLabel "Restarting $svc (with rebuild)"
-                }
-                Wait-ForServiceReady -ServiceName $svc
-            } elseif ($NoBuild) {
-                Invoke-Compose -ComposeArgs @("up", "-d", "--force-recreate", $svc) -StepLabel "Restarting $svc"
             } else {
-                Invoke-Compose -ComposeArgs @("up", "--build", "-d", "--force-recreate", $svc) -StepLabel "Restarting $svc (with rebuild)"
+                Write-Host "==> Restarting $svc$restartLabelSuffix"
+            }
+
+            & docker compose --project-directory $composeDir -f $composeFile --env-file $dotenvFile @restartArgs $svc
+            if ($LASTEXITCODE -ne 0) {
+                throw "docker compose command failed: Restarting $svc"
             }
             Wait-ForServiceReady -ServiceName $svc
         }

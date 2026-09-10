@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # ─── Dockerfile.Agent ───────────────────────────────────────────────────────
 # Builds a selective agent image. The agent package name is provided as a
 # build-arg AGENT_PACKAGE (e.g., agent_langgraph_copilot or adk_spark).
@@ -19,7 +20,7 @@ ARG DEPENDENCY_GROUP=agent-langgraph
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONPATH=/app/src \
     AGENT_PACKAGE=${AGENT_PACKAGE}
 
@@ -27,7 +28,8 @@ WORKDIR /app
 
 # Install dependencies (cached layer)
 COPY pyproject.toml ./
-RUN pip install --upgrade "pip>=25.1" \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade "pip>=25.1" \
     && pip install --group "${DEPENDENCY_GROUP}"
 
 # Copy shared runtime code and only the selected concrete agent.

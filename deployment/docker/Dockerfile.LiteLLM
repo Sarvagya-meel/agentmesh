@@ -1,12 +1,15 @@
+# syntax=docker/dockerfile:1.7
+
 FROM python:3.11-slim
 
 ARG LITELLM_VERSION=1.97.0
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN pip install --upgrade "pip>=25.1" \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade "pip>=25.1" \
     && pip install "litellm[proxy]==${LITELLM_VERSION}" "fastapi==0.136.3"
 
 EXPOSE 4000

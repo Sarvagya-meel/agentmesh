@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import re
@@ -65,6 +66,8 @@ class SanityRun:
         self.results: list[CheckResult] = []
         self.workflow_id: str | None = None
         self.started_at = datetime.now(UTC)
+        self.git_commit = read_git_value("rev-parse", "HEAD")
+        self.git_branch = read_git_value("rev-parse", "--abbrev-ref", "HEAD")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self) -> int:
@@ -419,6 +422,10 @@ class SanityRun:
         )
 
     def langsmith_check(self) -> None:
+        if os.getenv("LANGSMITH_TRACING", "false").lower() not in {"1", "true", "yes"}:
+            status = "fail" if self.require_langsmith else "skip"
+            self.add("langsmith.tracing", status, "LangSmith tracing is disabled for this run.")
+            return
         missing = [
             name
             for name in ("LANGSMITH_API_KEY", "LANGSMITH_TRACING", "LANGSMITH_PROJECT")
@@ -534,13 +541,58 @@ class SanityRun:
         return not any(subject in run_name for run_name in run_names for subject in noisy_subjects)
 
     def write_summary(self) -> None:
+        counts = {
+            status: sum(1 for result in self.results if result.status == status)
+            for status in ("pass", "fail", "warn", "skip")
+        }
+        overall_status = "fail" if counts["fail"] else "warn" if counts["warn"] else "pass"
+        report_rows = [
+            {
+                "check": result.name,
+                "status": result.status,
+                "detail": result.detail,
+                "evidence": result.evidence or "",
+            }
+            for result in self.results
+        ]
         summary = {
             "generated_at": datetime.now(UTC).isoformat(),
+            "git_commit": self.git_commit,
+            "git_branch": self.git_branch,
             "mode": self.mode,
+            "require_langsmith": self.require_langsmith,
+            "overall_status": overall_status,
+            "counts": counts,
             "results": [result.__dict__ for result in self.results],
         }
         (self.output_dir / "system_sanity_summary.json").write_text(
             json.dumps(summary, indent=2, default=str),
+            encoding="utf-8",
+        )
+        report = {
+            "generated_at": summary["generated_at"],
+            "git_commit": self.git_commit,
+            "git_branch": self.git_branch,
+            "mode": self.mode,
+            "require_langsmith": self.require_langsmith,
+            "overall_status": overall_status,
+            "counts": counts,
+            "checks": report_rows,
+        }
+        (self.output_dir / "system_sanity_report.json").write_text(
+            json.dumps(report, indent=2, default=str),
+            encoding="utf-8",
+        )
+        csv_path = self.output_dir / "system_sanity_report.csv"
+        with csv_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=["check", "status", "detail", "evidence"],
+            )
+            writer.writeheader()
+            writer.writerows(report_rows)
+        (self.output_dir / "system_sanity_report.md").write_text(
+            render_markdown_report(report),
             encoding="utf-8",
         )
         for result in self.results:
@@ -556,6 +608,56 @@ def load_dotenv(path: Path) -> None:
             continue
         key, value = line.split("=", 1)
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+def read_git_value(*args: str) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=ROOT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return "unknown"
+    return completed.stdout.strip()
+
+
+def render_markdown_report(report: dict[str, Any]) -> str:
+    lines = [
+        "# AgentMesh System Sanity Report",
+        "",
+        f"- Overall status: `{report['overall_status']}`",
+        f"- Commit: `{report['git_commit']}`",
+        f"- Branch: `{report['git_branch']}`",
+        f"- Mode: `{report['mode']}`",
+        f"- LangSmith required: `{report['require_langsmith']}`",
+        (
+            "- Counts: "
+            f"pass `{report['counts']['pass']}`, "
+            f"fail `{report['counts']['fail']}`, "
+            f"warn `{report['counts']['warn']}`, "
+            f"skip `{report['counts']['skip']}`"
+        ),
+        "",
+        "| Check | Status | Detail |",
+        "| --- | --- | --- |",
+    ]
+    for check in report["checks"]:
+        detail = str(check["detail"]).replace("|", "\\|").replace("\n", " ")
+        lines.append(f"| `{check['check']}` | `{check['status']}` | {detail} |")
+    lines.extend(
+        [
+            "",
+            "Raw evidence is uploaded as the `system-sanity` artifact. "
+            "Use the JSON report for machines and the CSV report for spreadsheet review.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def http_json(

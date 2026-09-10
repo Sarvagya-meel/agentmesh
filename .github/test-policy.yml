@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "suites": {
+    "static": {"required": true},
+    "unit": {"required": true},
+    "integration": {"required": true},
+    "docker": {"required": true},
+    "uat": {"required": true},
+    "smoke": {"required": true},
+    "browser": {"required": true},
+    "llm": {"required": false}
+  },
+  "waivers": [
+    {
+      "suite": "llm",
+      "owner": "@Sarvagya-meel",
+      "reason": "LangSmith trace ingestion is temporarily waived while the monthly quota is exhausted; live provider and deterministic runtime coverage remain required.",
+      "created_on": "2026-09-10",
+      "expires_on": "2026-10-10"
+    }
+  ]
+}

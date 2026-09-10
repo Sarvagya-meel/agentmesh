@@ -26,6 +26,8 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -53,9 +55,25 @@ jobs:
             args+=(--require-langsmith)
           fi
           python tests/tools/system_sanity.py "${args[@]}"
+      - name: Write concise PR summary
+        if: always()
+        run: |
+          if [ -f outputs/system_sanity/system_sanity_report.md ]; then
+            cat outputs/system_sanity/system_sanity_report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "# AgentMesh System Sanity Report"
+              echo ""
+              echo "Sanity report was not generated."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Upload sanity artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: system-sanity
-          path: outputs/system_sanity
+          path: |
+            outputs/system_sanity/system_sanity_report.json
+            outputs/system_sanity/system_sanity_report.csv
+            outputs/system_sanity/system_sanity_report.md
+            outputs/system_sanity/system_sanity_summary.json

@@ -1,0 +1,64 @@
+name: publish-release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Read version
+        id: version
+        run: |
+          version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - name: Tag and publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists; refusing to rewrite a public tag."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "AgentMesh $TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" --verify-tag --generate-notes --title "AgentMesh $TAG"
+      - name: Open synchronization PR back to develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ github.sha }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          source_branch="$(gh pr list --state merged --base main --limit 20 \
+            --json headRefName,mergeCommit \
+            --jq ".[] | select(.mergeCommit.oid == \"$MERGE_SHA\") | .headRefName" | head -n 1)"
+          if [[ "$source_branch" != release/* && "$source_branch" != hotfix/* ]]; then
+            echo "No merged release or hotfix PR matched $MERGE_SHA; no synchronization PR created."
+            exit 0
+          fi
+          existing="$(gh pr list --state open --base develop --head "$source_branch" \
+            --json number --jq '.[0].number // ""')"
+          if [[ -z "$existing" ]]; then
+            gh pr create --base develop --head "$source_branch" \
+              --title "chore(release): sync v${VERSION} to develop" \
+              --body "Synchronizes version and changelog changes from the published v${VERSION} release."
+          fi
