@@ -42,7 +42,7 @@ jobs:
           git tag -a "$TAG" -m "AgentMesh $TAG"
           git push origin "$TAG"
           gh release create "$TAG" --verify-tag --generate-notes --title "AgentMesh $TAG"
-      - name: Open synchronization PR back to develop
+      - name: Open and auto-merge synchronization PR back to develop
         env:
           GH_TOKEN: ${{ github.token }}
           MERGE_SHA: ${{ github.sha }}
@@ -62,3 +62,10 @@ jobs:
               --title "chore(release): sync v${VERSION} to develop" \
               --body "Synchronizes version and changelog changes from the published v${VERSION} release."
           fi
+          number="$(gh pr list --state open --base develop --head "$source_branch" \
+            --json number --jq '.[0].number // ""')"
+          if [[ -z "$number" ]]; then
+            echo "Synchronization PR was not found after creation."
+            exit 1
+          fi
+          gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto --squash
