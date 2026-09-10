@@ -227,7 +227,9 @@ jobs:
             exit 0
           fi
           set +e
-          python tests/tools/langsmith_eval.py --require-langsmith 2>&1 | tee /tmp/llm-eval.log
+          timeout 240s python tests/tools/langsmith_eval.py \
+            --require-langsmith --workflow-timeout-seconds 180 \
+            2>&1 | tee /tmp/llm-eval.log
           code=${PIPESTATUS[0]}
           if [[ "$code" == "0" ]]; then
             echo "gate_status=warn" >> "$GITHUB_OUTPUT"

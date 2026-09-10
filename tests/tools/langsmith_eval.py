@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 from urllib.request import Request, urlopen
@@ -135,7 +136,13 @@ def seed_dataset() -> str:
     return str(dataset.id)
 
 
-def collect_live_workflow(api_url: str) -> dict[str, Any]:
+def collect_live_workflow(
+    api_url: str,
+    *,
+    timeout_seconds: float = 180,
+    poll_interval_seconds: float = 2,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
     workflow = post_json(
         f"{api_url}/workflows/start",
         {
@@ -146,6 +153,10 @@ def collect_live_workflow(api_url: str) -> dict[str, Any]:
     )
     workflow_id = workflow["workflow_id"]
     while workflow.get("status") != "COMPLETED":
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"Workflow {workflow_id} did not complete within {timeout_seconds:g}s"
+            )
         if workflow.get("status") in {"AWAITING_PLAN_APPROVAL", "AWAITING_AGENT_APPROVAL"}:
             workflow = post_json(
                 f"{api_url}/workflows/{workflow_id}/approvals",
@@ -153,6 +164,8 @@ def collect_live_workflow(api_url: str) -> dict[str, Any]:
             )
         else:
             workflow = get_json(f"{api_url}/workflows/{workflow_id}")
+        if workflow.get("status") != "COMPLETED":
+            time.sleep(poll_interval_seconds)
     events = get_json(f"{api_url}/events?workflow_id={workflow_id}")
     task_results = workflow.get("task_results", [])
     return {
@@ -188,6 +201,7 @@ def main() -> int:
     parser.add_argument("--api-url", default="http://localhost:8000")
     parser.add_argument("--seed-only", action="store_true")
     parser.add_argument("--require-langsmith", action="store_true")
+    parser.add_argument("--workflow-timeout-seconds", type=float, default=180)
     args = parser.parse_args()
     load_dotenv(ENV_FILE)
 
@@ -209,7 +223,9 @@ def main() -> int:
     if args.seed_only:
         return 0
 
-    outputs = collect_live_workflow(args.api_url.rstrip("/"))
+    outputs = collect_live_workflow(
+        args.api_url.rstrip("/"), timeout_seconds=args.workflow_timeout_seconds
+    )
     reference = {
         "status": "COMPLETED",
         "expected_agents": ["langgraph-copilot", "googleADK-Chatagent"],

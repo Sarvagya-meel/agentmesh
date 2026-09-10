@@ -75,6 +75,11 @@ live suite as `skip`. That blocks the trusted full-system gate unless an active
 owner waiver explicitly accepts it. Configure repository secrets; never paste
 them into a PR, report, issue, or workflow log.
 
+Live workflow polling has a 180-second completion deadline and a 240-second
+process cap. A timeout fails the LLM suite instead of holding the gate
+indefinitely. Check provider quota, workflow events, and service logs before
+rerunning; do not increase the limit to conceal a workflow that never completes.
+
 Provider `429` and LangSmith quota errors are external dependency failures, not
 local passes. Preserve the failed run, wait for quota recovery, and rerun the
 affected jobs. Use a temporary optional waiver only when the suite is explicitly
