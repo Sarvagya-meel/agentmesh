@@ -7,7 +7,7 @@ from agentmesh.agents.agent_langgraph_orchestrator_supervisor.planner import (
     GroqWorkflowPlanner,
     WorkflowPlanner,
 )
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.core.providers.groq import GroqStructuredOutputClient
 

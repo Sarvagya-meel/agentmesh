@@ -1,7 +1,7 @@
 from google.adk.sessions import InMemorySessionService
 from langgraph.checkpoint.memory import MemorySaver
 
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.frameworks.google_adk import create_google_adk_session_service
 from agentmesh.core.frameworks.google_adk.persistence import google_adk_database_url
 from agentmesh.core.frameworks.langgraph import create_langgraph_checkpointer

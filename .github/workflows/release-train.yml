@@ -1,0 +1,132 @@
+name: release-train
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-train
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Fetch release refs
+        run: git fetch origin main develop "refs/tags/*:refs/tags/*"
+      - name: Detect release signal
+        id: signal
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          early=false
+          latest_tag="$(git tag --merged origin/main --list 'v[0-9]*' --sort=-version:refname | \
+            grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)"
+          tag_date="$(git log -1 --format='%cs' "$latest_tag")"
+          if git log "${latest_tag}..origin/develop" --format='%s%n%b' | \
+            grep -Eq '^[a-z]+(\([^)]*\))?!:|^BREAKING CHANGE:'; then
+            early=true
+          fi
+          release_now="$(gh pr list --state merged --base develop \
+            --search "merged:>${tag_date} label:release:now" --json number --jq 'length')"
+          security="$(gh pr list --state merged --base develop \
+            --search "merged:>${tag_date} label:security" --json number --jq 'length')"
+          if [[ "$release_now" != "0" || "$security" != "0" ]]; then early=true; fi
+          echo "early=$early" >> "$GITHUB_OUTPUT"
+      - name: Evaluate train
+        id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EARLY: ${{ steps.signal.outputs.early }}
+        run: |
+          args=(evaluate --base-ref origin/main --head-ref origin/develop \
+            --github-output "$GITHUB_OUTPUT")
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            args+=(--force)
+          elif [[ "$EARLY" == "true" ]]; then
+            args+=(--early)
+          fi
+          python tests/tools/release_train.py "${args[@]}"
+      - name: Find active release PR
+        id: active
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="$(gh pr list --base main --state open \
+            --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith("release/"))][0].headRefName // ""')"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+      - name: Stop when no release is due
+        if: ${{ steps.active.outputs.branch == '' && steps.release.outputs.should_release != 'true' }}
+        run: echo "No active release PR and no release is due."
+      - name: Prepare release branch
+        if: ${{ steps.active.outputs.branch != '' || steps.release.outputs.should_release == 'true' }}
+        id: prepare
+        env:
+          ACTIVE_BRANCH: ${{ steps.active.outputs.branch }}
+          NEW_BRANCH: ${{ steps.release.outputs.release_branch }}
+          VERSION: ${{ steps.release.outputs.next_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="$ACTIVE_BRANCH"
+          if [[ -n "$branch" ]]; then
+            git fetch origin "$branch"
+            git switch -C "$branch" "origin/$branch"
+            if ! git merge --no-edit origin/develop; then
+              conflicts="$(git diff --name-only --diff-filter=U)"
+              unexpected="$(printf '%s\n' "$conflicts" | \
+                grep -Ev '^(CHANGELOG.md|pyproject.toml)$' || true)"
+              if [[ -n "$unexpected" ]]; then
+                echo "Release synchronization has source conflicts:"
+                echo "$unexpected"
+                exit 1
+              fi
+              while IFS= read -r conflict; do
+                git checkout --theirs -- "$conflict"
+                git add -- "$conflict"
+              done <<< "$conflicts"
+              git commit --no-edit
+            fi
+          else
+            branch="$NEW_BRANCH"
+            git switch -c "$branch" origin/develop
+          fi
+          python tests/tools/release_train.py prepare --version "$VERSION"
+          git add pyproject.toml CHANGELOG.md
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(release): v${VERSION}"
+          fi
+          git push -u origin "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+      - name: Open or update public release PR
+        if: ${{ steps.prepare.outputs.branch != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.prepare.outputs.branch }}
+          VERSION: ${{ steps.release.outputs.next_version }}
+          REASON: ${{ steps.release.outputs.reason }}
+        run: |
+          number="$(gh pr list --base main --head "$BRANCH" --state open \
+            --json number --jq '.[0].number // ""')"
+          body="Promotes the latest develop build as v${VERSION}. Trigger: ${REASON}. All merge-gate suites and the maintainer's final Merge click are required."
+          if [[ -z "$number" ]]; then
+            gh pr create --base main --head "$BRANCH" \
+              --title "chore(release): v${VERSION}" --body "$body"
+          else
+            gh pr edit "$number" --title "chore(release): v${VERSION}" --body "$body"
+          fi

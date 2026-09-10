@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # ─── Dockerfile.Migrate ──────────────────────────────────────────────────────
 # Lightweight one-shot image that applies all DDL migrations to PostgreSQL.
 # Runs once at startup (restart: "no") before any service comes online.
@@ -9,12 +10,13 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
 # Install only what the migration script needs
-RUN pip install --upgrade "pip>=25.1" \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade "pip>=25.1" \
     && pip install "psycopg[binary]" python-dotenv
 
 # Copy migration artefacts only

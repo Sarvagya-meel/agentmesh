@@ -478,10 +478,11 @@ def render_checkpoint_controls(
         st.caption(f"Parent workflow ID: {parent_workflow_id}")
     if parent_task_id:
         st.caption(f"Parent task ID: {parent_task_id}")
+    control_scope = f"{workflow_state_key}-{workflow_id}"
 
     if st.button(
         "Rerun workflow",
-        key=f"rerun-workflow-{workflow_id}",
+        key=f"rerun-workflow-{control_scope}",
         icon=":material/replay:",
         width="stretch",
     ):
@@ -509,11 +510,11 @@ def render_checkpoint_controls(
                 f"{int(item.get('position', 0)) + 1}. "
                 f"{item.get('name', 'Task')} [{item.get('status', 'PROPOSED')}]"
             ),
-            key=f"rerun-task-select-{workflow_id}",
+            key=f"rerun-task-select-{control_scope}",
         )
     if st.button(
         "Rerun task",
-        key=f"rerun-task-{workflow_id}",
+        key=f"rerun-task-{control_scope}",
         disabled=selected_task is None,
         icon=":material/restart_alt:",
         width="stretch",
@@ -536,7 +537,7 @@ def render_checkpoint_controls(
 
     if st.button(
         "Load checkpoints",
-        key=f"load-checkpoints-{workflow_id}",
+        key=f"load-checkpoints-{control_scope}",
         icon=":material/history:",
         width="stretch",
     ):
@@ -568,13 +569,13 @@ def render_checkpoint_controls(
                 f"{str(item.get('checkpoint_id'))[:12]}  "
                 f"next: {', '.join(item.get('next', [])) or 'terminal'}"
             ),
-            key=f"checkpoint-select-{workflow_id}",
+            key=f"checkpoint-select-{control_scope}",
         )
         selected_id = str(selected["checkpoint_id"])
         selected_recoverable = bool(selected.get("next"))
     if st.button(
         "Investigate checkpoint",
-        key=f"inspect-checkpoint-{workflow_id}",
+        key=f"inspect-checkpoint-{control_scope}",
         disabled=selected_id is None,
         icon=":material/search:",
         width="stretch",
@@ -592,7 +593,7 @@ def render_checkpoint_controls(
 
     if st.button(
         "Recover selected" if checkpoints else "Recover latest",
-        key=f"recover-checkpoint-{workflow_id}",
+        key=f"recover-checkpoint-{control_scope}",
         disabled=not selected_recoverable,
         help=(
             "Recovery creates a new workflow and preserves source history."

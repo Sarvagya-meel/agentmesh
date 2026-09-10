@@ -4,7 +4,7 @@ Exports event and claim repositories without importing optional LangGraph
 dependencies into control-plane-only processes.
 """
 
-from agentmesh.core.database.repository import (
+from agentmesh.core.database.postgres.repository import (
     ClaimRepository,
     EventRepository,
     InMemoryClaimRepository,

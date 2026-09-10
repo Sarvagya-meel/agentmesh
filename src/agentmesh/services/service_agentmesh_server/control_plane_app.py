@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from agentmesh.agents.common.resource_repository import PostgresResourceRepository
-from agentmesh.config import get_settings
+from agentmesh.core.config import get_settings
 from agentmesh.core.database import create_claim_repository, create_event_repository
 from agentmesh.core.models.exceptions import (
     AgentMeshError,

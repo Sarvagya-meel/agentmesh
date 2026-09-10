@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 
 from agentmesh.agents.agent_langgraph_copilot.agent import ConversationAgent
 from agentmesh.agents.common.base_agent import BaseAgent
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.frameworks.langgraph import (
     create_async_langgraph_checkpointer,
     create_langgraph_store,

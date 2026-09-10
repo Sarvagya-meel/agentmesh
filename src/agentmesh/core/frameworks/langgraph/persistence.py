@@ -11,7 +11,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.base import BaseStore
 from langgraph.store.memory import InMemoryStore
 
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.models.exceptions import ValidationError
 from agentmesh.core.observability import agentmesh_metadata, agentmesh_run_name, agentmesh_span
 
@@ -25,7 +25,7 @@ def _postgres_setup_lock(url: str) -> Iterator[None]:
     # A separate session lock also covers DDL that cannot run in a transaction.
     # Closing this connection releases the lock on success, failure, or cancellation.
     with psycopg.connect(url, autocommit=True) as connection:
-        connection.execute("SET lock_timeout = '90s'")
+        connection.execute("SET lock_timeout = 0")
         connection.execute("SELECT pg_advisory_lock(%s)", (POSTGRES_SETUP_LOCK,))
         yield
 
@@ -35,7 +35,7 @@ async def _async_postgres_setup_lock(url: str) -> AsyncIterator[None]:
     import psycopg
 
     async with await psycopg.AsyncConnection.connect(url, autocommit=True) as connection:
-        await connection.execute("SET lock_timeout = '90s'")
+        await connection.execute("SET lock_timeout = 0")
         await connection.execute("SELECT pg_advisory_lock(%s)", (POSTGRES_SETUP_LOCK,))
         yield
 

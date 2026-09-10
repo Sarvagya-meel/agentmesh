@@ -9,7 +9,7 @@ from psycopg import Connection
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from agentmesh.config import Settings
+from agentmesh.core.config import Settings
 from agentmesh.core.models.agent_card import AgentCard
 from agentmesh.core.models.exceptions import ValidationError
 

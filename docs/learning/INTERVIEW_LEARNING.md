@@ -500,7 +500,7 @@ The business value is operational confidence. Developers and operators can start
 
 ## 7. Real Example From AgentMesh
 
-The project previously returned `500` and `503` errors when the Google ADK runtime hit Groq with an invalid key or when a Docker-internal hostname was used from the host. The fix included a safe local fallback path, explicit default provider settings, and the `docker_component_manager.ps1` helper under `scripts/` for service-level management. The active recovery procedure is maintained in `docs/docker-operations.md`.
+The project previously returned `500` and `503` errors when the Google ADK runtime hit Groq with an invalid key or when a Docker-internal hostname was used from the host. The fix included a safe local fallback path, explicit default provider settings, and the `docker_component_manager.ps1` helper under `scripts/` for service-level management. The active recovery procedure is maintained in `docs/operations/docker.md`.
 
 ## 8. Trade-offs
 

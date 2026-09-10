@@ -213,6 +213,9 @@ def test_workflow_activity_uses_three_columns_and_top_page_navigation() -> None:
     assert '"Parent workflow ID:' in app_source
     assert "Performs read-only replay" in app_source
     assert "Continues a non-terminal checkpoint" in app_source
+    assert 'control_scope = f"{workflow_state_key}-{workflow_id}"' in app_source
+    assert 'key=f"rerun-workflow-{control_scope}"' in app_source
+    assert 'key=f"checkpoint-select-{control_scope}"' in app_source
     assert "@st.fragment(run_every=2.0, parallel=True)" in app_source
     assert "def monitor_activity(workflow_id: str)" in app_source
     assert 'state.get("rendered_hash") != digest' in app_source

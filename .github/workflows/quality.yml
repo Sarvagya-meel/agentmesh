@@ -1,28 +1,355 @@
-name: quality
+name: merge-gate
 
 on:
   pull_request:
-  push:
-    branches: [main]
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merge-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
       - name: Install
+        id: install
+        continue-on-error: true
         run: |
           python -m pip install --upgrade "pip>=25.1"
           python -m pip install -e . --group local
+      - name: Validate PR metadata and release ancestry
+        id: metadata
+        if: ${{ steps.install.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python tests/tools/merge_gate.py validate-pr \
+            --title "$PR_TITLE" --base-ref "$BASE_REF" --head-ref "$HEAD_REF"
+          if [[ "$BASE_REF" == "main" && "$HEAD_REF" == release/* ]]; then
+            python tests/tools/verify_release_branch.py --head-ref "$HEAD_SHA"
+          fi
       - name: Ruff
+        id: ruff
+        if: ${{ steps.install.outcome == 'success' }}
+        continue-on-error: true
         run: ruff check src tests
       - name: Mypy
+        id: mypy
+        if: ${{ steps.install.outcome == 'success' }}
+        continue-on-error: true
         run: mypy --strict src
-      - name: Tests
-        run: pytest -q
-      - name: Verify offline graph exports
-        run: python scripts/export_langgraph_mermaid.py --check
+      - name: Graph exports
+        id: graphs
+        if: ${{ steps.install.outcome == 'success' }}
+        continue-on-error: true
+        run: python tests/tools/export_langgraph_mermaid.py --check
+      - name: Unit tests
+        id: unit
+        if: ${{ steps.install.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          mkdir -p outputs/test-reports
+          pytest tests/unit -q --junitxml=outputs/test-reports/unit.xml
+      - name: Integration and API tests
+        id: integration
+        if: ${{ steps.install.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          mkdir -p outputs/test-reports
+          pytest tests/api -q --junitxml=outputs/test-reports/integration.xml
+      - name: Record quality suites
+        if: always()
+        env:
+          INSTALL: ${{ steps.install.outcome }}
+          METADATA: ${{ steps.metadata.outcome }}
+          RUFF: ${{ steps.ruff.outcome }}
+          MYPY: ${{ steps.mypy.outcome }}
+          GRAPHS: ${{ steps.graphs.outcome }}
+          UNIT: ${{ steps.unit.outcome }}
+          INTEGRATION: ${{ steps.integration.outcome }}
+        run: |
+          mkdir -p outputs/test-reports/suites
+          static_status=success
+          for value in "$INSTALL" "$METADATA" "$RUFF" "$MYPY" "$GRAPHS"; do
+            if [[ "$value" != "success" ]]; then static_status=failure; fi
+          done
+          python tests/tools/merge_gate.py record-suite --suite static \
+            --status "$static_status" \
+            --detail "metadata=$METADATA ruff=$RUFF mypy=$MYPY graphs=$GRAPHS" \
+            --output outputs/test-reports/suites/static.json
+          python tests/tools/merge_gate.py record-suite --suite unit \
+            --status "$UNIT" --detail "pytest tests/unit: $UNIT" \
+            --output outputs/test-reports/suites/unit.json
+          python tests/tools/merge_gate.py record-suite --suite integration \
+            --status "$INTEGRATION" --detail "pytest tests/api: $INTEGRATION" \
+            --output outputs/test-reports/suites/integration.json
+      - name: Upload quality results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-quality
+          path: outputs/test-reports/suites/*.json
+          retention-days: 30
+
+  full-system:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    env:
+      AGENTMESH_SANITY_MODE: ci
+      LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
+      LANGSMITH_ENDPOINT: ${{ secrets.LANGSMITH_ENDPOINT }}
+      LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Python dependencies
+        id: install
+        continue-on-error: true
+        run: |
+          python -m pip install --upgrade "pip>=25.1"
+          python -m pip install -e . --group local
+      - name: Write CI environment
+        if: ${{ steps.install.outcome == 'success' }}
+        run: |
+          provider=mock
+          if [[ -n "$GROQ_API_KEY" ]]; then provider=groq; fi
+          {
+            echo "APP_ENV=ci"
+            echo "LLM_PROVIDER=${provider}"
+            echo "GROQ_API_KEY=${GROQ_API_KEY}"
+            echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+            echo "LANGSMITH_TRACING=false"
+            echo "LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-AgentMesh}"
+            echo "LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}"
+            echo "LANGSMITH_API_KEY=${LANGSMITH_API_KEY}"
+          } > .env
+      - name: Clean build and start Docker stack
+        id: docker
+        if: ${{ steps.install.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          docker compose --env-file .env -f deployment/docker/compose.yml \
+            --profile combined down --volumes --rmi local --remove-orphans
+          docker compose --env-file .env -f deployment/docker/compose.yml \
+            --profile combined build --pull --no-cache
+          docker compose --env-file .env -f deployment/docker/compose.yml \
+            --profile combined up -d --wait --wait-timeout 240 --force-recreate
+      - name: Live UAT
+        id: uat
+        if: ${{ steps.docker.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          AGENTMESH_LIVE_UAT: "1"
+        run: |
+          mkdir -p outputs/test-reports
+          pytest tests/live -q --junitxml=outputs/test-reports/live-uat.xml
+      - name: System smoke
+        id: smoke
+        if: ${{ steps.docker.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          LANGSMITH_TRACING: "false"
+        run: python tests/tools/system_sanity.py --no-build --mode local
+      - name: Install Playwright
+        id: playwright
+        if: ${{ steps.docker.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Browser smoke
+        id: browser
+        if: ${{ steps.playwright.outcome == 'success' }}
+        continue-on-error: true
+        run: node tests/tools/browser_smoke.cjs outputs/system_sanity/browser
+      - name: LLM evaluations
+        id: llm
+        if: ${{ steps.docker.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          if [[ -z "$GROQ_API_KEY" || -z "$LANGSMITH_API_KEY" ]]; then
+            echo "Live LLM/LangSmith credentials are not configured; policy waiver applies."
+            echo "gate_status=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set +e
+          python tests/tools/langsmith_eval.py --require-langsmith 2>&1 | tee /tmp/llm-eval.log
+          code=${PIPESTATUS[0]}
+          if [[ "$code" == "0" ]]; then
+            echo "gate_status=warn" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -Eqi '429|quota|rate.?limit' /tmp/llm-eval.log; then
+            echo "gate_status=warn" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "gate_status=fail" >> "$GITHUB_OUTPUT"
+          exit "$code"
+      - name: Record full-system suites
+        if: always()
+        env:
+          DOCKER: ${{ steps.docker.outcome }}
+          UAT: ${{ steps.uat.outcome }}
+          SMOKE: ${{ steps.smoke.outcome }}
+          PLAYWRIGHT: ${{ steps.playwright.outcome }}
+          BROWSER: ${{ steps.browser.outcome }}
+          LLM: ${{ steps.llm.outcome }}
+          LLM_GATE_STATUS: ${{ steps.llm.outputs.gate_status }}
+        run: |
+          mkdir -p outputs/test-reports/suites
+          browser_status="$BROWSER"
+          if [[ "$PLAYWRIGHT" != "success" ]]; then browser_status=failure; fi
+          llm_status="$LLM_GATE_STATUS"
+          if [[ -z "$llm_status" ]]; then llm_status="$LLM"; fi
+          python tests/tools/merge_gate.py record-suite --suite docker \
+            --status "$DOCKER" --detail "clean Compose build/start: $DOCKER" \
+            --output outputs/test-reports/suites/docker.json
+          python tests/tools/merge_gate.py record-suite --suite uat \
+            --status "$UAT" --detail "live UAT: $UAT" \
+            --output outputs/test-reports/suites/uat.json
+          python tests/tools/merge_gate.py record-suite --suite smoke \
+            --status "$SMOKE" --detail "system sanity: $SMOKE" \
+            --output outputs/test-reports/suites/smoke.json
+          python tests/tools/merge_gate.py record-suite --suite browser \
+            --status "$browser_status" \
+            --detail "desktop/mobile browser smoke: $browser_status" \
+            --output outputs/test-reports/suites/browser.json
+          python tests/tools/merge_gate.py record-suite --suite llm \
+            --status "$llm_status" \
+            --detail "provider eval completed; LangSmith trace ingestion is time-bound by policy: $llm_status" \
+            --output outputs/test-reports/suites/llm.json
+      - name: Upload full-system results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-full-system
+          path: outputs/test-reports/suites/*.json
+          retention-days: 30
+      - name: Stop Docker stack
+        if: always()
+        run: |
+          docker compose --env-file .env -f deployment/docker/compose.yml \
+            --profile combined down --volumes --remove-orphans || true
+
+  aggregate:
+    if: always()
+    needs: [quality, full-system]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: suite-*
+          path: outputs/test-reports/suites
+          merge-multiple: true
+      - name: Build consolidated report
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TESTED_SHA: ${{ github.sha }}
+        run: |
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
+            > outputs/test-reports/github-jobs.json
+          python tests/tools/merge_gate.py aggregate \
+            --input-dir outputs/test-reports/suites \
+            --output-root outputs/test-reports \
+            --jobs-json outputs/test-reports/github-jobs.json \
+            --pr-number "$PR_NUMBER" --pr-created-at "$PR_CREATED_AT" \
+            --base-ref "$BASE_REF" --head-ref "$HEAD_REF" \
+            --head-sha "$HEAD_SHA" --tested-sha "$TESTED_SHA"
+      - name: Add report to Actions summary
+        if: always()
+        env:
+          PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          report_date="${PR_CREATED_AT%%T*}"
+          report="outputs/test-reports/${report_date}/pr-${PR_NUMBER}/${HEAD_SHA}/gate-report.md"
+          if [[ -f "$report" ]]; then
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "# AgentMesh Merge Gate" >> "$GITHUB_STEP_SUMMARY"
+            echo "PR not allowed: consolidated report was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload consolidated report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: merge-gate-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: outputs/test-reports/20*/pr-*/**/gate-report.*
+          if-no-files-found: error
+          retention-days: 90
+      - name: Delete intermediate suite artifacts
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mapfile -t artifact_ids < <(
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
+              --paginate \
+              --jq '.artifacts[] | select(.name | startswith("suite-")) | .id'
+          )
+          for artifact_id in "${artifact_ids[@]}"; do
+            gh api --method DELETE \
+              "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+          done
+
+  gate:
+    if: always()
+    needs: aggregate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: merge-gate-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: outputs/test-reports
+      - name: Verify report and authorize merge
+        env:
+          PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TESTED_SHA: ${{ github.sha }}
+        run: |
+          report_date="${PR_CREATED_AT%%T*}"
+          report="outputs/test-reports/${report_date}/pr-${PR_NUMBER}/${HEAD_SHA}/gate-report.json"
+          python tests/tools/merge_gate.py verify --report "$report" \
+            --head-sha "$HEAD_SHA" --tested-sha "$TESTED_SHA" \
+            --base-ref "$BASE_REF" --head-ref "$HEAD_REF"

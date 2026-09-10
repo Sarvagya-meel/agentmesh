@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import PlainTextResponse
 
-from agentmesh.config import get_settings
+from agentmesh.core.config import get_settings
 from agentmesh.services.service_agentmesh_server.activity import (
     TERMINAL_WORKFLOW_STATUSES,
     normalize_pending_interrupt,

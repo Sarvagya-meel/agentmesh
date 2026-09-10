@@ -1,62 +1,88 @@
 # AgentMesh
 
-AgentMesh is a durable multi-agent runtime. FastAPI agent processes register with a
-durable registry/control-plane service, PostgreSQL stores workflow state and queues,
-and Streamlit stays a thin client. The UI never creates agents, runs workers, or
-writes workflow events.
+[![quality](https://github.com/Sarvagya-meel/agentmesh/actions/workflows/quality.yml/badge.svg)](https://github.com/Sarvagya-meel/agentmesh/actions/workflows/quality.yml)
+[![system-sanity](https://github.com/Sarvagya-meel/agentmesh/actions/workflows/system-sanity.yml/badge.svg)](https://github.com/Sarvagya-meel/agentmesh/actions/workflows/system-sanity.yml)
 
-> Authentication is deferred. Published ports are for local development or trusted
-> networks only; do not expose this stack directly to the public internet.
+AgentMesh is a durable, local-first multi-agent runtime for job-search automation
+and future agentic workflows.
 
-## Architecture
+It separates planning, dispatch, worker execution, retries, event history, and UI
+inspection into explicit services so workflows can be replayed, audited, and
+recovered instead of disappearing into in-memory agent state.
+
+> Authentication is deferred. Published ports are for local development or
+> trusted networks only; do not expose this stack directly to the public internet.
+
+## Why It Exists
+
+Most agent demos are easy to start and hard to trust. AgentMesh is built around
+production-shaped constraints from the beginning:
+
+- Durable event history: workflow state is projected from append-only events.
+- Explicit service boundaries: agents do not call each other directly.
+- Controlled orchestration: the supervisor plans; the control plane validates,
+  queues, dispatches, leases, retries, and records.
+- Local-first operation: Docker Compose runs the full stack for development.
+- Interview-ready architecture: tradeoffs are written down in `plan.md` and
+  `docs/`.
+
+## Architecture At A Glance
 
 ```text
-Streamlit
-  |-- Agent Playground direct --> ready API/combined agent --> /invoke
-  |-- Agent Playground async --> control plane queue --> worker /invoke manifest
-  `-- Workflow Playground ----> control plane queue --> supervisor service
-                                                   |--> worker /invoke manifest
-                                                   `--> workflow.result to user
+Streamlit UI
+  |-- direct agent test ---------> worker /invoke
+  |-- durable direct request ----> control plane queue ---> worker /invoke
+  `-- supervised workflow ------> control plane queue ---> supervisor
+                                                        |-> LiteLLM Gateway
+                                                        `-> workers
 
-agentmesh_agents       stable Agent Card identity and compatibility
-agentmesh_resources    one row per runtime instance and other platform resource
-agentmesh_events       append-only workflow, planning, dispatch, and result timeline
-agentmesh_event_claims renewable control-plane leases, retries, and dead letters
-LangGraph tables       checkpoint IDs mapped to workflow checkpoints by control plane
+PostgreSQL stores:
+  agent registry rows, resources, audit events, workflow events, queue claims,
+  retries, dead letters, UAT cases, and checkpoint mappings.
 ```
 
-All durable direct and workflow requests enter the control plane asynchronously. The
-orchestrator is an independent supervisor service that polls and claims planning,
-validation, replan, and summary actions. LiteLLM Gateway is required only for
-supervisor model calls; worker model configuration remains owned by each worker.
+Core rule:
 
-Workers expose synchronous `/invoke` and receive immutable per-step input manifests.
-Sequential and parallel dependencies are linked by `workflow_id`, `plan_version`,
-stable `step_id`, and named input bindings. The supervisor may inspect all authorized
-workflow outputs, but it must plan exactly which fields each downstream worker sees.
+```text
+Every durable request and workflow event passes through the control plane.
+Workers receive only the immutable manifest planned and authorized for their step.
+```
 
 ## Repository Layout
 
 ```text
 agentmesh/
-|-- deployment/
-|   |-- docker/             Compose and selective service/agent images
-|   |-- postgres/           Idempotent DDLs and migration runner
-|   `-- agentcore/          Future managed-runtime adapter boundary
-|-- docs/                   Active operating and business documentation
-|-- scripts/                Local launch, smoke, and graph-export helpers
-|-- src/agentmesh/
-|   |-- agents/             Concrete agents and shared runtime primitives
-|   |-- core/               Models, providers, persistence, and observability
-|   |-- mcp_servers/        Reserved MCP adapter packages
-|   `-- services/           Control plane and Streamlit UI
-|-- tests/
-`-- pyproject.toml          Single dependency source of truth
+|-- src/agentmesh/              Python package: agents, services, core models
+|-- tests/                      Unit, API, and live/UAT-oriented tests
+|-- deployment/                 Docker, Postgres DDLs, and deployment boundaries
+|-- docs/                       Runtime, operations, project, IDE, and planning docs
+|-- scripts/                    Local launch and Docker operation helpers
+|-- tests/tools/                Smoke, sanity, graph, and eval runners
+|-- plan.md                     Authoritative runtime architecture contract
+|-- AGENTS.md                   AI assistant and repository guidance
+`-- pyproject.toml              Dependency groups, tooling, and package metadata
 ```
 
-## Install Locally
+For the full documentation map, start with [`docs/README.md`](docs/README.md).
 
-Python 3.11 or newer and pip 25.1 or newer are required for dependency groups.
+## Release Channel
+
+Use the latest GitHub Release for stable public snapshots. The `develop` branch
+is the source of truth for accepted active work, while `main` is kept as the
+stable release branch.
+
+```text
+feature/* -> PR -> develop -> release/vX.Y.Z -> PR -> main -> tag -> release
+```
+
+Release and rollback rules are documented in
+[`docs/project/release-management.md`](docs/project/release-management.md).
+Gate failures and recovery steps are documented in
+[`docs/operations/merge-gate-troubleshooting.md`](docs/operations/merge-gate-troubleshooting.md).
+
+## Quick Start
+
+Python 3.11 or newer and pip 25.1 or newer are required.
 
 ```powershell
 python -m venv .venv
@@ -67,91 +93,34 @@ $env:PYTHONPATH = "src"
 python scripts/run_local.py
 ```
 
-`pyproject.toml` owns the install sets:
+## Docker Workflow
 
-- `control-plane`: FastAPI registry/control plane, PostgreSQL, and queue ownership
-- `supervisor`: LangGraph supervisor process and PostgreSQL checkpoints
-- `model-gateway`: pinned LiteLLM proxy dependency
-- `agent-langgraph`: selective Copilot runtime
-- `agent-adk`: selective Google ADK runtime
-- `ui`: HTTP-only Streamlit service with live event and plan progress
-- `local`: all runtime and development dependencies
-
-Streamlit receives no database credential. Registry resources, audit events,
-workflow activity, checkpoints, recovery, and conditional LangSmith trace links
-are read through public control-plane APIs.
-
-## Docker Quick Start
-
-The easiest way to manage the stack is using the PowerShell helper scripts:
+Use the component manager for local stack operations:
 
 ```powershell
-# Start all services (Postgres, LiteLLM, control plane, supervisor, agents, UI)
 pwsh -File scripts\docker_component_manager.ps1 -Action start -Service all
-
-# Check health
 pwsh -File scripts\docker_component_manager.ps1 -Action health
-
-# View logs
 pwsh -File scripts\docker_component_manager.ps1 -Action logs -Service all
-
-# Stop all services
 pwsh -File scripts\docker_component_manager.ps1 -Action stop -Service all
 ```
 
-The scripts automatically:
-- Detect your `COMPOSE_PROFILES` setting from `.env`
-- Apply the correct service set (combined or split profile)
-- Use current images for `start`, rebuild/recreate for `restart`, and perform a
-  destructive full-stack scratch build for `rebuild`
-- Wait for services to be healthy before returning
+The helper detects `COMPOSE_PROFILES`, starts the matching service set, waits for
+health checks, and keeps rebuild/restart behavior consistent. See
+[`docs/operations/docker.md`](docs/operations/docker.md) for the complete
+runbook.
 
-See [`docs/docker-operations.md`](docs/docker-operations.md) for the complete runbook.
+## Runtime Contracts
 
-## Runtime Roles
-
-- `combined`: `/invoke`, health/readiness, Agent Card, and assignment consumption
-- `api`: `/invoke`, health/readiness, and Agent Card; never polls assignments
-- `worker`: health/readiness and assignment consumption through the synchronous
-  worker invoke contract; no public Agent Playground `/invoke` route
-
-Every instance publishes its agent ID, runtime instance ID, role, lifecycle status,
-endpoint, active count, start time, last model success, and heartbeat. Direct readiness
-requires an `api` or `combined` instance; assignment readiness requires a `worker` or
-`combined` instance.
-
-## Agent Playground Contracts
-
-Direct mode waits on the selected agent API and does not create durable workflow
-state. Human approval is required by default for approval-capable agents; send
-`"approval_required": false` only when that request may complete without review:
-
-```powershell
-Invoke-RestMethod -Method Post -Uri http://localhost:8101/invoke `
-  -ContentType "application/json" `
-  -Body '{"message":"Make Dubai travel plans","approval_required":false}'
-```
-
-Control-plane mode submits durable direct work asynchronously and also requires
-human approval by default. The control plane owns queueing, leased dispatch,
-retries, deterministic validation, and result events:
-
-```powershell
-Invoke-RestMethod -Method Post `
-  -Uri http://localhost:8000/workers/langgraph-copilot/assignments `
-  -ContentType "application/json" `
-  -Body '{"message":"Make Dubai travel plans"}'
-```
-
-Normal workflows always enter the control plane first. `WORKFLOW_STARTED` is event
-1 and `SUPERVISOR_ACTION_REQUESTED` is event 2. Supervisor plan approval defaults
-to required and can be disabled per start request with
-`"approval_required": false`. The supervisor claims
-planning actions, can pause on `planning.input_requested` until
-`planning.input_provided`, and returns the final `workflow.result` with
-`source=supervisor` and `destination=user`. Transient worker failures such as 429,
-timeouts, and 502-504 responses are retried by the control plane without disturbing
-the supervisor; semantic failures trigger checkpoint review or replan.
+- Streamlit is a thin client. It never imports a database driver, receives
+  `DATABASE_URL`, or writes workflow events.
+- The control plane owns registry, queue claims, dispatch, deterministic
+  validation, retries, dead letters, events, and projections.
+- The supervisor owns planning, semantic review, replan decisions, final summary,
+  and LangGraph checkpoint-aware reasoning.
+- Workers expose synchronous `/invoke`, execute only the supplied manifest, and
+  return structured output to the control plane.
+- LiteLLM Gateway is required only for supervisor model calls; worker model
+  configuration stays owned by each worker runtime.
 
 ## Validation
 
@@ -159,8 +128,9 @@ the supervisor; semantic failures trigger checkpoint review or replan.
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\ruff.exe check src tests
 .\.venv\Scripts\mypy.exe --strict src
-.\.venv\Scripts\python.exe scripts\clear_langsmith_traces.py
-.\.venv\Scripts\python.exe scripts\system_sanity.py
+.\.venv\Scripts\python.exe tests\tools\clear_langsmith_traces.py
+.\.venv\Scripts\python.exe tests\tools\system_sanity.py
+.\.venv\Scripts\python.exe tests\tools\merge_gate.py local
 $env:COMPOSE_PROFILES = "combined"
 docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
 $env:COMPOSE_PROFILES = "split"
@@ -168,14 +138,34 @@ docker compose --env-file .env -f deployment/docker/compose.yml config --quiet
 Remove-Item Env:COMPOSE_PROFILES
 ```
 
-UAT case definitions are seeded into PostgreSQL by
-`deployment/postgres/ddls/008_agentmesh_uat_cases.sql`, so smoke, unit,
-validation, Streamlit behavior, retry, replay, checkpoint, Postgres, and LangSmith
-coverage survives code refactors and fresh Docker volumes.
+Generated validation evidence belongs under ignored `outputs/` directories and
+is not tracked in Git.
 
-The active LangGraph delivery status is in
-[`src/agentmesh/agents/ROADMAP.md`](src/agentmesh/agents/ROADMAP.md).
-The local agent-runtime design is split into
-[`functional`](docs/agent-runtime-functional.md) and
-[`non-functional`](docs/agent-runtime-non-functional.md) notes, with roadmap
-tracking in [`docs/agent-runtime-roadmap.md`](docs/agent-runtime-roadmap.md).
+## Documentation
+
+- [`plan.md`](plan.md): authoritative architecture and implementation contract.
+- [`docs/runtime/overview.md`](docs/runtime/overview.md): runtime summary.
+- [`docs/runtime/functional.md`](docs/runtime/functional.md): behavior and flows.
+- [`docs/runtime/non-functional.md`](docs/runtime/non-functional.md): reliability,
+  recovery, security, determinism, and operability.
+- [`docs/runtime/roadmap.md`](docs/runtime/roadmap.md): runtime delivery roadmap.
+- [`docs/operations/docker.md`](docs/operations/docker.md): local Docker runbook.
+- [`docs/operations/merge-gate-troubleshooting.md`](docs/operations/merge-gate-troubleshooting.md):
+  PR, report, CI, provider, and release recovery.
+- [`docs/project/`](docs/project/): product, tech, testing, architecture, and
+  coding standards shared across IDEs.
+- [`docs/project/release-management.md`](docs/project/release-management.md):
+  branch, versioning, release, rollback, commit, and PR standards.
+
+## Contributing
+
+Public changes should land through pull requests into `develop`. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md), and
+[`SUPPORT.md`](SUPPORT.md) before opening issues or pull requests.
+
+## Current Status
+
+The active implementation is the Python package under `src/agentmesh/`, with
+PostgreSQL-backed control-plane services, independent supervisor and worker
+processes, Streamlit UI surfaces, Docker Compose deployment, and pytest/ruff/mypy
+validation.

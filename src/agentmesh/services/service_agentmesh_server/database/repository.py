@@ -1,6 +1,6 @@
-"""Backward-compatibility shim — real implementation is in core.database.repository."""
+"""Service compatibility facade for the core PostgreSQL repository."""
 
-from agentmesh.core.database.repository import (
+from agentmesh.core.database.postgres.repository import (
     ClaimRepository,
     EventRepository,
     InMemoryClaimRepository,

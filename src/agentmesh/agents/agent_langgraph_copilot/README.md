@@ -151,7 +151,7 @@ does not copy the UI, control-plane service, ADK agent, or future MCP servers.
 python -m pytest tests/unit/test_conversation_agent.py tests/api/test_agent_runtime.py -q
 python -m ruff check src tests
 python -m mypy --strict src
-python scripts/export_langgraph_mermaid.py --check
+python tests/tools/export_langgraph_mermaid.py --check
 ```
 
 See [LEARNING.md](LEARNING.md) for the decisions, alternatives, and tradeoffs behind

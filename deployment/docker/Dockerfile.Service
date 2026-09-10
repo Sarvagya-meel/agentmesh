@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # ─── Dockerfile.Service ──────────────────────────────────────────────────────
 # Builds the AgentMesh control plane, supervisor, or Streamlit UI. Compose
 # assigns a separate image name and entrypoint to each process.
@@ -19,14 +20,15 @@ ARG DEPENDENCY_GROUP=control-plane
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONPATH=/app/src
 
 WORKDIR /app
 
 # ── Install dependencies first (cached layer) ────────────────────────────────
 COPY pyproject.toml ./
-RUN pip install --upgrade "pip>=25.1" \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade "pip>=25.1" \
     && pip install --group "${DEPENDENCY_GROUP}"
 
 # ── Copy full source tree (service needs everything) ─────────────────────────
