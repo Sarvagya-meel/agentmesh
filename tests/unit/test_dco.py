@@ -3,6 +3,7 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
+from tests.tools import verify_dco
 from tests.tools.verify_dco import dco_error, dco_errors_for_messages
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -37,6 +38,21 @@ def test_dco_reports_each_noncompliant_commit() -> None:
     )
 
     assert errors == ["missing: DCO sign-off is required; commit with 'git commit -s'"]
+
+
+def test_release_range_excludes_history_from_both_protected_branches(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(verify_dco, "is_ancestor", lambda _ref, _head: True)
+
+    assert verify_dco.revision_args("origin/develop", "release-head") == [
+        "git",
+        "rev-list",
+        "--no-merges",
+        "release-head",
+        "^origin/develop",
+        "^origin/main",
+    ]
 
 
 def test_package_declares_and_includes_apache_license_files() -> None:
