@@ -11,7 +11,12 @@ from agentmesh.core.observability import configure_langsmith
 class FakeTextCompletionClient:
     model = "fake-platform-model"
 
-    def create_text_completion(self, *, messages: list[dict[str, str]]) -> str:
+    def create_text_completion(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        request_metadata: dict[str, str] | None = None,
+    ) -> str:
         return f"Generated for: {messages[-1]['content']}"
 
 
@@ -21,7 +26,12 @@ class RecordingTextCompletionClient:
     def __init__(self) -> None:
         self.calls: list[list[dict[str, str]]] = []
 
-    def create_text_completion(self, *, messages: list[dict[str, str]]) -> str:
+    def create_text_completion(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        request_metadata: dict[str, str] | None = None,
+    ) -> str:
         self.calls.append(messages)
         return f"Turn {len(self.calls)} response"
 

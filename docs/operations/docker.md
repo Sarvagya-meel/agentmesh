@@ -116,10 +116,17 @@ Host endpoints:
 - Streamlit: `http://localhost:8501`
 - PostgreSQL: `localhost:5432`
 
-The Google ADK service requires `LLM_PROVIDER=groq`, a nonempty `GROQ_API_KEY`,
-and an ADK-compatible `GOOGLE_ADK_MODEL` for live responses. Missing or invalid live
-configuration fails explicitly; the service does not return a synthetic fallback
-answer.
+Live LLM responses require `LLM_PROVIDER=litellm`, a nonempty `GROQ_API_KEY` in the
+LiteLLM service, and a `LITELLM_MODEL` alias that maps to a configured gateway
+model group. App services call the gateway alias; they do not carry provider
+model IDs such as Groq or Qwen names.
+
+The default LiteLLM config maps `agentmesh-groq` to `LITELLM_UPSTREAM_MODEL`
+and falls back to `agentmesh-demo-fallback` after one failed upstream retry. The
+fallback returns a deterministic demo response from the gateway so the UI can
+still demonstrate registry, queueing, dispatch, and worker flow when the live
+provider is unavailable. Use `LLM_PROVIDER=mock` for fully offline deterministic
+tests.
 
 The Streamlit container intentionally has no `DATABASE_URL`. Its Registry, Agent
 Playground, live workflow event flow, checkpoint recovery, and LangSmith controls
@@ -212,8 +219,9 @@ DDL in place; add the next numbered migration instead.
   `control-plane`, `supervisor`, or `litellm` only inside the Compose network.
 - A healthy container proves process liveness. `/ready` additionally proves registration
   and role readiness.
-- `LLM_PROVIDER=groq` requires a valid `GROQ_API_KEY`; use `mock` for credential-free
-  local startup.
+- `LLM_PROVIDER=litellm` requires a valid LiteLLM gateway config. `GROQ_API_KEY`
+  and `LITELLM_UPSTREAM_MODEL` are read by the LiteLLM service; app services use
+  `LITELLM_MODEL=agentmesh-groq`. Use `mock` for credential-free local startup.
 - A worker role returning `404` from a public Agent Playground `/invoke` request is
   expected; durable worker invocation goes through control-plane dispatch.
 - Normal heartbeats update runtime presence without writing audit events. Registration,

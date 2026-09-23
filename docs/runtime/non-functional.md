@@ -52,8 +52,11 @@ focused on execution behavior, prompts, schemas, and tools.
 
 ## Provider Boundaries
 
-LiteLLM Gateway is required for supervisor model calls only. Worker model calls
-remain owned by each worker runtime and its provider configuration.
+LiteLLM Gateway is required for live supervisor and worker model calls. Runtime
+services use logical aliases such as `LITELLM_MODEL`; provider credentials,
+upstream model IDs, and provider fallback stay in the gateway configuration.
+The default local gateway config includes a deterministic demo fallback so the
+runtime can still be demonstrated when the upstream provider is unavailable.
 
 ## Operability
 

@@ -17,8 +17,8 @@ externally managed PostgreSQL remain the boundary.
 
 The durable control plane remains responsible for registry data, queueing, leased
 dispatch, retries, DAG state, deterministic validation, events, and LangGraph
-checkpoint mappings. LiteLLM Gateway is required for supervisor model calls only,
-not as an AgentCore worker dependency.
+checkpoint mappings. LiteLLM Gateway is required for live supervisor and worker
+model calls, while AgentCore-specific request translation remains separate.
 
 The selective agent image is also built for `linux/arm64` as an early portability
 check. AgentCore-specific request translation, identity, session mapping, and managed

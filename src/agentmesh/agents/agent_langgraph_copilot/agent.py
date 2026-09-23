@@ -57,6 +57,7 @@ class ConversationState(MessagesState, total=False):
     memory_updates: dict[str, str]
     memory_delete_keys: list[str]
     long_term_memories: list[dict[str, Any]]
+    llm_request_metadata: dict[str, str]
 
 
 class ConversationAgent(BaseAgent):
@@ -234,6 +235,7 @@ class ConversationAgent(BaseAgent):
             ),
             plan=state.get("task_plan", []),
             memories=state.get("long_term_memories", []),
+            request_metadata=state.get("llm_request_metadata", {}),
         )
         draft_message_id = state.get("draft_message_id") or str(uuid4())
         return {
@@ -347,6 +349,11 @@ class ConversationAgent(BaseAgent):
                     datetime.now(UTC) + timedelta(seconds=self.evaluation_timeout_seconds)
                 ).isoformat(),
                 draft_message_id="",
+                llm_request_metadata=self._llm_request_metadata(
+                    thread_id=thread_id,
+                    execution_mode="direct",
+                    trace_metadata=None,
+                ),
             ),
             config=self._config(thread_id),
         )
@@ -382,6 +389,15 @@ class ConversationAgent(BaseAgent):
                 memory_opt_in=memory_opt_in,
                 memory_updates=memory_updates or {},
                 memory_delete_keys=memory_delete_keys or [],
+                llm_request_metadata=self._llm_request_metadata(
+                    thread_id=thread_id,
+                    execution_mode=(
+                        str(trace_metadata.get("execution_mode"))
+                        if trace_metadata and trace_metadata.get("execution_mode")
+                        else "direct"
+                    ),
+                    trace_metadata=trace_metadata,
+                ),
             ),
             config=self._config(thread_id, trace_metadata),
         )
@@ -530,6 +546,7 @@ class ConversationAgent(BaseAgent):
         feedback: str,
         plan: list[str],
         memories: list[dict[str, Any]],
+        request_metadata: dict[str, str],
     ) -> str:
         prompt = str(messages[-1].content)
         if self.llm_client is None:
@@ -561,7 +578,8 @@ class ConversationAgent(BaseAgent):
                     ]
                 ),
                 {"role": "user", "content": user_content},
-            ]
+            ],
+            request_metadata=request_metadata,
         )
         self.last_successful_model_call = datetime.now(UTC).isoformat()
         return reply
@@ -749,6 +767,31 @@ class ConversationAgent(BaseAgent):
         workflow_id = str(task_payload.get("workflow_id", "workflow"))
         task_id = str(task_payload.get("task_id", uuid4()))
         return f"agent:{workflow_id}:{task_id}"
+
+    def _llm_request_metadata(
+        self,
+        *,
+        thread_id: str,
+        execution_mode: str,
+        trace_metadata: dict[str, Any] | None,
+    ) -> dict[str, str]:
+        metadata = {
+            "agent_id": self.agent_name,
+            "framework": "langgraph",
+            "model_alias": self.llm_model,
+            "session_id": thread_id,
+            "thread_id": thread_id,
+            "execution_mode": execution_mode,
+        }
+        if trace_metadata:
+            for key in ("run_id", "workflow_id", "assignment_id", "task_id"):
+                value = trace_metadata.get(key)
+                if value:
+                    metadata[key] = str(value)
+            attempt_number = trace_metadata.get("attempt_number")
+            if attempt_number is not None:
+                metadata["attempt_number"] = str(attempt_number)
+        return metadata
 
     def _config(
         self,

@@ -2,39 +2,24 @@ from __future__ import annotations
 
 from agentmesh.core.config import Settings
 from agentmesh.core.models.exceptions import ValidationError
-from agentmesh.core.providers.groq import GroqStructuredOutputClient
+from agentmesh.core.providers.litellm import LiteLLMStructuredOutputClient
 
 
-def create_groq_client(settings: Settings) -> GroqStructuredOutputClient:
-    """Create the shared Groq client used by text-generating agents."""
+def create_litellm_client(settings: Settings) -> LiteLLMStructuredOutputClient:
+    """Create the shared OpenAI-compatible client through LiteLLM Gateway."""
 
-    if settings.llm_provider.strip().lower() != "groq":
-        raise ValidationError("Worker LLM_PROVIDER must be mock or groq.")
-    return GroqStructuredOutputClient(
-        api_key=(
-            settings.litellm_master_key.get_secret_value()
-            if settings.litellm_enabled
-            else groq_api_key(settings)
-        ),
-        model=settings.litellm_model if settings.litellm_enabled else settings.groq_model,
-        api_base=settings.litellm_api_base if settings.litellm_enabled else settings.groq_api_base,
-        reasoning_effort=settings.groq_reasoning_effort,
-        temperature=settings.groq_temperature,
-        max_completion_tokens=settings.groq_max_completion_tokens,
-        timeout_seconds=settings.groq_timeout_seconds,
-    )
-
-
-def groq_api_key(settings: Settings) -> str:
-    """Return the configured Groq key or raise a domain validation error."""
-
-    if settings.llm_provider.strip().lower() != "groq":
-        raise ValidationError("Worker LLM_PROVIDER must be mock or groq.")
-    api_key = (
-        settings.groq_api_key.get_secret_value().strip()
-        if settings.groq_api_key is not None
-        else ""
-    )
+    if settings.llm_provider.strip().lower() != "litellm":
+        raise ValidationError("Worker LLM_PROVIDER must be mock or litellm.")
+    api_key = settings.litellm_master_key.get_secret_value().strip()
     if not api_key:
-        raise ValidationError("GROQ_API_KEY is required when LLM_PROVIDER=groq.")
-    return api_key
+        raise ValidationError("LITELLM_MASTER_KEY is required when LLM_PROVIDER=litellm.")
+    return LiteLLMStructuredOutputClient(
+        api_key=api_key,
+        model=settings.litellm_model,
+        api_base=settings.litellm_api_base,
+        reasoning_effort=settings.llm_reasoning_effort,
+        temperature=settings.llm_temperature,
+        max_completion_tokens=settings.llm_max_completion_tokens,
+        timeout_seconds=settings.llm_timeout_seconds,
+    )
+

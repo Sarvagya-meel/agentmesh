@@ -119,8 +119,11 @@ runbook.
   and LangGraph checkpoint-aware reasoning.
 - Workers expose synchronous `/invoke`, execute only the supplied manifest, and
   return structured output to the control plane.
-- LiteLLM Gateway is required only for supervisor model calls; worker model
-  configuration stays owned by each worker runtime.
+- LiteLLM Gateway is required for live supervisor and worker model calls.
+  Runtime services use aliases such as `LITELLM_MODEL`; provider model IDs stay
+  in the gateway configuration.
+- The default gateway config falls back from `agentmesh-groq` to a deterministic
+  `agentmesh-demo-fallback` response for demos when the upstream provider is down.
 
 ## Validation
 

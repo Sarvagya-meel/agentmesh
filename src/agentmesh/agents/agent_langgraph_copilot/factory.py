@@ -10,7 +10,7 @@ from agentmesh.core.frameworks.langgraph import (
     create_langgraph_store,
 )
 from agentmesh.core.models.exceptions import ValidationError
-from agentmesh.core.providers import create_groq_client
+from agentmesh.core.providers import create_litellm_client
 
 
 async def create_langgraph_worker_agent(
@@ -38,7 +38,7 @@ async def create_langgraph_worker_agent(
             close_mock,
         )
     try:
-        client = create_groq_client(settings)
+        client = create_litellm_client(settings)
     except ValidationError:
         close_store()
         await close_checkpointer()

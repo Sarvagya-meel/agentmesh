@@ -2,18 +2,13 @@ name: agentmesh
 
 x-llm-config: &llm-config
   LLM_PROVIDER: ${LLM_PROVIDER:-mock}
-  GROQ_API_KEY: ${GROQ_API_KEY:-}
-  GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
-  GROQ_API_BASE: ${GROQ_API_BASE:-https://api.groq.com/openai/v1}
-  GROQ_REASONING_EFFORT: ${GROQ_REASONING_EFFORT:-medium}
-  GROQ_TEMPERATURE: ${GROQ_TEMPERATURE:-0.1}
-  GROQ_MAX_COMPLETION_TOKENS: ${GROQ_MAX_COMPLETION_TOKENS:-4096}
-  GROQ_TIMEOUT_SECONDS: ${GROQ_TIMEOUT_SECONDS:-45}
-  LITELLM_ENABLED: ${LITELLM_ENABLED:-true}
+  LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-medium}
+  LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.1}
+  LLM_MAX_COMPLETION_TOKENS: ${LLM_MAX_COMPLETION_TOKENS:-4096}
+  LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-45}
   LITELLM_API_BASE: http://litellm:4000/v1
   LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-agentmesh-local}
   LITELLM_MODEL: ${LITELLM_MODEL:-agentmesh-groq}
-  GOOGLE_ADK_MODEL: ${GOOGLE_ADK_MODEL:-qwen/qwen3.6-27b}
   GOOGLE_ADK_MAX_COMPLETION_TOKENS: ${GOOGLE_ADK_MAX_COMPLETION_TOKENS:-512}
   LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
   LANGCHAIN_TRACING_V2: ${LANGSMITH_TRACING:-false}
@@ -40,6 +35,8 @@ x-agent-environment: &agent-environment
 
 x-agent-dependencies: &agent-dependencies
   control-plane:
+    condition: service_healthy
+  litellm:
     condition: service_healthy
   migrate:
     condition: service_completed_successfully
@@ -123,14 +120,17 @@ services:
     container_name: agentmesh-litellm
     environment:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
-      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      LITELLM_MODEL: ${LITELLM_MODEL:-agentmesh-groq}
+      LITELLM_UPSTREAM_MODEL: ${LITELLM_UPSTREAM_MODEL:-groq/openai/gpt-oss-120b}
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-agentmesh-local}
+    volumes:
+      - ./litellm_config.yaml:/app/config.yaml:ro
     command:
       - /bin/sh
       - -c
       - >-
         litellm --host 0.0.0.0 --port 4000 --num_workers 1
-        --model groq/$${GROQ_MODEL} --alias agentmesh-groq
+        --config /app/config.yaml
     ports:
       - "4000:4000"
     healthcheck:

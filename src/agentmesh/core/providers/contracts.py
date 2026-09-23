@@ -10,7 +10,12 @@ class TextCompletionClient(Protocol):
 
     model: str
 
-    def create_text_completion(self, *, messages: list[dict[str, str]]) -> str:
+    def create_text_completion(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        request_metadata: dict[str, str] | None = None,
+    ) -> str:
         """Generate one assistant response."""
 
 
@@ -25,5 +30,6 @@ class StructuredOutputClient(Protocol):
         messages: list[dict[str, str]],
         schema_name: str,
         schema: dict[str, Any],
+        request_metadata: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Return one JSON object conforming to the supplied schema."""

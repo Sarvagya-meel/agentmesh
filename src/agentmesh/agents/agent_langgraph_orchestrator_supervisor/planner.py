@@ -53,7 +53,7 @@ class PlanDraft(BaseModel):
     tasks: list[PlanTaskDraft] = Field(min_length=1)
 
 
-class GroqWorkflowPlanner:
+class LLMWorkflowPlanner:
     """LLM-backed planner constrained by registry data and a strict JSON schema."""
 
     def __init__(self, client: StructuredOutputClient, *, model_name: str = "unknown") -> None:
@@ -117,12 +117,20 @@ class GroqWorkflowPlanner:
             messages=messages,
             schema_name="agentmesh_workflow_plan",
             schema=PlanDraft.model_json_schema(),
+            request_metadata={
+                "agent_id": "orchestrator-supervisor-agent",
+                "framework": "langgraph",
+                "execution_mode": "workflow_planning",
+                "workflow_id": str(workflow_id),
+                "session_id": str(workflow_id),
+                "model_alias": self.model_name,
+            },
         )
         try:
             draft = PlanDraft.model_validate(raw_draft)
         except PydanticValidationError as exc:
             raise ModelProviderError(
-                "Groq returned a workflow plan that failed validation."
+                "LiteLLM returned a workflow plan that failed validation."
             ) from exc
         return self._to_workflow_plan(
             draft=draft,
@@ -153,11 +161,13 @@ class GroqWorkflowPlanner:
 
         for expected_position, proposed in enumerate(draft.tasks):
             if proposed.position != expected_position:
-                raise ModelProviderError("Groq plan task positions must be contiguous and ordered.")
+                raise ModelProviderError(
+                    "LLM plan task positions must be contiguous and ordered."
+                )
             card = cards_by_id.get(proposed.agent_id)
             if card is None:
                 raise AgentRegistryError(
-                    f"Groq selected unknown or unavailable agent {proposed.agent_id!r}."
+                    f"LLM selected unknown or unavailable agent {proposed.agent_id!r}."
                 )
             capability = proposed.required_capability.strip().upper()
             advertised = {item.upper() for item in card.capabilities}
@@ -169,7 +179,7 @@ class GroqWorkflowPlanner:
                 dependency < 0 or dependency >= expected_position
                 for dependency in proposed.dependency_positions
             ):
-                raise ModelProviderError("Groq plan dependencies must reference earlier tasks.")
+                raise ModelProviderError("LLM plan dependencies must reference earlier tasks.")
             tasks.append(
                 PlanTask(
                     task_id=task_ids[expected_position],
@@ -190,7 +200,7 @@ class GroqWorkflowPlanner:
         ]
         if missing_required:
             raise ModelProviderError(
-                "Groq plan omitted required agents: " + ", ".join(missing_required)
+                "LLM plan omitted required agents: " + ", ".join(missing_required)
             )
 
         version = previous_plan.version + 1 if previous_plan is not None else 1
@@ -200,7 +210,7 @@ class GroqWorkflowPlanner:
             version=version,
             tasks=tasks,
             rationale=draft.rationale,
-            planner_provider="groq",
+            planner_provider="litellm",
             planner_model=model_name,
         )
 

@@ -17,7 +17,7 @@ MCP-native capability registry direction.
   state, events, retries, deterministic validation, and checkpoint mappings.
 - Independent supervisor service claims planning, validation, replan, and summary
   actions from the control plane.
-- LiteLLM Gateway is mandatory for supervisor model calls only.
+- LiteLLM Gateway is mandatory for live supervisor and worker model calls.
 - Workers expose synchronous `/invoke` and receive immutable per-step input
   manifests.
 - Streamlit provides Agent Playground direct `/invoke`, Agent Playground

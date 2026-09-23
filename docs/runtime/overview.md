@@ -20,8 +20,11 @@ For deeper planning and interview explanations, use:
   helper owned by the supervisor.
 - The orchestrator is promoted to an independent supervisor service. It polls and
   claims planning, validation, replan, and summary actions from the control plane.
-- LiteLLM Gateway is required for supervisor model calls only. Worker model calls
-  remain owned by the worker runtime and its configuration.
+- LiteLLM Gateway is required for live supervisor and worker model calls. App
+  services use logical model aliases; provider model IDs and credentials stay in
+  the gateway configuration.
+- The local gateway config includes a deterministic demo fallback model group for
+  provider outages; deterministic tests still use in-process mock mode.
 - Streamlit stays a thin client with three surfaces: Agent Playground direct
   `/invoke`, Agent Playground control-plane integration, and Workflow Playground.
 

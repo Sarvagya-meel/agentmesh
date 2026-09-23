@@ -7,7 +7,6 @@ from agentmesh.agents.common.base_agent import BaseAgent
 from agentmesh.core.config import Settings
 from agentmesh.core.frameworks.google_adk import create_google_adk_session_service
 from agentmesh.core.models.exceptions import ValidationError
-from agentmesh.core.providers import groq_api_key
 
 
 def create_google_adk_worker_agent(
@@ -26,13 +25,14 @@ def create_google_adk_worker_agent(
             lambda: None,
         )
 
-    api_key = groq_api_key(settings)
-    model_name = settings.google_adk_model.strip() or settings.groq_model
-    if _uses_adk_incompatible_groq_model(model_name):
-        raise ValidationError(
-            "GOOGLE_ADK_MODEL must name an ADK-compatible Groq model; "
-            f"{model_name!r} is not supported by this runtime."
-        )
+    if provider != "litellm":
+        raise ValidationError("LLM_PROVIDER must be mock or litellm for Google ADK.")
+    api_key = settings.litellm_master_key.get_secret_value().strip()
+    if not api_key:
+        raise ValidationError("LITELLM_MASTER_KEY is required when LLM_PROVIDER=litellm.")
+    model_name = settings.litellm_model.strip()
+    if not model_name:
+        raise ValidationError("LITELLM_MODEL is required when LLM_PROVIDER=litellm.")
 
     session_service = create_google_adk_session_service(settings)
     agent = GoogleADKAgent(
@@ -40,13 +40,7 @@ def create_google_adk_worker_agent(
         model_name=model_name,
         max_completion_tokens=settings.google_adk_max_completion_tokens,
         api_key=api_key,
+        api_base=settings.litellm_api_base,
         session_service=session_service,
     )
     return agent, agent.close
-
-
-def _uses_adk_incompatible_groq_model(model_name: str) -> bool:
-    """Return true for Groq models that currently emit unsupported ADK tool calls."""
-
-    normalized = model_name.strip().lower()
-    return normalized.startswith("openai/gpt-oss")

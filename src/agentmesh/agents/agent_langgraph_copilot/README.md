@@ -116,8 +116,10 @@ threading derived from `workflow_id`, `plan_version`, and `step_id`.
 - `AGENTMESH_API_URL`: control-plane URL
 - `WORKER_HEARTBEAT_SECONDS`: registry heartbeat interval
 - `POLL_INTERVAL_SECONDS`: assignment poll interval
-- `LLM_PROVIDER`: `mock` or `groq`
-- `GROQ_API_KEY`: model credential for Groq mode
+- `LLM_PROVIDER`: `mock` or `litellm`
+- `LITELLM_API_BASE`: OpenAI-compatible LiteLLM Gateway URL
+- `LITELLM_MASTER_KEY`: gateway key used by the worker process
+- `LITELLM_MODEL`: gateway model alias used for live LLM calls
 
 ## Run Locally
 
