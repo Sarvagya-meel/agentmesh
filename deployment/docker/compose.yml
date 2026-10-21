@@ -116,7 +116,7 @@ services:
     build:
       context: ../..
       dockerfile: deployment/docker/Dockerfile.LiteLLM
-    image: agentmesh-litellm:1.97.0
+    image: agentmesh-litellm:1.105.1
     container_name: agentmesh-litellm
     environment:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
