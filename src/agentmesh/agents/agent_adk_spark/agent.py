@@ -37,11 +37,14 @@ class GoogleADKAgent(BaseAgent):
         model_name: str | None = None,
         max_completion_tokens: int = 512,
         api_key: str | None = None,
+        api_base: str | None = None,
         executor: Callable[[str], str] | None = None,
         session_service: BaseSessionService | None = None,
     ) -> None:
-        self.model_name: str = model_name or os.getenv("GOOGLE_ADK_MODEL") or "gemini-2.5-flash"
+        self.model_name: str = model_name or os.getenv("LITELLM_MODEL") or "agentmesh-groq"
         self.max_completion_tokens = max_completion_tokens
+        self._api_key = api_key
+        self._api_base = api_base
         self._executor = executor
         self._session_service = session_service
         self._adk_runner: AdkRunner | None = None
@@ -53,6 +56,7 @@ class GoogleADKAgent(BaseAgent):
                 raise ValueError("A Google ADK session service is required for live execution.")
             self._adk_runner = self._build_adk_runner(
                 api_key,
+                api_base,
                 self.model_name,
                 self.max_completion_tokens,
                 self._session_service,
@@ -101,7 +105,14 @@ class GoogleADKAgent(BaseAgent):
                 with self._runner_lock:
                     try:
                         reply = asyncio.run_coroutine_threadsafe(
-                            self._execute_adk(prompt, user_id=user_id, session_id=session_id),
+                            self._execute_adk(
+                                prompt,
+                                user_id=user_id,
+                                session_id=session_id,
+                                workflow_id=workflow_id,
+                                task_id=task_id,
+                                execution_mode="workflow" if mode == "WorkFlow" else "direct",
+                            ),
                             self._event_loop,
                         ).result()
                     except ModelProviderError:
@@ -113,8 +124,8 @@ class GoogleADKAgent(BaseAgent):
                         ) from exc
             else:
                 raise ModelProviderError(
-                    "Google ADK has no configured model runtime. Set LLM_PROVIDER=groq, "
-                    "provide GROQ_API_KEY, and configure a compatible GOOGLE_ADK_MODEL."
+                    "Google ADK has no configured model runtime. Set LLM_PROVIDER=litellm, "
+                    "provide a LiteLLM gateway key, and configure LITELLM_MODEL."
                 )
             source = "google_adk_llm"
             response = {
@@ -135,19 +146,37 @@ class GoogleADKAgent(BaseAgent):
     @staticmethod
     def _build_adk_runner(
         api_key: str,
+        api_base: str | None,
         model_name: str,
         max_completion_tokens: int,
         session_service: BaseSessionService,
+        request_metadata: dict[str, str] | None = None,
     ) -> AdkRunner:
-        os.environ["GROQ_API_KEY"] = api_key
+        os.environ["OPENAI_API_KEY"] = api_key
+        if api_base:
+            os.environ["OPENAI_API_BASE"] = api_base
         os.environ.setdefault("PYTHONUTF8", "1")
-        provider_model = model_name if model_name.startswith("groq/") else f"groq/{model_name}"
+        provider_model = (
+            model_name
+            if model_name.startswith("openai/")
+            else f"openai/{model_name}"
+        )
         model_options: dict[str, Any] = {
+            "drop_params": True,
             "include_reasoning": False,
             "max_tokens": max_completion_tokens,
+            "api_key": api_key,
         }
-        if "qwen/qwen3" in provider_model.lower():
-            model_options["reasoning_effort"] = "none"
+        if api_base:
+            model_options["api_base"] = api_base
+        if request_metadata:
+            metadata = {
+                key: str(value)
+                for key, value in request_metadata.items()
+                if value is not None and str(value) != ""
+            }
+            model_options["metadata"] = metadata
+            model_options["user"] = metadata.get("user_id") or metadata.get("session_id")
         root_agent = LlmAgent(
             name="adk_spark_worker",
             model=LiteLlm(model=provider_model, **model_options),
@@ -163,7 +192,16 @@ class GoogleADKAgent(BaseAgent):
             session_service=session_service,
         )
 
-    async def _execute_adk(self, prompt: str, *, user_id: str, session_id: str) -> str:
+    async def _execute_adk(
+        self,
+        prompt: str,
+        *,
+        user_id: str,
+        session_id: str,
+        workflow_id: str = "",
+        task_id: str = "",
+        execution_mode: str = "direct",
+    ) -> str:
         if self._adk_runner is None or self._session_service is None:
             raise RuntimeError("Google ADK runtime is not configured.")
         session = await self._session_service.get_session(
@@ -178,7 +216,26 @@ class GoogleADKAgent(BaseAgent):
                 session_id=session_id,
             )
         final_text = ""
-        async for event in self._adk_runner.run_async(
+        runner = self._adk_runner
+        if self._api_key:
+            runner = self._build_adk_runner(
+                self._api_key,
+                self._api_base,
+                self.model_name,
+                self.max_completion_tokens,
+                self._session_service,
+                request_metadata={
+                    "agent_id": self.agent_name,
+                    "framework": "google_adk",
+                    "model_alias": self.model_name,
+                    "execution_mode": execution_mode,
+                    "workflow_id": workflow_id,
+                    "task_id": task_id,
+                    "session_id": session_id,
+                    "user_id": user_id,
+                },
+            )
+        async for event in runner.run_async(
             user_id=user_id,
             session_id=session_id,
             new_message=types.Content(

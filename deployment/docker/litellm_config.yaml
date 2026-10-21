@@ -1,0 +1,24 @@
+model_list:
+  - model_name: agentmesh-groq
+    litellm_params:
+      model: os.environ/LITELLM_UPSTREAM_MODEL
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: agentmesh-demo-fallback
+    litellm_params:
+      model: openai/agentmesh-demo-fallback
+      api_key: sk-agentmesh-demo-fallback
+      mock_response: >-
+        AgentMesh demo fallback is active because the configured upstream model
+        is unavailable. The runtime, queueing, registry, and worker flow are still
+        responding through the LiteLLM gateway.
+
+litellm_settings:
+  drop_params: true
+  num_retries: 1
+  request_timeout: 45
+  fallbacks:
+    - agentmesh-groq:
+        - agentmesh-demo-fallback
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

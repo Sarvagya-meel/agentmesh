@@ -35,7 +35,8 @@ PostgreSQL-backed repositories.
 The orchestrator is an independent supervisor service. It does not own the queue
 or directly invoke workers. Instead, it polls and claims planning, validation,
 replan, and summary actions from the control plane. LiteLLM Gateway is required
-for supervisor model calls only. Worker model calls remain a worker concern.
+for live supervisor and worker model calls; runtime services use logical aliases
+instead of provider model IDs.
 
 Long planning actions can pause by recording `planning.input_requested`; they
 resume when the control plane records `planning.input_provided`. The terminal
@@ -430,7 +431,7 @@ flowchart TB
 ### Supervisor Service
 
 - claims planning, validation, replan, and summary actions
-- calls LiteLLM Gateway for supervisor model work
+- calls LiteLLM Gateway for model work
 - selects downstream worker input fields from authorized workflow outputs
 - requests additional input with `planning.input_requested`
 - produces the final `workflow.result` for the user

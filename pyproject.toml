@@ -20,12 +20,12 @@ langgraph-framework = [
     "langgraph",
 ]
 adk-framework = [
-    "google-adk[db]==2.7.0",
+    "google-adk[db]==2.12.0",
     "google-genai",
     "asyncpg",
 ]
 model-gateway = [
-    "litellm==1.97.0",
+    "litellm==1.105.1",
 ]
 postgres-checkpoint = [
     "langgraph-checkpoint-postgres",

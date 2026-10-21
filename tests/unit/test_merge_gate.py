@@ -198,6 +198,7 @@ def test_commit_and_branch_conventions() -> None:
     assert conventional_message_error("feat(gate): add report") is None
     assert conventional_message_error("not conventional") is not None
     assert validate_route("develop", "codex/reports") is None
+    assert validate_route("develop", "dependabot/pip/develop/google-adk-2.12.0") is None
     assert validate_route("develop", "release/v0.2.0") is None
     assert validate_route("main", "release/v0.2.0") is None
     assert validate_route("main", "feature/nope") is not None

@@ -41,19 +41,13 @@ class Settings(BaseSettings):
     langsmith_api_key: SecretStr | None = None
     langsmith_workspace_id: str = ""
     google_adk_session_backend: str = "memory"
-    google_adk_model: str = ""
     google_adk_max_completion_tokens: int = Field(default=512, gt=0)
 
     llm_provider: str = "mock"
-    bedrock_model_id: str = ""
-    groq_api_key: SecretStr | None = None
-    groq_model: str = "openai/gpt-oss-120b"
-    groq_api_base: str = "https://api.groq.com/openai/v1"
-    groq_reasoning_effort: str = "medium"
-    groq_temperature: float = Field(default=0.1, ge=0, le=2)
-    groq_max_completion_tokens: int = Field(default=4096, gt=0)
-    groq_timeout_seconds: float = Field(default=45.0, gt=0)
-    litellm_enabled: bool = False
+    llm_reasoning_effort: str = "medium"
+    llm_temperature: float = Field(default=0.1, ge=0, le=2)
+    llm_max_completion_tokens: int = Field(default=4096, gt=0)
+    llm_timeout_seconds: float = Field(default=45.0, gt=0)
     litellm_api_base: str = "http://127.0.0.1:4000/v1"
     litellm_master_key: SecretStr = SecretStr("sk-agentmesh-local")
     litellm_model: str = "agentmesh-groq"

@@ -10,7 +10,7 @@
 | Validation | Pydantic | v2 |
 | Database Driver | psycopg | latest stable |
 | Orchestration | LangGraph | latest stable |
-| Supervisor Gateway | LiteLLM Gateway | supervisor model calls only |
+| LLM Gateway | LiteLLM Gateway | live supervisor and worker model calls |
 | Database | PostgreSQL | 15+ |
 | UI | Streamlit | latest stable |
 
@@ -41,10 +41,10 @@
 ### What must be behind interfaces
 
 External LLM integrations are accessed through abstract interfaces and injected
-into consumers at construction time. Supervisor model calls go through LiteLLM
-Gateway; worker model calls remain owned by worker runtime configuration. This
-keeps runtime behavior testable and allows provider swaps without changing agent
-logic.
+into consumers at construction time. Live supervisor and worker model calls go
+through LiteLLM Gateway using logical aliases. Provider credentials, upstream
+model IDs, and fallback policy stay in the gateway configuration so provider
+swaps do not require agent-code changes.
 
 ## Version Pinning
 

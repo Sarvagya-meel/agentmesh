@@ -188,6 +188,13 @@ jobs:
             --profile combined build --pull --no-cache
           docker compose --env-file .env -f deployment/docker/compose.yml \
             --profile combined up -d --wait --wait-timeout 240 --force-recreate
+      - name: Capture Docker startup diagnostics
+        if: ${{ steps.docker.outcome != 'success' }}
+        run: |
+          docker compose --env-file .env -f deployment/docker/compose.yml \
+            --profile combined ps --all
+          docker compose --env-file .env -f deployment/docker/compose.yml \
+            --profile combined logs --no-color --tail=200
       - name: Live UAT
         id: uat
         if: ${{ steps.docker.outcome == 'success' }}

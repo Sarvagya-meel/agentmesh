@@ -1,4 +1,4 @@
-# AgentMesh Interview Learning Notes
+# AgentMesh Learning Notes
 
 ## Purpose
 

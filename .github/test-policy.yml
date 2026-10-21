@@ -28,9 +28,8 @@
     {
       "suite": "llm",
       "owner": "@Sarvagya-meel",
-      "reason": "LangSmith trace ingestion is temporarily waived while the monthly quota is exhausted; live provider and deterministic runtime coverage remain required.",
-      "created_on": "2026-09-10",
-      "expires_on": "2026-10-10"
+      "reason": "Hosted LangSmith evaluation is optional when CI credentials are unavailable; deterministic and provider-free runtime coverage remain required.",
+      "permanent": true
     }
   ]
 }

@@ -20,6 +20,7 @@ CONVENTIONAL_COMMIT = re.compile(
     r"(\([a-zA-Z0-9._/-]+\))?(!)?: .+"
 )
 ALLOWED_DEVELOP_PREFIXES = (
+    "dependabot/",
     "feature/",
     "fix/",
     "chore/",

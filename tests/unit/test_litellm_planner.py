@@ -10,7 +10,7 @@ import pytest
 from agentmesh.agents.agent_langgraph_orchestrator_supervisor.factory import create_workflow_planner
 from agentmesh.agents.agent_langgraph_orchestrator_supervisor.planner import (
     CapabilityWorkflowPlanner,
-    GroqWorkflowPlanner,
+    LLMWorkflowPlanner,
 )
 from agentmesh.core.config import Settings
 from agentmesh.core.models.agent_card import AgentCard
@@ -19,7 +19,7 @@ from agentmesh.core.models.exceptions import (
     ModelProviderError,
     ValidationError,
 )
-from agentmesh.core.providers.groq import GroqStructuredOutputClient
+from agentmesh.core.providers.litellm import LiteLLMStructuredOutputClient
 
 
 class FakeStructuredOutputClient:
@@ -34,8 +34,10 @@ class FakeStructuredOutputClient:
         messages: list[dict[str, str]],
         schema_name: str,
         schema: dict[str, Any],
+        request_metadata: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         assert schema_name == "agentmesh_workflow_plan"
+        assert request_metadata is not None
         self.messages = messages
         self.schema = schema
         return self.output
@@ -58,7 +60,7 @@ def agent_cards() -> list[AgentCard]:
     ]
 
 
-def test_groq_planner_converts_strict_draft_to_agentmesh_plan() -> None:
+def test_litellm_planner_converts_strict_draft_to_agentmesh_plan() -> None:
     client = FakeStructuredOutputClient(
         {
             "rationale": "Research first, then review the findings.",
@@ -84,7 +86,7 @@ def test_groq_planner_converts_strict_draft_to_agentmesh_plan() -> None:
             ],
         }
     )
-    planner = GroqWorkflowPlanner(client, model_name="openai/gpt-oss-120b")
+    planner = LLMWorkflowPlanner(client, model_name="agentmesh-groq")
 
     plan = planner.create_plan(
         workflow_id=uuid4(),
@@ -96,8 +98,8 @@ def test_groq_planner_converts_strict_draft_to_agentmesh_plan() -> None:
     assert [task.agent_id for task in plan.tasks] == ["research-agent", "review-agent"]
     assert plan.tasks[1].dependencies == [plan.tasks[0].task_id]
     assert plan.tasks[0].payload["goal"] == "Research suitable roles and review them"
-    assert plan.planner_provider == "groq"
-    assert plan.planner_model == "openai/gpt-oss-120b"
+    assert plan.planner_provider == "litellm"
+    assert plan.planner_model == "agentmesh-groq"
     assert client.schema["additionalProperties"] is False
     assert set(json.loads(client.messages[1]["content"])["available_agents"][0]) == {
         "agent_id",
@@ -108,7 +110,7 @@ def test_groq_planner_converts_strict_draft_to_agentmesh_plan() -> None:
     }
 
 
-def test_groq_planner_rejects_unadvertised_capability() -> None:
+def test_litellm_planner_rejects_unadvertised_capability() -> None:
     client = FakeStructuredOutputClient(
         {
             "rationale": "Use an invalid capability.",
@@ -127,7 +129,7 @@ def test_groq_planner_rejects_unadvertised_capability() -> None:
     )
 
     with pytest.raises(AgentRegistryError, match="does not advertise"):
-        GroqWorkflowPlanner(client).create_plan(
+        LLMWorkflowPlanner(client).create_plan(
             workflow_id=uuid4(),
             goal="Send an email",
             agents=agent_cards(),
@@ -135,12 +137,12 @@ def test_groq_planner_rejects_unadvertised_capability() -> None:
         )
 
 
-def test_groq_client_requests_strict_json_schema() -> None:
+def test_litellm_client_requests_strict_json_schema() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
-        assert request.url.path == "/openai/v1/chat/completions"
+        assert request.url.path == "/v1/chat/completions"
         assert request.headers["authorization"] == "Bearer test-key"
-        assert body["model"] == "openai/gpt-oss-120b"
+        assert body["model"] == "agentmesh-groq"
         assert body["response_format"]["json_schema"]["strict"] is True
         return httpx.Response(
             200,
@@ -149,10 +151,10 @@ def test_groq_client_requests_strict_json_schema() -> None:
             },
         )
 
-    client = GroqStructuredOutputClient(
+    client = LiteLLMStructuredOutputClient(
         api_key="test-key",
-        model="openai/gpt-oss-120b",
-        api_base="https://api.groq.com/openai/v1",
+        model="agentmesh-groq",
+        api_base="http://litellm:4000/v1",
         reasoning_effort="medium",
         temperature=0.1,
         max_completion_tokens=4096,
@@ -172,11 +174,28 @@ def test_groq_client_requests_strict_json_schema() -> None:
     assert result["rationale"] == "ok"
 
 
-def test_planner_factory_requires_key_for_groq() -> None:
-    settings = Settings(_env_file=None, llm_provider="groq", groq_api_key=None)
+def test_planner_factory_requires_gateway_key_for_litellm() -> None:
+    settings = Settings(_env_file=None, llm_provider="litellm", litellm_master_key="")
 
-    with pytest.raises(ValidationError, match="GROQ_API_KEY"):
+    with pytest.raises(ValidationError, match="LITELLM_MASTER_KEY"):
         create_workflow_planner(settings)
+
+
+def test_planner_factory_uses_litellm_gateway_alias() -> None:
+    settings = Settings(
+        _env_file=None,
+        llm_provider="litellm",
+        litellm_master_key="gateway-key",
+        litellm_api_base="http://litellm:4000/v1",
+        litellm_model="agentmesh-groq",
+    )
+
+    planner, close = create_workflow_planner(settings)
+    try:
+        assert isinstance(planner, LLMWorkflowPlanner)
+        assert planner.model_name == "agentmesh-groq"
+    finally:
+        close()
 
 
 def test_planner_factory_keeps_mock_mode_offline() -> None:
@@ -188,14 +207,14 @@ def test_planner_factory_keeps_mock_mode_offline() -> None:
     assert isinstance(planner, CapabilityWorkflowPlanner)
 
 
-def test_groq_client_maps_rate_limits_to_provider_error() -> None:
+def test_litellm_client_maps_rate_limits_to_provider_error() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(429, headers={"retry-after": "3"}, json={"error": "limited"})
 
-    client = GroqStructuredOutputClient(
+    client = LiteLLMStructuredOutputClient(
         api_key="test-key",
-        model="openai/gpt-oss-120b",
-        api_base="https://api.groq.com/openai/v1",
+        model="agentmesh-groq",
+        api_base="http://litellm:4000/v1",
         reasoning_effort="medium",
         temperature=0.1,
         max_completion_tokens=4096,
@@ -217,7 +236,7 @@ def test_groq_client_maps_rate_limits_to_provider_error() -> None:
     assert captured.value.retry_after_seconds == 3.0
 
 
-def test_groq_client_retries_a_rate_limit() -> None:
+def test_litellm_client_retries_a_rate_limit() -> None:
     calls = 0
 
     def handler(_request: httpx.Request) -> httpx.Response:
@@ -230,10 +249,10 @@ def test_groq_client_retries_a_rate_limit() -> None:
             json={"choices": [{"message": {"content": "recovered"}}]},
         )
 
-    client = GroqStructuredOutputClient(
+    client = LiteLLMStructuredOutputClient(
         api_key="test-key",
-        model="test-model",
-        api_base="https://api.groq.com/openai/v1",
+        model="agentmesh-groq",
+        api_base="http://litellm:4000/v1",
         reasoning_effort="",
         temperature=0.1,
         max_completion_tokens=100,

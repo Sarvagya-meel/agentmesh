@@ -28,10 +28,10 @@ def test_google_adk_agent_uses_injected_llm_executor() -> None:
     assert result["final_reply"] == "LLM answer for: Explain event sourcing."
 
 
-def test_google_adk_factory_rejects_missing_key() -> None:
-    settings = Settings(llm_provider="groq", groq_api_key=None)
+def test_google_adk_factory_rejects_missing_gateway_key() -> None:
+    settings = Settings(llm_provider="litellm", litellm_master_key="")
 
-    with pytest.raises(ValidationError, match="GROQ_API_KEY"):
+    with pytest.raises(ValidationError, match="LITELLM_MASTER_KEY"):
         create_google_adk_worker_agent(settings)
 
 
@@ -46,30 +46,38 @@ def test_google_adk_factory_mock_agent_can_execute() -> None:
     close()
 
 
-def test_google_adk_factory_rejects_gpt_oss_tool_choice_mismatch() -> None:
-    settings = Settings(llm_provider="groq", groq_api_key="test-key", google_adk_model="")
+def test_google_adk_factory_rejects_missing_litellm_model() -> None:
+    settings = Settings(
+        llm_provider="litellm",
+        litellm_master_key="test-key",
+        litellm_model="",
+    )
 
-    with pytest.raises(ValidationError, match="ADK-compatible"):
+    with pytest.raises(ValidationError, match="LITELLM_MODEL"):
         create_google_adk_worker_agent(settings)
 
 
-def test_google_adk_factory_uses_adk_specific_groq_model_override() -> None:
+def test_google_adk_factory_uses_litellm_gateway_alias() -> None:
     settings = Settings(
-        llm_provider="groq",
-        groq_api_key="test-key",
-        google_adk_model="qwen/qwen3.6-27b",
+        llm_provider="litellm",
+        litellm_master_key="test-key",
+        litellm_api_base="http://litellm:4000/v1",
+        litellm_model="agentmesh-groq",
         google_adk_max_completion_tokens=384,
         google_adk_session_backend="memory",
     )
     agent, close = create_google_adk_worker_agent(settings)
 
     assert isinstance(agent, GoogleADKAgent)
-    assert agent.model_name == "qwen/qwen3.6-27b"
+    assert agent.model_name == "agentmesh-groq"
     assert agent._adk_runner is not None
+    assert agent._adk_runner.agent.model.model == "openai/agentmesh-groq"
     assert agent._adk_runner.agent.model._additional_args == {
+        "drop_params": True,
         "include_reasoning": False,
         "max_tokens": 384,
-        "reasoning_effort": "none",
+        "api_key": "test-key",
+        "api_base": "http://litellm:4000/v1",
     }
 
     close()
@@ -116,6 +124,7 @@ async def test_google_adk_agent_closes_database_sessions_from_async_runtime() ->
         auto_register=False,
         model_name="test-model",
         api_key="test-key",
+        api_base="http://litellm:4000/v1",
         session_service=session_service,
     )
     event_thread = agent._event_thread
@@ -126,11 +135,40 @@ async def test_google_adk_agent_closes_database_sessions_from_async_runtime() ->
     assert not event_thread.is_alive()
 
 
+def test_google_adk_runner_can_attach_litellm_request_metadata() -> None:
+    session_service = DatabaseSessionService(db_url="sqlite+aiosqlite:///:memory:")
+
+    runner = GoogleADKAgent._build_adk_runner(
+        "test-key",
+        "http://litellm:4000/v1",
+        "agentmesh-groq",
+        384,
+        session_service,
+        request_metadata={
+            "agent_id": "googleADK-Chatagent",
+            "framework": "google_adk",
+            "model_alias": "agentmesh-groq",
+            "session_id": "agent:workflow-123:task-456",
+            "user_id": "streamlit-user",
+        },
+    )
+
+    assert runner.agent.model._additional_args["metadata"] == {
+        "agent_id": "googleADK-Chatagent",
+        "framework": "google_adk",
+        "model_alias": "agentmesh-groq",
+        "session_id": "agent:workflow-123:task-456",
+        "user_id": "streamlit-user",
+    }
+    assert runner.agent.model._additional_args["user"] == "streamlit-user"
+
+
 def test_google_adk_provider_failures_are_domain_errors() -> None:
     agent = GoogleADKAgent(
         auto_register=False,
         model_name="test-model",
         api_key="test-key",
+        api_base="http://litellm:4000/v1",
         session_service=DatabaseSessionService(db_url="sqlite+aiosqlite:///:memory:"),
     )
 

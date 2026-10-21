@@ -66,7 +66,7 @@ The selective adoption matrix is:
 
 - Postgres is the source of truth; Redis and a separate message broker are not required.
 - Workers retain synchronous `/invoke` endpoints; the control plane invokes them asynchronously from its dispatcher.
-- The supervisor alone uses the LiteLLM Gateway in this release.
+- Live supervisor and worker LLM calls use the LiteLLM Gateway in this release.
 - Parallel joins use `all_required`; quorum and first-success joins are deferred.
 - Local service-token authorization is included to enforce context isolation. Full production identity integration is deferred.
 - Existing `tasks`, `runs`, and orchestrator `/invoke` behavior remains temporarily available as deprecated compatibility paths.
@@ -103,7 +103,7 @@ flowchart TD
 |---|---|---|
 | Control plane | Registration, requests, queue leases, DAG state, retries, dispatch, deterministic validation, events, checkpoints, authorization | LLM planning or semantic judgement |
 | Supervisor | Plan generation, per-step context selection, quality review, hallucination checks, sibling reuse decisions, replanning, final summary | Direct worker invocation or in-memory workflow authority |
-| LiteLLM Gateway | Supervisor model routing, provider credentials, provider fallback, normalized model API | Workflow retries or worker dispatch |
+| LiteLLM Gateway | Live LLM model routing, provider credentials, provider fallback, normalized model API | Workflow retries or worker dispatch |
 | Worker | Execute only the supplied task and input manifest, return structured output and evidence | Browse workflow events or access undeclared inputs |
 | Streamlit | Submit requests, poll status, show progress, collect input and approvals | Execute or mutate workflow state directly |
 
@@ -407,10 +407,13 @@ On restart, the reconciler loads current database state, verifies the latest che
 ## 10. Supervisor and LiteLLM
 
 - LiteLLM runs as a required Compose service using a pinned stable image.
-- The supervisor calls its OpenAI-compatible API with a gateway key and base URL.
+- The supervisor and LLM-backed workers call its OpenAI-compatible API with a gateway key and base URL.
 - Provider credentials exist only in the LiteLLM container.
-- Logical aliases are `supervisor-planner`, `supervisor-validator`, and `supervisor-summarizer`; they may initially map to the same upstream model.
+- Logical aliases include `LITELLM_MODEL` for app services; specialized aliases such as `supervisor-planner`, `supervisor-validator`, and `supervisor-summarizer` may be added when routing needs diverge.
 - LiteLLM performs at most one provider-level retry or fallback. The control plane owns durable supervisor-action retry budgets.
+- The default local gateway config includes a deterministic `agentmesh-demo-fallback`
+  model group for demonstrations when the upstream provider is unavailable. This
+  is separate from in-process mock mode used by deterministic tests.
 - The supervisor validates every model result through Pydantic. One schema-repair call is permitted before the action is reported as retryable or failed.
 - Planning, validation, replanning, and summary prompts are versioned and recorded with model name, latency, token usage, and outcome. Hidden reasoning is not persisted.
 - Docker health checks use LiteLLM's liveness endpoint. The general model-health response is not exposed publicly.

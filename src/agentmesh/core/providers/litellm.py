@@ -9,8 +9,8 @@ import httpx
 from agentmesh.core.models.exceptions import ModelProviderError
 
 
-class GroqStructuredOutputClient:
-    """Small Groq adapter for strict JSON-schema chat completions."""
+class LiteLLMStructuredOutputClient:
+    """OpenAI-compatible LiteLLM Gateway client for text and structured output."""
 
     def __init__(
         self,
@@ -46,6 +46,7 @@ class GroqStructuredOutputClient:
         messages: list[dict[str, str]],
         schema_name: str,
         schema: dict[str, Any],
+        request_metadata: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         request_body: dict[str, Any] = {
             "model": self.model,
@@ -61,6 +62,7 @@ class GroqStructuredOutputClient:
                 },
             },
         }
+        self._attach_request_metadata(request_body, request_metadata)
         if self.reasoning_effort:
             request_body["reasoning_effort"] = self.reasoning_effort
 
@@ -69,12 +71,17 @@ class GroqStructuredOutputClient:
         try:
             parsed = cast(object, json.loads(content))
         except json.JSONDecodeError as exc:
-            raise ModelProviderError("Groq returned malformed JSON.") from exc
+            raise ModelProviderError("LiteLLM returned malformed JSON.") from exc
         if not isinstance(parsed, dict):
-            raise ModelProviderError("Groq structured output must be a JSON object.")
+            raise ModelProviderError("LiteLLM structured output must be a JSON object.")
         return cast(dict[str, Any], parsed)
 
-    def create_text_completion(self, *, messages: list[dict[str, str]]) -> str:
+    def create_text_completion(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        request_metadata: dict[str, str] | None = None,
+    ) -> str:
         """Return one plain-text chat completion for a worker agent."""
 
         request_body: dict[str, Any] = {
@@ -83,9 +90,29 @@ class GroqStructuredOutputClient:
             "temperature": self.temperature,
             "max_completion_tokens": self.max_completion_tokens,
         }
+        self._attach_request_metadata(request_body, request_metadata)
         if self.reasoning_effort:
             request_body["reasoning_effort"] = self.reasoning_effort
         return self._extract_content(self._post(request_body))
+
+    @staticmethod
+    def _attach_request_metadata(
+        request_body: dict[str, Any],
+        request_metadata: dict[str, str] | None,
+    ) -> None:
+        if not request_metadata:
+            return
+        clean_metadata = {
+            str(key): str(value)
+            for key, value in request_metadata.items()
+            if value is not None and str(value)
+        }
+        if not clean_metadata:
+            return
+        request_body["metadata"] = clean_metadata
+        user = clean_metadata.get("user_id") or clean_metadata.get("session_id")
+        if user:
+            request_body["user"] = user
 
     def _post(self, request_body: dict[str, Any]) -> httpx.Response:
         for attempt in range(self.retry_attempts):
@@ -101,7 +128,7 @@ class GroqStructuredOutputClient:
                     delay = self._retry_delay(retry_after, attempt)
                     time.sleep(delay)
                     continue
-                detail = f"Groq returned HTTP {status_code}."
+                detail = f"LiteLLM returned HTTP {status_code}."
                 if retry_after:
                     detail = f"{detail} Retry after {retry_after} seconds."
                 raise ModelProviderError(
@@ -114,12 +141,15 @@ class GroqStructuredOutputClient:
                 if attempt + 1 < self.retry_attempts:
                     time.sleep(0.5 * (2**attempt))
                     continue
-                raise ModelProviderError("Groq is currently unreachable.", retryable=True) from exc
-        raise ModelProviderError("Groq retry loop exited unexpectedly.", retryable=True)
+                raise ModelProviderError(
+                    "LiteLLM is currently unreachable.",
+                    retryable=True,
+                ) from exc
+        raise ModelProviderError("LiteLLM retry loop exited unexpectedly.", retryable=True)
 
     @staticmethod
     def _retry_delay(retry_after: str | None, attempt: int) -> float:
-        parsed = GroqStructuredOutputClient._parse_retry_after(retry_after)
+        parsed = LiteLLMStructuredOutputClient._parse_retry_after(retry_after)
         if parsed is not None:
             return min(parsed, 30.0)
         return float(0.5 * (2**attempt))
@@ -138,21 +168,21 @@ class GroqStructuredOutputClient:
         try:
             raw_response = cast(object, response.json())
         except ValueError as exc:
-            raise ModelProviderError("Groq returned a non-JSON response.") from exc
+            raise ModelProviderError("LiteLLM returned a non-JSON response.") from exc
         if not isinstance(raw_response, dict):
-            raise ModelProviderError("Groq returned an invalid response object.")
+            raise ModelProviderError("LiteLLM returned an invalid response object.")
         choices = raw_response.get("choices")
         if not isinstance(choices, list) or not choices:
-            raise ModelProviderError("Groq returned no completion choices.")
+            raise ModelProviderError("LiteLLM returned no completion choices.")
         first_choice = choices[0]
         if not isinstance(first_choice, dict):
-            raise ModelProviderError("Groq returned an invalid completion choice.")
+            raise ModelProviderError("LiteLLM returned an invalid completion choice.")
         message = first_choice.get("message")
         if not isinstance(message, dict):
-            raise ModelProviderError("Groq returned an invalid completion message.")
+            raise ModelProviderError("LiteLLM returned an invalid completion message.")
         content = message.get("content")
         if not isinstance(content, str) or not content.strip():
-            raise ModelProviderError("Groq returned an empty completion.")
+            raise ModelProviderError("LiteLLM returned an empty completion.")
         return content.strip()
 
     def close(self) -> None:
