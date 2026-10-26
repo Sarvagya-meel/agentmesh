@@ -7,6 +7,8 @@ Conventional Commits to decide release notes and version movement.
 
 ## Unreleased
 
+## v0.1.2 - 2026-10-26
+
 ## v0.1.1 - 2026-09-10
 
 ### Changed
